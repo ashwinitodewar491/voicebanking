@@ -26,7 +26,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate transactions API response structure")
+    @Test(groups = {"regression"}, description = "Should validate transactions API response structure")
     public void testTransactionsResponse() throws Exception {
 
         JsonNode response = getTransactionsResponse();
@@ -50,7 +50,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
         Assert.assertTrue(response.has("data"));
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate transaction list and pagination details")
+    @Test(groups = {"regression"}, description = "Should validate transaction list and pagination details")
     public void testTransactionListPagination() throws Exception {
 
         JsonNode data = getTransactionsResponse().get("data");
@@ -72,7 +72,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
                 "Invalid page size");
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate transaction schema and values")
+    @Test(groups = {"regression"}, description = "Should validate transaction schema and values")
     public void testTransactionDataValidation() throws Exception {
 
         JsonNode transactions

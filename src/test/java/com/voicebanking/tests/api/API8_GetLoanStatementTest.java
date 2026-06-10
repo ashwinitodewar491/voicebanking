@@ -27,7 +27,7 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate loan statement response structure")
+    @Test(groups = {"regression"}, description = "Should validate loan statement response structure")
     public void testLoanStatementResponse() throws Exception {
 
         JsonNode response = getLoanStatementResponse();
@@ -56,7 +56,7 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
         Assert.assertTrue(data.has("totalPages"));
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate loan statement data and transactions")
+    @Test(groups = {"regression"}, description = "Should validate loan statement data and transactions")
     public void testLoanStatementDataValidation() throws Exception {
 
         JsonNode response = getLoanStatementResponse();

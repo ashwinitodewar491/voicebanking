@@ -25,7 +25,7 @@ public class API3_GetAccountBalanceTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate account balance API response")
+    @Test(groups = {"smoke", "regression"}, description = "Should validate account balance API response")
     public void testAccountBalanceResponse() throws Exception {
 
         JsonNode response = getAccountBalanceResponse();
@@ -51,7 +51,7 @@ public class API3_GetAccountBalanceTest extends BaseApiPage {
                 "Data node is missing");
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate account balance data and business rules")
+    @Test(groups = {"smoke", "regression"}, description = "Should validate account balance data and business rules")
     public void testAccountBalanceDataValidation() throws Exception {
 
         JsonNode data = getAccountBalanceResponse().get("data");

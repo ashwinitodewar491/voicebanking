@@ -23,7 +23,7 @@ public class API9_GetLoanOverdueDetailsTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate loan overdue response structure")
+    @Test(groups = {"regression"}, description = "Should validate loan overdue response structure")
     public void testLoanOverdueResponse() throws Exception {
 
         JsonNode response = getLoanOverdueResponse();
@@ -56,7 +56,7 @@ public class API9_GetLoanOverdueDetailsTest extends BaseApiPage {
         Assert.assertTrue(data.has("maturityDate"));
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate overdue loan business data")
+    @Test(groups = {"regression"}, description = "Should validate overdue loan business data")
     public void testLoanOverdueDataValidation() throws Exception {
 
         JsonNode response = getLoanOverdueResponse();

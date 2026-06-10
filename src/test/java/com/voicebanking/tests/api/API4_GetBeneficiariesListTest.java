@@ -24,7 +24,7 @@ public class API4_GetBeneficiariesListTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate beneficiaries API response structure")
+    @Test(groups = {"regression"}, description = "Should validate beneficiaries API response structure")
     public void testBeneficiariesResponse() throws Exception {
 
         JsonNode response = getBeneficiariesResponse();
@@ -55,7 +55,7 @@ public class API4_GetBeneficiariesListTest extends BaseApiPage {
                 response.get("data").get("beneficiaries").isArray());
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate beneficiary schema and field values")
+    @Test(groups = {"regression"}, description = "Should validate beneficiary schema and field values")
     public void testBeneficiarySchemaValidation() throws Exception {
 
         JsonNode beneficiaries
@@ -106,7 +106,7 @@ public class API4_GetBeneficiariesListTest extends BaseApiPage {
         }
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate expected beneficiary data")
+    @Test(groups = {"regression"}, description = "Should validate expected beneficiary data")
     public void testBeneficiaryDataValidation() throws Exception {
 
         JsonNode beneficiaries
