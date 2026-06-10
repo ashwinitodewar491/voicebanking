@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public final class Constants {
+
     private Constants() {
     }
 
@@ -22,6 +23,10 @@ public final class Constants {
     // Fixed values
     public static final String EXISTING_CUSTOMER_ID = "CIF202602260001";
     public static final String EXISTING_ACCOUNT_ID = "ACC202602260001";
+    public static final String RECEIVER_CUSTOMER_ID = "CIF202602260002";
+    public static final String RECEIVER_ACCOUNT_ID = "ACC202602260006";
+    public static final String RECEIVER_BENEFICIARY_ID = "a3c7e2b5-6f44-4a01-8c45-3f8c2e7b4d04";
+    public static final String ORIGINAL_SENDER_BENEFICIARY_ID = "";
     public static final String SUCCESS_STATUS = "success";
     public static final int SUCCESS_STATUS_CODE = 200;
 
@@ -34,15 +39,15 @@ public final class Constants {
     public static final String VERIFIED_KYC_STATUS = "VERIFIED";
     public static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$";
     public static final String MOBILE_REGEX = "^\\d{10}$";
-    public static final String EXPECTED_CUSTOMER_ID = "CIF202602260002";
-    public static final String EXPECTED_CUSTOMER_NAME = "Priya Singh";
-    public static final String EXPECTED_CUSTOMER_EMAIL = "priya.singh@gmail.com";
-    public static final String EXPECTED_CUSTOMER_MOBILE = "9123456780";
-    public static final String EXPECTED_CUSTOMER_DOB = "1988-08-15";
+    public static final String EXPECTED_CUSTOMER_ID = "CIF202602260001";
+    public static final String EXPECTED_CUSTOMER_NAME = "Amit Sharma";
+    public static final String EXPECTED_CUSTOMER_EMAIL = "amit.sharma@gmail.com";
+    public static final String EXPECTED_CUSTOMER_MOBILE = "9876543210";
+    public static final String EXPECTED_CUSTOMER_DOB = "1990-05-21";
 
     // Account Balance
-    public static final String EXPECTED_ACCOUNT_ID = "ACC202602260006";
-    public static final String EXPECTED_MASKED_ACCOUNT = "XXXX0006";
+    public static final String EXPECTED_ACCOUNT_ID = "ACC202602260001";
+    public static final String EXPECTED_MASKED_ACCOUNT = "XXXX0001";
     public static final double EXPECTED_ACCOUNT_BALANCE = 6931.15;
 
     // Beneficiary List
@@ -80,9 +85,14 @@ public final class Constants {
     public static final int LOAN_STATEMENT_SIZE = 10;
     public static final int LOAN_STATEMENT_TOTAL_PAGES = 5;
     public static final int LOAN_STATEMENT_TOTAL_ELEMENTS = 50;
+    // Loan Statement
+
+    public static final String LOAN_STATEMENT_FROM_DATE = "2022-03-01";
+    public static final String LOAN_STATEMENT_TO_DATE = "2026-09-01";
 
     //Loan Overdue
     public static final String CUSTOMER_SHORT_NAME = "Amit Sharma";
+    public static final double TOTAL_OVERDUE_AMOUNT = 0.0;
 
     public static final double LOAN_AMOUNT = 500000.0;
     public static final double PRINCIPAL_BALANCE = 450000.0;
@@ -99,5 +109,17 @@ public final class Constants {
     public static final String CUSTOMER_NAME = "Amit Sharma";
     public static final String INR_CURRENCY = "INR";
     public static final String MONTH_TERM_UNIT = "M";
+
+    public static final String TRANSACTION_TO_DATE = "2026-05-26";
+
+    public static final int DEFAULT_PAGE = 0;
+    public static final int DEFAULT_PAGE_SIZE = 100;
+
+    public static final String EXISTING_CUSTOMER_ID_1 = "CIF202602260028";
+    public static final String EXISTING_ACCOUNT_ID_1 = "ACC202602260033";
+    public static final String RECEIVER_CUSTOMER_ID_1 = "CIF202602260006";
+    public static final String RECEIVER_ACCOUNT_ID_1 = "ACC202602260009";
+    public static final String RECEIVER_BENEFICIARY_ID_1 = "0ca1d48f-f967-8a5b-e142-8d76c041e6cc4";
+    public static final String ORIGINAL_SENDER_BENEFICIARY_ID_1 = "c8fe1a72-3fe3-76d4-d4f3-9d2e085d3a88";
 
 }
