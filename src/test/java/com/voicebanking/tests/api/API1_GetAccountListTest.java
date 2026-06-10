@@ -23,7 +23,7 @@ public class API1_GetAccountListTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(description = "Verify account list API response structure")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Verify account list API response structure")
     public void testGetAccountList() throws Exception {
 
         JsonNode response = getAccountListResponse();
@@ -49,7 +49,7 @@ public class API1_GetAccountListTest extends BaseApiPage {
         Assert.assertTrue(response.get("data").get("accountList").isArray());
     }
 
-    @Test(description = "Verify account details and account types")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Verify account details and account types")
     public void testValidateAccountDetails() throws Exception {
 
         JsonNode response = getAccountListResponse();
