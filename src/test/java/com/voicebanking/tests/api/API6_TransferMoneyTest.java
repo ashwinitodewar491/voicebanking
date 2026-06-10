@@ -1,109 +1,135 @@
 package com.voicebanking.tests.api;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.voicebanking.DataText.Endpoints;
-import com.voicebanking.DataText.Constants;
-import com.voicebanking.pages.BaseApiPage;
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
 import java.util.HashMap;
 import java.util.Map;
 
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.voicebanking.DataText.Constants;
+import com.voicebanking.DataText.Endpoints;
+import com.voicebanking.pages.BaseApiPage;
+
 public class API6_TransferMoneyTest extends BaseApiPage {
 
-    @Test(description = "Should transfer money successfully")
-    public void testTransferMoney() throws Exception {
+    private JsonNode transferMoney(
+            String customerId,
+            String accountId,
+            String beneficiaryId,
+            double amount,
+            String description) throws Exception {
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("customerId", Constants.EXISTING_CUSTOMER_ID);
-        requestBody.put("fromAccountId", Constants.EXISTING_ACCOUNT_ID);
-        requestBody.put("beneficiaryId", "a3c7e2b5-6f44-4a01-8c45-3f8c2e7b4d04");
-        requestBody.put("amount", 1000.00);
-        requestBody.put("description", "IMPS to Shailesh Kumar");
+        Map<String, Object> request = new HashMap<>();
 
-        JsonNode response = apiClient.post(
+        request.put("customerId", customerId);
+        request.put("fromAccountId", accountId);
+        request.put("beneficiaryId", beneficiaryId);
+        request.put("amount", amount);
+        request.put("description", description);
+
+        return apiClient.post(
                 Endpoints.TRANSFER_MONEY,
-                requestBody);
+                request);
+    }
 
-        Assert.assertEquals(response.get("status").asText(), Constants.SUCCESS_STATUS);
-        Assert.assertEquals(response.get("statusCode").asInt(), Constants.SUCCESS_STATUS_CODE);
-        Assert.assertTrue(
-                response.has("message"),
-                Constants.MESSAGE_EXIST);
+    private double getBalance(
+            String accountId,
+            String customerId) throws Exception {
+
+        Map<String, String> request = new HashMap<>();
+
+        request.put("accountId", accountId);
+        request.put("customerId", customerId);
+        request.put("accountType", Constants.SAVINGS_ACCOUNT_TYPE);
+
+        JsonNode response
+                = apiClient.post(Endpoints.ACCOUNT_BALANCE, request);
 
         Assert.assertEquals(
-                response.get("message").asText(),
-                Constants.TRANSFER_MONEY_SUCCESS_MESSAGE);
-        Assert.assertTrue(response.has("data"));
+                response.get("status").asText(),
+                Constants.SUCCESS_STATUS);
+
+        return response.get("data")
+                .get("balance")
+                .asDouble();
     }
 
-    @Test(description = "Transfer response should contain transaction details")
-    public void testTransferResponse() throws Exception {
+    @Test(description
+            = "Verify transfer, balance deduction, credit and cleanup")
+    public void testTransferBalanceChaining() throws Exception {
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("customerId", Constants.EXISTING_CUSTOMER_ID);
-        requestBody.put("fromAccountId", Constants.EXISTING_ACCOUNT_ID);
-        requestBody.put("beneficiaryId", "a3c7e2b5-6f44-4a01-8c45-3f8c2e7b4d04");
-        requestBody.put("amount", 1000.00);
-        requestBody.put("description", "IMPS to Shailesh Kumar");
+        double amount = 10.00;
 
-        JsonNode response = apiClient.post(
-                Endpoints.TRANSFER_MONEY,
-                requestBody);
+        // Given
+        double senderBefore = getBalance(
+                Constants.EXISTING_ACCOUNT_ID_1,
+                Constants.EXISTING_CUSTOMER_ID_1);
 
-        JsonNode data = response.get("data");
+        double receiverBefore = getBalance(
+                Constants.RECEIVER_ACCOUNT_ID_1,
+                Constants.RECEIVER_CUSTOMER_ID_1);
 
-        Assert.assertTrue(data.has("transactionId"));
-        Assert.assertTrue(data.has("status"));
-        Assert.assertTrue(data.has("balanceAfterTxn"));
-        Assert.assertTrue(data.has("transactionDate"));
-    }
+        // When
+        JsonNode transferResponse = transferMoney(
+                Constants.EXISTING_CUSTOMER_ID_1,
+                Constants.EXISTING_ACCOUNT_ID_1,
+                Constants.RECEIVER_BENEFICIARY_ID_1,
+                amount,
+                "Transfer Validation Test");
 
-    @Test(description = "Transfer status should be SUCCESS")
-    public void testTransferStatus() throws Exception {
+        // Then
+        Assert.assertEquals(
+                transferResponse.get("status").asText(),
+                Constants.SUCCESS_STATUS);
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("customerId", Constants.EXISTING_CUSTOMER_ID);
-        requestBody.put("fromAccountId", Constants.EXISTING_ACCOUNT_ID);
-        requestBody.put("beneficiaryId", "a3c7e2b5-6f44-4a01-8c45-3f8c2e7b4d04");
-        requestBody.put("amount", 500.00);
-        requestBody.put("description", "IMPS Transfer");
+        double senderAfter = getBalance(
+                Constants.EXISTING_ACCOUNT_ID,
+                Constants.EXISTING_CUSTOMER_ID_1);
 
-        JsonNode response = apiClient.post(
-                Endpoints.TRANSFER_MONEY,
-                requestBody);
-
-        JsonNode data = response.get("data");
+        double receiverAfter = getBalance(
+                Constants.RECEIVER_ACCOUNT_ID_1,
+                Constants.RECEIVER_CUSTOMER_ID_1);
 
         Assert.assertEquals(
-                data.get("status").asText(),
-                "SUCCESS",
-                "Transfer status should be SUCCESS");
+                senderAfter,
+                senderBefore - amount,
+                0.01);
+
+        Assert.assertEquals(
+                receiverAfter,
+                receiverBefore + amount,
+                0.01);
+
+        Assert.assertEquals(
+                senderAfter,
+                transferResponse.get("data")
+                        .get("balanceAfterTxn")
+                        .asDouble(),
+                0.01);
+
+        // Cleanup
+        transferMoney(
+                Constants.RECEIVER_CUSTOMER_ID_1,
+                Constants.RECEIVER_ACCOUNT_ID_1,
+                Constants.ORIGINAL_SENDER_BENEFICIARY_ID_1,
+                amount,
+                "Cleanup Refund");
+
+        // Verify cleanup
+        Assert.assertEquals(
+                getBalance(
+                        Constants.EXISTING_ACCOUNT_ID_1,
+                        Constants.EXISTING_CUSTOMER_ID_1),
+                senderBefore,
+                0.01);
+
+        Assert.assertEquals(
+                getBalance(
+                        Constants.RECEIVER_ACCOUNT_ID_1,
+                        Constants.RECEIVER_CUSTOMER_ID_1),
+                receiverBefore,
+                0.01);
     }
 
-    @Test(description = "Balance after transaction should be numeric")
-    public void testBalanceAfterTransfer() throws Exception {
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("customerId", Constants.EXISTING_CUSTOMER_ID);
-        requestBody.put("fromAccountId", Constants.EXISTING_ACCOUNT_ID);
-        requestBody.put("beneficiaryId", "a3c7e2b5-6f44-4a01-8c45-3f8c2e7b4d04");
-        requestBody.put("amount", 500.00);
-        requestBody.put("description", "IMPS Transfer");
-
-        JsonNode response = apiClient.post(
-                Endpoints.TRANSFER_MONEY,
-                requestBody);
-
-        JsonNode data = response.get("data");
-
-        Assert.assertTrue(
-                data.get("balanceAfterTxn").isNumber(),
-                "Balance after transaction should be numeric");
-
-        Assert.assertTrue(
-                data.get("balanceAfterTxn").asDouble() >= 0,
-                "Balance after transaction should not be negative");
-    }
 }

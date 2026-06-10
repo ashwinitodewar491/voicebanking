@@ -1,8 +1,8 @@
 package com.voicebanking.tests.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.DataText.Constants;
+import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BaseApiPage;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -12,21 +12,32 @@ import java.util.Map;
 
 public class API5_GetTransactionsListTest extends BaseApiPage {
 
-    @Test(description = "Should retrieve transactions list")
-    public void testGetTransactionsList() throws Exception {
+    private JsonNode getTransactionsResponse() throws Exception {
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("accountId", Constants.EXISTING_ACCOUNT_ID);
-        requestBody.put("toDate", "2026-05-26");
-        requestBody.put("page", 0);
-        requestBody.put("size", 100);
+        requestBody.put("toDate", Constants.TRANSACTION_TO_DATE);
+        requestBody.put("page", Constants.DEFAULT_PAGE);
+        requestBody.put("size", Constants.DEFAULT_PAGE_SIZE);
 
-        JsonNode response = apiClient.post(
+        return apiClient.post(
                 Endpoints.TRANSACTIONS_LIST,
                 requestBody);
+    }
 
-        Assert.assertEquals(response.get("status").asText(), Constants.SUCCESS_STATUS);
-        Assert.assertEquals(response.get("statusCode").asInt(), Constants.SUCCESS_STATUS_CODE);
+    @Test(description = "Should validate transactions API response structure")
+    public void testTransactionsResponse() throws Exception {
+
+        JsonNode response = getTransactionsResponse();
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.SUCCESS_STATUS);
+
+        Assert.assertEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE);
+
         Assert.assertTrue(
                 response.has("message"),
                 Constants.MESSAGE_EXIST);
@@ -34,75 +45,62 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
         Assert.assertEquals(
                 response.get("message").asText(),
                 Constants.TRANSACTIONS_LIST_SUCCESS_MESSAGE);
+
         Assert.assertTrue(response.has("data"));
     }
 
-    @Test(description = "Should contain transaction list with pagination")
-    public void testTransactionsListPagination() throws Exception {
+    @Test(description = "Should validate transaction list and pagination details")
+    public void testTransactionListPagination() throws Exception {
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("accountId", Constants.EXISTING_ACCOUNT_ID);
-        requestBody.put("toDate", "2026-05-26");
-        requestBody.put("page", 0);
-        requestBody.put("size", 100);
-
-        JsonNode response = apiClient.post(
-                Endpoints.TRANSACTIONS_LIST,
-                requestBody);
-
-        JsonNode data = response.get("data");
+        JsonNode data = getTransactionsResponse().get("data");
 
         Assert.assertTrue(data.has("transactionList"));
         Assert.assertTrue(data.get("transactionList").isArray());
+
         Assert.assertTrue(data.has("page"));
         Assert.assertTrue(data.has("size"));
         Assert.assertTrue(data.has("totalElements"));
         Assert.assertTrue(data.has("totalPages"));
+
+        Assert.assertTrue(
+                data.get("page").asInt() >= 0,
+                "Invalid page number");
+
+        Assert.assertTrue(
+                data.get("size").asInt() > 0,
+                "Invalid page size");
     }
 
-    @Test(description = "Transaction should have required fields")
-    public void testTransactionFields() throws Exception {
+    @Test(description = "Should validate transaction schema and values")
+    public void testTransactionDataValidation() throws Exception {
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("accountId", Constants.EXISTING_ACCOUNT_ID);
-        requestBody.put("toDate", "2026-05-26");
-        requestBody.put("page", 0);
-        requestBody.put("size", 10);
+        JsonNode transactions
+                = getTransactionsResponse()
+                        .get("data")
+                        .get("transactionList");
 
-        JsonNode response = apiClient.post(
-                Endpoints.TRANSACTIONS_LIST,
-                requestBody);
+        for (JsonNode transaction : transactions) {
 
-        JsonNode transactions = response.get("data").get("transactionList");
-
-        if (transactions.size() > 0) {
-            JsonNode transaction = transactions.get(0);
-
+            // Mandatory fields
             Assert.assertTrue(transaction.has("transactionId"));
             Assert.assertTrue(transaction.has("amount"));
             Assert.assertTrue(transaction.has("type"));
             Assert.assertTrue(transaction.has("description"));
-        }
-    }
 
-    @Test(description = "Amount should be numeric")
-    public void testTransactionAmount() throws Exception {
+            // Non-empty validations
+            Assert.assertFalse(
+                    transaction.get("transactionId").asText().isBlank(),
+                    "transactionId is empty");
 
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("accountId", Constants.EXISTING_ACCOUNT_ID);
-        requestBody.put("toDate", "2026-05-26");
-        requestBody.put("page", 0);
-        requestBody.put("size", 10);
+            Assert.assertFalse(
+                    transaction.get("type").asText().isBlank(),
+                    "transaction type is empty");
 
-        JsonNode response = apiClient.post(
-                Endpoints.TRANSACTIONS_LIST,
-                requestBody);
+            Assert.assertFalse(
+                    transaction.get("description").asText().isBlank(),
+                    "description is empty");
 
-        JsonNode transactions = response.get("data").get("transactionList");
-
-        if (transactions.size() > 0) {
-            JsonNode transaction = transactions.get(0);
-
+            // Amount validations
             Assert.assertTrue(
                     transaction.get("amount").isNumber(),
                     "Amount should be numeric");
