@@ -1,14 +1,15 @@
 package com.voicebanking.tests.api;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BaseApiPage;
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class API8_GetLoanStatementTest extends BaseApiPage {
 
@@ -26,7 +27,7 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(description = "Should validate loan statement response structure")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate loan statement response structure")
     public void testLoanStatementResponse() throws Exception {
 
         JsonNode response = getLoanStatementResponse();
@@ -55,7 +56,7 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
         Assert.assertTrue(data.has("totalPages"));
     }
 
-    @Test(description = "Should validate loan statement data and transactions")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate loan statement data and transactions")
     public void testLoanStatementDataValidation() throws Exception {
 
         JsonNode response = getLoanStatementResponse();

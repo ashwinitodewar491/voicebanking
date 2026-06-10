@@ -1,14 +1,15 @@
 package com.voicebanking.tests.api;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BaseApiPage;
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class API5_GetTransactionsListTest extends BaseApiPage {
 
@@ -25,7 +26,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(description = "Should validate transactions API response structure")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate transactions API response structure")
     public void testTransactionsResponse() throws Exception {
 
         JsonNode response = getTransactionsResponse();
@@ -49,7 +50,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
         Assert.assertTrue(response.has("data"));
     }
 
-    @Test(description = "Should validate transaction list and pagination details")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate transaction list and pagination details")
     public void testTransactionListPagination() throws Exception {
 
         JsonNode data = getTransactionsResponse().get("data");
@@ -71,7 +72,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
                 "Invalid page size");
     }
 
-    @Test(description = "Should validate transaction schema and values")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate transaction schema and values")
     public void testTransactionDataValidation() throws Exception {
 
         JsonNode transactions

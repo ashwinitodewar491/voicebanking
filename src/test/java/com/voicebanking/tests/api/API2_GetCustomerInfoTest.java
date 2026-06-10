@@ -22,7 +22,7 @@ public class API2_GetCustomerInfoTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(description = "Should validate customer info API response structure")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate customer info API response structure")
     public void testCustomerInfoResponse() throws Exception {
 
         JsonNode response = getCustomerInfoResponse();
@@ -48,22 +48,22 @@ public class API2_GetCustomerInfoTest extends BaseApiPage {
                 "Data node is missing");
     }
 
-    @Test(description = "Should validate customer information and business data")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate customer information and business data")
     public void testCustomerDataValidation() throws Exception {
 
         JsonNode data = getCustomerInfoResponse().get("data");
 
         // Mandatory fields
         String[] requiredFields = {
-                "customerId",
-                "name",
-                "email",
-                "mobileNumber",
-                "dateOfBirth",
-                "status",
-                "kycStatus",
-                "createdDate",
-                "updatedDate"
+            "customerId",
+            "name",
+            "email",
+            "mobileNumber",
+            "dateOfBirth",
+            "status",
+            "kycStatus",
+            "createdDate",
+            "updatedDate"
         };
 
         for (String field : requiredFields) {

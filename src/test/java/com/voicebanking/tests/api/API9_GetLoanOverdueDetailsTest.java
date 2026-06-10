@@ -1,14 +1,15 @@
 package com.voicebanking.tests.api;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BaseApiPage;
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class API9_GetLoanOverdueDetailsTest extends BaseApiPage {
 
@@ -22,7 +23,7 @@ public class API9_GetLoanOverdueDetailsTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(description = "Should validate loan overdue response structure")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate loan overdue response structure")
     public void testLoanOverdueResponse() throws Exception {
 
         JsonNode response = getLoanOverdueResponse();
@@ -55,7 +56,7 @@ public class API9_GetLoanOverdueDetailsTest extends BaseApiPage {
         Assert.assertTrue(data.has("maturityDate"));
     }
 
-    @Test(description = "Should validate overdue loan business data")
+    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate overdue loan business data")
     public void testLoanOverdueDataValidation() throws Exception {
 
         JsonNode response = getLoanOverdueResponse();
