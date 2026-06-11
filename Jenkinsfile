@@ -30,7 +30,7 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                sh "mvn clean test -DtestGroups=${params.SUITE}"
+                bat "mvn clean test -DtestGroups=${params.SUITE}"
             }
         }
     }
