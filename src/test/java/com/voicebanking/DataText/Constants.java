@@ -115,11 +115,11 @@ public final class Constants {
     public static final int DEFAULT_PAGE = 0;
     public static final int DEFAULT_PAGE_SIZE = 100;
 
-    public static final String EXISTING_CUSTOMER_ID_1 = "CIF202602260028";
-    public static final String EXISTING_ACCOUNT_ID_1 = "ACC202602260033";
-    public static final String RECEIVER_CUSTOMER_ID_1 = "CIF202602260006";
-    public static final String RECEIVER_ACCOUNT_ID_1 = "ACC202602260009";
-    public static final String RECEIVER_BENEFICIARY_ID_1 = "0ca1d48f-f967-8a5b-e142-8d76c041e6cc4";
-    public static final String ORIGINAL_SENDER_BENEFICIARY_ID_1 = "c8fe1a72-3fe3-76d4-d4f3-9d2e085d3a88";
+    public static final String SENDER_CUSTOMER_ID_ORIGINAL = "CIF202602260028";
+    public static final String SENDER_ACCOUNT_ID_ORIGINAL = "ACC202602260033";
+    public static final String RECEIVER_CUSTOMER_ID_1 = "CIF202602260029";
+    public static final String RECEIVER_ACCOUNT_ID_1 = "ACC202602260034";
+    public static final String RECEIVER_BENEFICIARY_ID_1 = "0ca1d48f-f967-8a5b-e142-8d76c041e6cc";
+    public static final String SENDER_BENEFICIARY_ID_ORIGINAL = "c8fe1a72-3fe3-76d4-d4f3-9d2e085d3a88";
 
 }

@@ -55,7 +55,7 @@ public class API6_TransferMoneyTest extends BaseApiPage {
                 .asDouble();
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description
+    @Test(groups = {"smoke", "regression", "api"}, description
             = "Verify transfer, balance deduction, credit and cleanup")
     public void testTransferBalanceChaining() throws Exception {
 
@@ -63,20 +63,23 @@ public class API6_TransferMoneyTest extends BaseApiPage {
 
         // Given
         double senderBefore = getBalance(
-                Constants.EXISTING_ACCOUNT_ID_1,
-                Constants.EXISTING_CUSTOMER_ID_1);
+                Constants.SENDER_ACCOUNT_ID_ORIGINAL,
+                Constants.SENDER_CUSTOMER_ID_ORIGINAL);
+        System.out.println("Sender Before: " + senderBefore);
 
         double receiverBefore = getBalance(
                 Constants.RECEIVER_ACCOUNT_ID_1,
                 Constants.RECEIVER_CUSTOMER_ID_1);
+        System.out.println("Receiver Before: " + receiverBefore);
 
         // When
         JsonNode transferResponse = transferMoney(
-                Constants.EXISTING_CUSTOMER_ID_1,
-                Constants.EXISTING_ACCOUNT_ID_1,
+                Constants.SENDER_CUSTOMER_ID_ORIGINAL,
+                Constants.SENDER_ACCOUNT_ID_ORIGINAL,
                 Constants.RECEIVER_BENEFICIARY_ID_1,
                 amount,
                 "Transfer Validation Test");
+        System.out.println("Transfer Response: " + transferResponse);
 
         // Then
         Assert.assertEquals(
@@ -84,12 +87,14 @@ public class API6_TransferMoneyTest extends BaseApiPage {
                 Constants.SUCCESS_STATUS);
 
         double senderAfter = getBalance(
-                Constants.EXISTING_ACCOUNT_ID,
-                Constants.EXISTING_CUSTOMER_ID_1);
+                Constants.SENDER_ACCOUNT_ID_ORIGINAL,
+                Constants.SENDER_CUSTOMER_ID_ORIGINAL);
+        System.out.println("Sender After: " + senderAfter);
 
         double receiverAfter = getBalance(
                 Constants.RECEIVER_ACCOUNT_ID_1,
                 Constants.RECEIVER_CUSTOMER_ID_1);
+        System.out.println("Receiver After: " + receiverAfter);
 
         Assert.assertEquals(
                 senderAfter,
@@ -112,15 +117,15 @@ public class API6_TransferMoneyTest extends BaseApiPage {
         transferMoney(
                 Constants.RECEIVER_CUSTOMER_ID_1,
                 Constants.RECEIVER_ACCOUNT_ID_1,
-                Constants.ORIGINAL_SENDER_BENEFICIARY_ID_1,
+                Constants.SENDER_BENEFICIARY_ID_ORIGINAL,
                 amount,
                 "Cleanup Refund");
 
         // Verify cleanup
         Assert.assertEquals(
                 getBalance(
-                        Constants.EXISTING_ACCOUNT_ID_1,
-                        Constants.EXISTING_CUSTOMER_ID_1),
+                        Constants.SENDER_ACCOUNT_ID_ORIGINAL,
+                        Constants.SENDER_CUSTOMER_ID_ORIGINAL),
                 senderBefore,
                 0.01);
 

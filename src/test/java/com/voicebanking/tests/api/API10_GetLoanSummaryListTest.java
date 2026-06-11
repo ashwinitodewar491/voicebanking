@@ -29,7 +29,7 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
                 .get("loanDetails");
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate loan summary response structure")
+    @Test(groups = {"regression", "api"}, description = "Should validate loan summary response structure")
     public void testLoanSummaryResponse() throws Exception {
 
         JsonNode response = getResponse();
@@ -57,7 +57,7 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
                 "loanDetails should be an array");
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate all loan details")
+    @Test(groups = {"regression", "api"}, description = "Should validate all loan details")
     public void testLoanDetailsValidation() throws Exception {
 
         JsonNode loans = getLoanDetails();
@@ -121,7 +121,7 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
         }
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate communication addresses")
+    @Test(groups = {"regression", "api"}, description = "Should validate communication addresses")
     public void testCommunicationAddressValidation() throws Exception {
 
         JsonNode loans = getLoanDetails();
@@ -164,7 +164,7 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
         }
     }
 
-    @Test(groups = {"smoke", "sanity", "regression"}, description = "Should validate expected loan products")
+    @Test(groups = {"regression", "api"}, description = "Should validate expected loan products")
     public void testLoanProductTypes() throws Exception {
 
         JsonNode loans = getLoanDetails();
