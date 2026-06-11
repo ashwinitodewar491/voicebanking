@@ -22,7 +22,7 @@ public class API2_GetCustomerInfoTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"smoke", "regression"}, description = "Should validate customer info API response structure")
+    @Test(groups = {"smoke", "regression", "api"}, description = "Should validate customer info API response structure")
     public void testCustomerInfoResponse() throws Exception {
 
         JsonNode response = getCustomerInfoResponse();
@@ -48,7 +48,7 @@ public class API2_GetCustomerInfoTest extends BaseApiPage {
                 "Data node is missing");
     }
 
-    @Test(groups = {"smoke", "regression"}, description = "Should validate customer information and business data")
+    @Test(groups = {"smoke", "regression", "api"}, description = "Should validate customer information and business data")
     public void testCustomerDataValidation() throws Exception {
 
         JsonNode data = getCustomerInfoResponse().get("data");

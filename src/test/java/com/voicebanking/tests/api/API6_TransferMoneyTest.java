@@ -55,7 +55,7 @@ public class API6_TransferMoneyTest extends BaseApiPage {
                 .asDouble();
     }
 
-    @Test(groups = {"smoke", "regression"}, description
+    @Test(groups = {"smoke", "regression", "api"}, description
             = "Verify transfer, balance deduction, credit and cleanup")
     public void testTransferBalanceChaining() throws Exception {
 

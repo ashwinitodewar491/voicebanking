@@ -23,7 +23,7 @@ public class API1_GetAccountListTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"smoke", "regression"}, description = "Verify account list API response structure")
+    @Test(groups = {"smoke", "regression", "api"}, description = "Verify account list API response structure")
     public void testGetAccountList() throws Exception {
 
         JsonNode response = getAccountListResponse();
