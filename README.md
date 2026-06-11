@@ -1,454 +1,210 @@
-# Voice Banking API - Playwright Java Automation Suite
+# Voice Banking — Automation Suite
 
-## Overview
-
-A comprehensive test automation suite for Voice Banking APIs and UI using **Playwright with Java**. This framework provides unified API and UI testing with special support for **microphone access** for voice-based banking operations.
-
-### Why Playwright?
-✅ **Unified Framework** - API + UI testing in one tool  
-✅ **Microphone Support** - Native browser permission management  
-✅ **Voice Testing** - Speech recognition and audio streaming  
-✅ **Java-based** - Enterprise-grade with Maven integration  
-✅ **Fast Execution** - Parallel test execution  
-✅ **Cross-browser** - Chrome, Firefox, Safari support  
+API and UI test automation for the Voice Banking platform.  
+**Current coverage: 9 APIs, 21 test methods, 2 environments (staging + prod).**
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-# 1. Clone and navigate to project
-cd VoiceBankingAPI
+# Run all tests (uses fallback prod URL)
+mvn clean test
 
-# 2. Install dependencies
-mvn clean install
+# Run smoke suite
+mvn clean test -DtestGroups=smoke
 
-# 3. Run all tests
-mvn test
+# Run regression suite
+mvn clean test -DtestGroups=regression
 
-# 4. Run specific test
-mvn test -Dtest=API1_GetAccountListTest
-
-# 5. Run with custom API URL
-mvn test -DAPI_BASE_URL=http://your-server:8007
+# Run against staging
+mvn clean test -DtestGroups=smoke -DAPI_BASE_URL=http://staging-server:9090
 ```
 
 ---
 
-## 📋 Documentation
+## Technology Stack
 
-### 1. **TEST_PLAN.md** - Comprehensive Testing Strategy
-- Project overview and scope
-- Detailed comparison: Playwright vs Selenium vs Cypress
-- Test pyramid and strategy
-- Microphone access implementation
-- Complete test execution architecture
-- **When to read**: Understanding testing approach and why Playwright
-
-### 2. **MICROPHONE_TESTING_GUIDE.md** - Voice Banking Automation
-- Browser setup with microphone permissions
-- Voice input simulation
-- Audio level capture
-- Voice command testing examples
-- Advanced microphone testing techniques
-- CI/CD integration examples
-- **When to read**: Implementing voice/microphone features
-
-### 3. **QUICK_REFERENCE.md** - Developer Cheat Sheet
-- Installation and setup
-- Test execution commands
-- API endpoint details
-- Test data reference
-- Debugging techniques
-- CI/CD pipeline examples
-- **When to read**: Quick lookup while developing tests
+| Component | Technology | Version |
+|---|---|---|
+| Language | Java (Eclipse Temurin) | 21 |
+| Build | Maven | 3.8+ |
+| Test Framework | TestNG | 7.x |
+| HTTP Client | Playwright `APIRequestContext` | 1.50.0 |
+| JSON Parsing | Jackson Databind | 2.16.0 |
+| CI/CD | Jenkins Declarative Pipeline | — |
 
 ---
 
-## 📁 Project Structure
+## Code Flow
+
+```mermaid
+flowchart TD
+    A[Backend Deploy\nor Frontend Deploy] --> B[Trigger Jenkins Job]
+    B --> C["Parameters:\nENV = staging | prod\nSUITE = smoke | regression"]
+    C --> D[Checkout code from SCM]
+    D --> E["Set API_BASE_URL\n(STAGING_API_URL or PROD_API_URL\nfrom Jenkins global vars)"]
+    E --> F["mvn clean test\n-DtestGroups=SUITE"]
+    F --> G["Maven Surefire Plugin\nreads testng.xml\nfilters by groups property"]
+    G --> H["TestNG Runner\ndiscovers annotated test methods"]
+    H --> I["BaseApiPage\n@BeforeMethod alwaysRun=true\nnew APIClient(API_BASE_URL)"]
+    I --> J{Group Selected}
+    J -->|smoke| K["7 tests\nAPI1 API2 API3 API6"]
+    J -->|regression| L["21 tests\nAll 9 APIs"]
+    J -->|api| L
+    K --> M["APIClient\nPlaywright APIRequestContext\nHTTP POST to API server"]
+    L --> M
+    M --> N["API Server\nstaging or prod"]
+    N --> O[JSON Response]
+    O --> P["TestNG Assertions\nstatus · statusCode · data fields\nbusiness rules"]
+    P --> Q["target/surefire-reports/*.xml"]
+    Q --> R["Jenkins JUnit Plugin\nPublish test results"]
+    R --> S{Result}
+    S -->|Pass| T[Build SUCCESS]
+    S -->|Fail| U[Build FAILURE + echo log]
+```
+
+---
+
+## Test Groups
+
+| Group | Tests | Purpose |
+|---|---|---|
+| `smoke` | 7 methods (API1, API2, API3, API6) | Quick sanity after any deploy |
+| `regression` | 21 methods (all 9 APIs) | Full regression |
+| `api` | 21 methods (all 9 APIs) | Run all API tests |
+
+---
+
+## Environments
+
+| Environment | URL | Trigger |
+|---|---|---|
+| `staging` | `STAGING_API_URL` Jenkins global var | Every backend/frontend deploy to staging |
+| `prod` | `PROD_API_URL` Jenkins global var | Every deploy to prod |
+
+---
+
+## Project Structure
 
 ```
-VoiceBankingAPI/
-│
+voicebanking/
 ├── src/test/java/com/voicebanking/
-│   ├── tests/                          # Test Classes (9 API tests)
-│   │   ├── API1_GetAccountListTest.java
-│   │   ├── API2_GetCustomerInfoTest.java
-│   │   ├── API3_GetAccountBalanceTest.java
-│   │   ├── API4_GetBeneficiariesListTest.java
-│   │   ├── API5_GetTransactionsListTest.java
-│   │   ├── API6_TransferMoneyTest.java
-│   │   ├── API8_GetLoanStatementTest.java
-│   │   ├── API9_GetLoanOverdueDetailsTest.java
-│   │   └── API10_GetLoanSummaryListTest.java
-│   │
-│   ├── utils/                          # Reusable Utilities
-│   │   └── APIClient.java              # Playwright API request wrapper
-│   │
-│   └── pages/                          # Page Objects (for UI testing)
-│       └── VoiceBankingWelcomePage.java
-│
-├── pom.xml                             # Maven Configuration
-├── TEST_PLAN.md                        # ⭐ START HERE - Comprehensive test plan
-├── MICROPHONE_TESTING_GUIDE.md        # Voice/Microphone testing guide
-├── QUICK_REFERENCE.md                 # Quick lookup reference
-└── README.md                           # This file
-
+│   ├── DataText/
+│   │   ├── Constants.java          # Test data, expected values
+│   │   └── Endpoints.java          # API paths + base URLs
+│   ├── utils/
+│   │   └── APIClient.java          # Playwright HTTP wrapper
+│   ├── pages/
+│   │   └── BaseApiPage.java        # @BeforeMethod — creates APIClient
+│   └── tests/api/
+│       ├── API1_GetAccountListTest.java
+│       ├── API2_GetCustomerInfoTest.java
+│       ├── API3_GetAccountBalanceTest.java
+│       ├── API4_GetBeneficiariesListTest.java
+│       ├── API5_GetTransactionsListTest.java
+│       ├── API6_TransferMoneyTest.java
+│       ├── API8_GetLoanStatementTest.java
+│       ├── API9_GetLoanOverdueDetailsTest.java
+│       └── API10_GetLoanSummaryListTest.java
+├── testng.xml                      # Suite — all 9 classes
+├── Jenkinsfile                     # CI pipeline
+├── pom.xml                         # Maven config
+├── TEST_PLAN.md                    # Full test plan + roadmap
+├── TEST_CASES.xlsx                 # Test case register
+├── QUICK_REFERENCE.md              # Commands cheat sheet
+├── MICROPHONE_TESTING_GUIDE.md    # Future voice testing reference
+└── BDD_FRAMEWORKS_GUIDE.md        # Future BDD options reference
 ```
 
 ---
 
-## ✅ Supported APIs
+## API Coverage
 
-| API | Endpoint | Method | Status |
-|-----|----------|--------|--------|
-| 1 | `/api/v1/accounts/list` | POST | ✅ Implemented |
-| 2 | `/api/v1/customers/info` | POST | ✅ Implemented |
-| 3 | `/api/v1/accounts/balance` | POST | ✅ Implemented |
-| 4 | `/api/v1/beneficiaries/list` | POST | ✅ Implemented |
-| 5 | `/api/v1/transactions/list` | POST | ✅ Implemented |
-| 6 | `/api/v1/transactions/transfer` | POST | ✅ Implemented |
-| 8 | `/api/v1/loans/statement` | POST | ✅ Implemented |
-| 9 | `/api/v1/loans/overdue` | POST | ✅ Implemented |
-| 10 | `/api/v1/loans/summary` | POST | ✅ Implemented |
-
-**Not Included** (Per Requirements): APIs 7, 11, 12, 13
+| API | Endpoint | Groups | Auto |
+|---|---|---|---|
+| 1 — Account List | POST `/api/v1/accounts/list` | smoke, regression, api | ✅ |
+| 2 — Customer Info | POST `/api/v1/customers/info` | smoke, regression, api | ✅ |
+| 3 — Account Balance | POST `/api/v1/accounts/balance` | smoke, regression, api | ✅ |
+| 4 — Beneficiaries | POST `/api/v1/beneficiaries/list` | regression, api | ✅ |
+| 5 — Transactions | POST `/api/v1/transactions/list` | regression, api | ✅ |
+| 6 — Transfer Money | POST `/api/v1/transactions/transfer` | smoke, regression, api | ✅ |
+| 7 — (out of scope) | — | — | — |
+| 8 — Loan Statement | POST `/api/v1/loans/statement` | regression, api | ✅ |
+| 9 — Loan Overdue | POST `/api/v1/loans/overdue` | regression, api | ✅ |
+| 10 — Loan Summary | POST `/api/v1/loans/summary` | regression, api | ✅ |
+| 11–13 — (out of scope) | — | — | — |
 
 ---
 
-## 🛠 Technology Stack
+## Jenkins Pipeline
 
-### Core Framework
-- **Playwright Java** (1.50.0) - API & UI Automation
-- **JUnit 5** (5.10.0) - Test Framework
-- **Jackson** (2.16.0) - JSON Processing
-- **Java** (17) - Programming Language
-- **Maven** (3.8+) - Build Tool
+The `Jenkinsfile` in the repo root defines the pipeline.
 
-### Key Capabilities
+**Parameters:**
+
+| Parameter | Options |
+|---|---|
+| `ENV` | `staging`, `prod` |
+| `SUITE` | `smoke`, `regression` |
+
+**DevOps must configure these Jenkins global environment variables:**
+
+| Variable | Example |
+|---|---|
+| `STAGING_API_URL` | `http://staging-server:9090` |
+| `PROD_API_URL` | `http://98.93.75.232:9090` |
+
+**Auto-trigger setup** (DevOps to configure on backend/frontend deploy jobs):
+
 ```
-┌─────────────────────────────────┐
-│     Playwright (Multi-browser)   │
-├─────────────────────────────────┤
-│                                  │
-│  ┌─────────────────────────────┐ │
-│  │   APIRequestContext         │ │  ← API Testing
-│  │ (HTTP POST/GET/etc)         │ │
-│  └─────────────────────────────┘ │
-│                                  │
-│  ┌─────────────────────────────┐ │
-│  │   BrowserContext + Page     │ │  ← UI Testing
-│  │ (Navigation, Clicks, etc)   │ │
-│  └─────────────────────────────┘ │
-│                                  │
-│  ┌─────────────────────────────┐ │
-│  │   Permissions Management    │ │  ← Microphone Access
-│  │ (Microphone, Geolocation)   │ │
-│  └─────────────────────────────┘ │
-│                                  │
-└─────────────────────────────────┘
+After successful backend deploy to staging  → trigger this job: ENV=staging, SUITE=smoke
+After successful frontend deploy to staging → trigger this job: ENV=staging, SUITE=smoke
+After successful deploy to prod             → trigger this job: ENV=prod,    SUITE=smoke
+Nightly scheduled (staging)                 → trigger this job: ENV=staging, SUITE=regression
 ```
 
 ---
 
-## 🎯 Test Features
+## Test Results
 
-### API Testing
-- ✅ HTTP Method Support (POST, GET, PUT, DELETE)
-- ✅ JSON Request/Response Handling
-- ✅ Response Status Validation
-- ✅ Data Structure Assertion
-- ✅ Error Handling
-- ✅ Custom Headers & Authentication
+Results in `target/surefire-reports/`.
 
-### UI Testing  
-- ✅ Page Navigation
-- ✅ Element Interaction (Click, Type, Select)
-- ✅ Element Visibility Waiting
-- ✅ Screenshot Capture
-- ✅ Video Recording
-- ✅ Network Interception
-
-### Voice/Microphone Features
-- ✅ Browser Permission Management
-- ✅ Microphone Permission Grant/Revoke
-- ✅ Audio Stream Access
-- ✅ Voice Command Simulation
-- ✅ Audio Level Capture
-- ✅ Speech Recognition API Support
-
----
-
-## 📊 Test Execution Examples
-
-### Run All Tests
 ```bash
-mvn test
-```
-
-### Run Specific API Tests
-```bash
-# Single test
-mvn test -Dtest=API1_GetAccountListTest
-
-# Multiple tests
-mvn test -Dtest=API1_*Test,API2_*Test
-
-# By pattern
-mvn test -Dtest=*AccountTest
-```
-
-### Custom Configuration
-```bash
-# Custom API server
-mvn test -DAPI_BASE_URL=http://staging:8007
-
-# Parallel execution (5 threads)
-mvn test -DthreadCount=5
-
-# Skip tests during build
-mvn clean install -DskipTests
-
-# Fail on error
-mvn test -fae
-```
-
-### Debug Mode
-```bash
-# Verbose output
-mvn test -X
-
-# With IDE debugger
-mvn test -Dtest=API1_GetAccountListTest -Ddebug
-```
-
----
-
-## 🔧 Configuration
-
-### Environment Variables
-```bash
-export API_BASE_URL=http://localhost:8007
-export JAVA_HOME=/path/to/java17
-export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=512m"
-```
-
-### Maven Properties (pom.xml)
-```xml
-<properties>
-    <maven.compiler.source>17</maven.compiler.source>
-    <maven.compiler.target>17</maven.compiler.target>
-    <junit.jupiter.version>5.10.0</junit.jupiter.version>
-    <playwright.version>1.50.0</playwright.version>
-</properties>
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Issue**: `Connection refused` - API not running
-```bash
-# Start API server first
-# Then run tests
-mvn test
-```
-
-**Issue**: `No tests found`
-```bash
-# Ensure test class ends with "Test"
-# Correct: API1_GetAccountListTest.java
-# Wrong: API1_GetAccountList.java
-```
-
-**Issue**: Microphone not working
-```bash
-# Set headless=false for local testing
-# Ensure browser has microphone access permission
-# See MICROPHONE_TESTING_GUIDE.md for details
-```
-
-**Issue**: Tests timeout
-```bash
-# Increase timeout in APIClient
-# Or increase surefire timeout in pom.xml
-mvn test -DtestTimeout=60000
-```
-
-See **QUICK_REFERENCE.md** for more troubleshooting tips.
-
----
-
-## 📚 Documentation Flow
-
-```
-┌─ START HERE ──────────────┐
-│                           │
-│  README.md (this file)    │  ← Overview & Quick Start
-│                           │
-└──────────────┬────────────┘
-               │
-         Choose your path:
-               │
-    ┌──────────┼──────────┐
-    │          │          │
-    ▼          ▼          ▼
-   
- Want to      Need to      Want Quick
-understand   implement     command
-why we use   voice/mic    reference?
-Playwright?  features?
-
-    │          │          │
-    ▼          ▼          ▼
-
-TEST_PLAN   MICROPHONE   QUICK_
-.md         _TESTING_    REFERENCE
-            GUIDE.md     .md
-
-  ← Comprehensive    ← Voice Banking    ← Developer
-    comparison         examples          cheat sheet
-    & strategy         & techniques
-```
-
----
-
-## 🚀 Getting Started Steps
-
-### 1. **First Time Setup** (5 min)
-```bash
-mvn clean install
-mvn test -Dtest=API1_GetAccountListTest
-```
-
-### 2. **Understand the Architecture** (15 min)
-Read: TEST_PLAN.md sections 1-3
-
-### 3. **Run Full Test Suite** (10 min)
-```bash
-mvn test
-```
-
-### 4. **Set Up Voice Testing** (20 min)
-Read: MICROPHONE_TESTING_GUIDE.md  
-Implement: Browser setup with microphone
-
-### 5. **Integrate with CI/CD** (15 min)
-Read: QUICK_REFERENCE.md (CI/CD section)  
-Implement: Jenkins/GitHub Actions
-
----
-
-## 📈 Test Results & Reporting
-
-### View Results
-```bash
-# Test output in console
-# Results also saved in:
-target/surefire-reports/
-```
-
-### Generate HTML Report
-```bash
+# HTML report
 mvn surefire-report:report
-open target/site/surefire-report.html
-```
-
-### Test Execution Summary
-```bash
-# After running tests:
-mvn test | grep -E "Tests run:|Failures:|Errors:"
+# Opens: target/site/surefire-report.html
 ```
 
 ---
 
-## 🔗 Integration Examples
+## Future: UI Automation
 
-### With Existing CI/CD
-- **Jenkins**: See QUICK_REFERENCE.md
-- **GitHub Actions**: See MICROPHONE_TESTING_GUIDE.md
-- **GitLab CI**: Available on request
-- **Azure Pipelines**: Available on request
+UI automation is planned using Playwright browser APIs (same framework dependency already in `pom.xml`).
 
-### With Test Management Tools
-- **Allure Reports**: Requires allure-maven plugin
-- **TestNG**: Change JUnit5 to TestNG (pom.xml)
-- **Cucumber**: Can integrate with Gherkin syntax
+Planned coverage:
+- Login / Logout
+- Account list and balance screens
+- Transfer money flow
+- Loan summary and statement pages
+- Voice / Microphone permission and voice command tests
 
----
-
-## 💡 Key Features
-
-### Unified Testing
-```
-Single Framework
-    ├── API Testing
-    ├── UI Testing  
-    ├── Voice Testing
-    └── Integration Tests
-```
-
-### Microphone Support
-```
-Native Browser Permissions
-    ├── Pre-grant microphone
-    ├── Simulate voice input
-    ├── Capture audio streams
-    └── Test error handling
-```
-
-### Enterprise Ready
-```
-Production-Grade Features
-    ├── Parallel Execution
-    ├── Retry Logic
-    ├── Detailed Reporting
-    ├── CI/CD Integration
-    ├── Multiple Environments
-    └── Scalable Architecture
-```
+See [TEST_PLAN.md](TEST_PLAN.md) → Section 4 for the full UI roadmap.
 
 ---
 
-## 📞 Support & Resources
+## Documentation
 
-### Documentation
-- 📖 **TEST_PLAN.md** - Comprehensive strategy
-- 🎤 **MICROPHONE_TESTING_GUIDE.md** - Voice features
-- ⚡ **QUICK_REFERENCE.md** - Command reference
-- 📄 **README.md** - This file
-
-### External Resources
-- [Playwright Java Documentation](https://playwright.dev/java/)
-- [JUnit 5 Documentation](https://junit.org/junit5/)
-- [Maven Documentation](https://maven.apache.org/)
+| File | Purpose |
+|---|---|
+| [README.md](README.md) | This file — start here |
+| [TEST_PLAN.md](TEST_PLAN.md) | Full test plan, strategy, roadmap |
+| [TEST_CASES.xlsx](TEST_CASES.xlsx) | All test cases (automated + manual) with groups |
+| [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Commands cheat sheet, common issues |
+| [MICROPHONE_TESTING_GUIDE.md](MICROPHONE_TESTING_GUIDE.md) | Voice/microphone implementation reference |
+| [BDD_FRAMEWORKS_GUIDE.md](BDD_FRAMEWORKS_GUIDE.md) | BDD options for future consideration |
 
 ---
 
-## 📝 Notes
-
-- **Default API URL**: http://localhost:8007
-- **Default Browser**: Chromium (auto-download via Playwright)
-- **Java Version**: 17 (Enterprise standard)
-- **Test Framework**: JUnit 5 (Latest)
-- **Execution Model**: Parallel by default (configurable)
-
----
-
-## ✨ Next Steps
-
-1. ✅ **Read**: TEST_PLAN.md (understand the "why")
-2. ✅ **Run**: `mvn test` (verify setup)
-3. ✅ **Review**: Test results in `target/surefire-reports/`
-4. ✅ **Explore**: MICROPHONE_TESTING_GUIDE.md (for voice features)
-5. ✅ **Reference**: QUICK_REFERENCE.md (during development)
-
----
-
-**Project Created**: June 2026  
-**Framework**: Playwright Java  
-**Test Coverage**: APIs 1-6, 8-10  
-**Status**: ✅ Production Ready
-
+**Status**: API automation complete ✅ | UI automation planned 🔜  
+**Java**: 21 | **Framework**: TestNG | **CI**: Jenkins

@@ -1,428 +1,202 @@
-# Voice Banking API Test Framework - Quick Reference
+# Voice Banking — Quick Reference
 
-## Project Setup
+## Prerequisites
 
-### Prerequisites
-- Java 17+
-- Maven 3.8+
-- Git
-
-### Installation
-
-```bash
-# Clone/navigate to project
-cd VoiceBankingAPI
-
-# Install dependencies
-mvn clean install
-
-# Playwright will auto-download browsers
-mvn exec:java -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install chromium"
-```
+| Tool | Version | Notes |
+|---|---|---|
+| Java (Eclipse Temurin) | 21 | Set `JAVA_HOME` to JDK 21 path |
+| Maven | 3.8+ | `mvn -version` to verify |
+| Git | Any | For source checkout |
 
 ---
 
-## Running Tests
+## Running Tests Locally
 
-### Run All API Tests
+### Run all tests
 ```bash
-mvn test
+mvn clean test
 ```
 
-### Run Specific API Test
+### Run by group
 ```bash
-# Test API 1 - Get Account List
+# Smoke only — fast sanity check (API1, API2, API3, API6)
+mvn clean test -DtestGroups=smoke
+
+# Full regression — all 9 APIs (21 test methods)
+mvn clean test -DtestGroups=regression
+
+# All API tests
+mvn clean test -DtestGroups=api
+```
+
+### Run against a specific environment
+```bash
+# Staging
+mvn clean test -DtestGroups=smoke -DAPI_BASE_URL=http://staging-server:9090
+
+# Prod
+mvn clean test -DtestGroups=smoke -DAPI_BASE_URL=http://98.93.75.232:9090
+```
+
+### Run a single test class
+```bash
 mvn test -Dtest=API1_GetAccountListTest
-
-# Test API 2 - Get Customer Info
-mvn test -Dtest=API2_GetCustomerInfoTest
-
-# Test API 3 - Account Balance
-mvn test -Dtest=API3_GetAccountBalanceTest
+mvn test -Dtest=API6_TransferMoneyTest
 ```
 
-### Run All Tests with Custom Base URL
+### Skip tests during build
 ```bash
-mvn test -DAPI_BASE_URL=http://your-server:8007
-```
-
-### Run Tests in Parallel
-```bash
-mvn test -DthreadCount=5
-```
-
-### Run Tests with Verbose Output
-```bash
-mvn test -X
+mvn clean install -DskipTests
 ```
 
 ---
 
-## Test Coverage
+## Jenkins Pipeline
 
-| API | Test Class | Status |
-|-----|-----------|--------|
-| 1 | API1_GetAccountListTest.java | ✅ Ready |
-| 2 | API2_GetCustomerInfoTest.java | ✅ Ready |
-| 3 | API3_GetAccountBalanceTest.java | ✅ Ready |
-| 4 | API4_GetBeneficiariesListTest.java | ✅ Ready |
-| 5 | API5_GetTransactionsListTest.java | ✅ Ready |
-| 6 | API6_TransferMoneyTest.java | ✅ Ready |
-| 8 | API8_GetLoanStatementTest.java | ✅ Ready |
-| 9 | API9_GetLoanOverdueDetailsTest.java | ✅ Ready |
-| 10 | API10_GetLoanSummaryListTest.java | ✅ Ready |
+### Manual trigger (from Jenkins UI)
+1. Open the automation job → **Build with Parameters**
+2. Set `ENV` = `staging` or `prod`
+3. Set `SUITE` = `smoke` or `regression`
+4. Click **Build**
+
+### What each combination runs
+
+| ENV | SUITE | What runs |
+|---|---|---|
+| staging | smoke | API1, API2, API3, API6 — quick sanity |
+| staging | regression | All 9 APIs |
+| prod | smoke | API1, API2, API3, API6 — prod sanity |
+| prod | regression | All 9 APIs |
+
+### Jenkins global vars required (DevOps to configure)
+```
+STAGING_API_URL = http://staging-server:9090
+PROD_API_URL    = http://98.93.75.232:9090
+```
+Set at: **Manage Jenkins → Configure System → Global properties → Environment variables**
+
+---
+
+## Test Coverage Summary
+
+| API | Test Class | Groups | Test Count |
+|---|---|---|---|
+| 1 — Account List | API1_GetAccountListTest | smoke, regression, api | 2 |
+| 2 — Customer Info | API2_GetCustomerInfoTest | smoke, regression, api | 2 |
+| 3 — Account Balance | API3_GetAccountBalanceTest | smoke, regression, api | 2 |
+| 4 — Beneficiaries | API4_GetBeneficiariesListTest | regression, api | 3 |
+| 5 — Transactions | API5_GetTransactionsListTest | regression, api | 3 |
+| 6 — Transfer Money | API6_TransferMoneyTest | smoke, regression, api | 1 |
+| 8 — Loan Statement | API8_GetLoanStatementTest | regression, api | 2 |
+| 9 — Loan Overdue | API9_GetLoanOverdueDetailsTest | regression, api | 2 |
+| 10 — Loan Summary | API10_GetLoanSummaryListTest | regression, api | 4 |
+
+**Smoke total: 7 methods | Regression/API total: 21 methods**
 
 ---
 
 ## Project Structure
 
 ```
-VoiceBankingAPI/
-├── src/
-│   └── test/
-│       └── java/
-│           └── com/voicebanking/
-│               ├── tests/              # Test classes
-│               │   ├── API1_GetAccountListTest.java
-│               │   ├── API2_GetCustomerInfoTest.java
-│               │   ├── API3_GetAccountBalanceTest.java
-│               │   ├── API4_GetBeneficiariesListTest.java
-│               │   ├── API5_GetTransactionsListTest.java
-│               │   ├── API6_TransferMoneyTest.java
-│               │   ├── API8_GetLoanStatementTest.java
-│               │   ├── API9_GetLoanOverdueDetailsTest.java
-│               │   └── API10_GetLoanSummaryListTest.java
-│               ├── utils/              # Utilities
-│               │   └── APIClient.java
-│               └── pages/              # Page Objects (for UI testing)
-│                   └── VoiceBankingWelcomePage.java
-├── pom.xml                             # Maven configuration
-├── TEST_PLAN.md                        # Comprehensive test plan
-├── MICROPHONE_TESTING_GUIDE.md        # Voice/Microphone testing guide
-└── README.md                           # This file
+voicebanking/
+├── src/test/java/com/voicebanking/
+│   ├── DataText/
+│   │   ├── Constants.java          # Test data (IDs, expected values)
+│   │   └── Endpoints.java          # API endpoint paths + base URLs
+│   ├── utils/
+│   │   └── APIClient.java          # Playwright HTTP wrapper
+│   ├── pages/
+│   │   └── BaseApiPage.java        # @BeforeMethod setUp() — creates APIClient
+│   └── tests/api/
+│       ├── API1_GetAccountListTest.java
+│       ├── API2_GetCustomerInfoTest.java
+│       ├── API3_GetAccountBalanceTest.java
+│       ├── API4_GetBeneficiariesListTest.java
+│       ├── API5_GetTransactionsListTest.java
+│       ├── API6_TransferMoneyTest.java
+│       ├── API8_GetLoanStatementTest.java
+│       ├── API9_GetLoanOverdueDetailsTest.java
+│       └── API10_GetLoanSummaryListTest.java
+├── testng.xml                      # Suite definition (all 9 classes)
+├── Jenkinsfile                     # CI pipeline (ENV + SUITE params)
+├── pom.xml                         # Maven config (Java 21, TestNG, Playwright)
+├── TEST_PLAN.md                    # Full test plan + roadmap
+├── TEST_CASES.xlsx                 # Test case register (automated + manual)
+├── QUICK_REFERENCE.md              # This file
+├── README.md                       # Getting started
+├── MICROPHONE_TESTING_GUIDE.md    # Future voice/microphone reference
+└── BDD_FRAMEWORKS_GUIDE.md        # Future BDD options reference
 ```
 
 ---
 
-## Key Technologies
+## API Endpoints
 
-### Playwright Java
-- **Version**: 1.50.0
-- **Purpose**: API & UI automation with microphone support
-- **Features**:
-  - Native API request context (APIRequestContext)
-  - Cross-browser support (Chromium, Firefox, Safari)
-  - Browser permission management
-  - Microphone permission handling
-
-### Jackson
-- **Version**: 2.16.0
-- **Purpose**: JSON parsing and serialization
-- **Usage**: Response validation, object mapping
-
-### JUnit 5
-- **Version**: 5.10.0
-- **Purpose**: Test framework and assertions
-- **Features**: DisplayName, BeforeEach, Test annotations
-
----
-
-## API Test Details
-
-### API 1: Get Account List
-**Endpoint**: `POST /api/v1/accounts/list`
-**Request**: `{ "customerId": "CIF202602260001" }`
-**Tests**:
-- Retrieve account list
-- Verify account details structure
-- Validate account types and status
-
-### API 2: Get Customer Info
-**Endpoint**: `POST /api/v1/customers/info`
-**Request**: `{ "customerId": "CIF202602260001" }`
-**Tests**:
-- Retrieve customer information
-- Verify required fields (name, email, mobile)
-- Validate KYC status
-
-### API 3: Get Account Balance
-**Endpoint**: `POST /api/v1/accounts/balance`
-**Request**: `{ "accountId": "ACC202602260001", "customerId": "CIF202602260001", "accountType": "SAVINGS" }`
-**Tests**:
-- Get account balance
-- Verify masked account number
-- Validate numeric balance value
-
-### API 4: Get Beneficiaries List
-**Endpoint**: `POST /api/v1/beneficiaries/list`
-**Request**: `{ "customerId": "CIF202602260001", "accountId": "ACC202602260001" }`
-**Tests**:
-- Retrieve beneficiaries
-- Verify beneficiary fields
-- Validate status
-
-### API 5: Get Transactions List
-**Endpoint**: `POST /api/v1/transactions/list`
-**Request**: `{ "accountId": "ACC202602260006", "toDate": "2026-05-26", "page": 0, "size": 100 }`
-**Tests**:
-- Get transaction list
-- Verify pagination
-- Validate transaction details
-- Verify amount is numeric
-
-### API 6: Transfer Money
-**Endpoint**: `POST /api/v1/transactions/transfer`
-**Request**: `{ "customerId": "CIF202602260001", "fromAccountId": "ACC202602260001", "beneficiaryId": "...", "amount": 1000.00, "description": "IMPS" }`
-**Tests**:
-- Execute transfer
-- Verify transaction ID generated
-- Validate balance after transfer
-- Verify success status
-
-### API 8: Get Loan Statement
-**Endpoint**: `POST /api/v1/loans/statement`
-**Request**: `{ "accountId": "LN10001", "fromDate": "2022-03-01", "toDate": "2026-09-01", "page": 0, "size": 10 }`
-**Tests**:
-- Get loan statement
-- Verify transaction list
-- Validate pagination
-- Verify transaction amounts
-
-### API 9: Get Loan Overdue Details
-**Endpoint**: `POST /api/v1/loans/overdue`
-**Request**: `{ "accountId": "LN10001" }`
-**Tests**:
-- Get overdue details
-- Verify overdue amounts
-- Validate tenure information
-- Check customer information
-
-### API 10: Get Loan Summary List
-**Endpoint**: `POST /api/v1/loans/summary`
-**Request**: `{ "customerId": "CIF202602260001" }`
-**Tests**:
-- Get loan summary
-- Verify loan details
-- Validate amounts
-- Verify multiple loans
+| API | Method | Endpoint | Key Request Fields |
+|---|---|---|---|
+| 1 — Account List | POST | `/api/v1/accounts/list` | `customerId` |
+| 2 — Customer Info | POST | `/api/v1/customers/info` | `customerId` |
+| 3 — Account Balance | POST | `/api/v1/accounts/balance` | `accountId`, `customerId`, `accountType` |
+| 4 — Beneficiaries | POST | `/api/v1/beneficiaries/list` | `customerId`, `accountId` |
+| 5 — Transactions | POST | `/api/v1/transactions/list` | `accountId`, `toDate`, `page`, `size` |
+| 6 — Transfer | POST | `/api/v1/transactions/transfer` | `customerId`, `fromAccountId`, `beneficiaryId`, `amount` |
+| 8 — Loan Statement | POST | `/api/v1/loans/statement` | `accountId`, `fromDate`, `toDate`, `page`, `size` |
+| 9 — Loan Overdue | POST | `/api/v1/loans/overdue` | `accountId` |
+| 10 — Loan Summary | POST | `/api/v1/loans/summary` | `customerId` |
 
 ---
 
 ## Test Data
 
-### Test Customers
-| Customer ID | Name | Email | Mobile |
-|------------|------|-------|--------|
-| CIF202602260001 | Amit Sharma | amit.sharma@gmail.com | 9876543213 |
-| CIF202602260002 | Customer 2 | customer2@gmail.com | 9876543214 |
-
-### Test Accounts
-| Account ID | Type | Customer ID | Balance |
-|-----------|------|-----------|---------|
-| ACC202602260001 | SAVINGS | CIF202602260001 | 45,230.75 |
-| ACC202602260006 | SAVINGS | CIF202602260004 | Variable |
-
-### Test Loans
-| Loan ID | Type | Amount | Tenure |
-|---------|------|--------|--------|
-| LN10001 | HOME_LOAN | 500,000 | 240 months |
-| LN10002 | PERSONAL_LOAN | 200,000 | 60 months |
+| Data | Value |
+|---|---|
+| Customer ID | `CIF202602260001` |
+| Savings Account ID | `ACC202602260001` |
+| Transaction Account ID | `ACC202602260006` |
+| Loan Account ID | `LN10001` |
+| Customer Name | `Amit Sharma` |
 
 ---
 
-## Debugging Tests
+## Test Results
 
-### Enable Debug Logging
+Results are written to:
+```
+target/surefire-reports/
+```
+
+Generate HTML report:
 ```bash
-mvn test -X
-```
-
-### Run with Browser UI (Not Headless)
-```java
-// In APIClient.java, modify browser launch:
-browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
-    .setHeadless(false)  // See browser actions
-);
-```
-
-### Add Breakpoints
-- Set breakpoints in test methods in IDE
-- Run: `mvn test -Dtest=API1_GetAccountListTest` with debugger
-
-### Print Response Details
-```java
-JsonNode response = apiClient.post("/api/v1/accounts/list", requestBody);
-System.out.println("Full Response: " + response.toPrettyString());
-System.out.println("Status: " + response.get("status").asText());
-System.out.println("Data: " + response.get("data").toPrettyString());
+mvn surefire-report:report
+# Opens: target/site/surefire-report.html
 ```
 
 ---
 
 ## Common Issues
 
-### Issue: Tests fail with "Connection refused"
-**Cause**: API server not running
-**Solution**: Start API server before running tests
-```bash
-# Terminal 1: Start API
-mvn spring-boot:run
-
-# Terminal 2: Run tests
-mvn test
-```
-
-### Issue: "No tests found"
-**Cause**: Test class naming convention not followed
-**Solution**: Ensure test classes end with "Test"
-```bash
-# Correct: API1_GetAccountListTest.java
-# Wrong: API1_GetAccountList.java
-```
-
-### Issue: "Jackson cannot deserialize"
-**Cause**: Response format doesn't match expected structure
-**Solution**: Verify API response structure matches test expectations
-```bash
-# Use Postman to test API endpoint first
-# Verify response matches what test expects
-```
-
-### Issue: Tests timeout
-**Cause**: API server slow or unreachable
-**Solution**: Increase timeout in APIClient
-```java
-// In pom.xml, increase surefire timeout
-<argLine>-Xmx1024m -DtestTimeout=60000</argLine>
-```
+| Issue | Cause | Fix |
+|---|---|---|
+| `Connection refused` | API server not running | Start the server or check the URL |
+| `apiClient is null / NPE` | `@BeforeMethod` not running during group filter | Ensure `@BeforeMethod(alwaysRun = true)` in BaseApiPage |
+| `Cannot run program "sh"` | Jenkins on Windows using Linux shell command | Jenkinsfile uses `bat`, not `sh` |
+| `No test report files found` | Tests did not run (compile or setup error) | Fix the prior error; surefire XML only appears on successful run |
+| `invalid target release: 21` | VS Code terminal has old JAVA_HOME | Set `$env:JAVA_HOME` to JDK 21 path or restart VS Code |
+| `No tests found` | Test class doesn't end with "Test" | Rename: `API1Test.java` ✅, `API1.java` ❌ |
 
 ---
 
-## CI/CD Integration
+## Adding a New API Test
 
-### GitHub Actions
-```yaml
-# .github/workflows/test.yml
-name: Run Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-      - run: mvn test
-```
-
-### Jenkins
-```groovy
-pipeline {
-    agent any
-    stages {
-        stage('Build') {
-            steps {
-                sh 'mvn clean compile'
-            }
-        }
-        stage('Test') {
-            steps {
-                sh 'mvn test'
-            }
-        }
-    }
-    post {
-        always {
-            junit 'target/surefire-reports/**/*.xml'
-        }
-    }
-}
-```
-
----
-
-## Test Results & Reporting
-
-### View Test Report
-```bash
-# Test results in:
-target/surefire-reports/
-
-# HTML Report (requires plugin):
-target/site/surefire-report.html
-```
-
-### Maven Surefire Reports
-```bash
-mvn surefire-report:report
-```
-
-### Generate HTML Report
-```bash
-mvn site
-open target/site/index.html
-```
-
----
-
-## Environment Configuration
-
-### Set API Base URL (Default: http://localhost:8007)
-```bash
-# Command line
-mvn test -DAPI_BASE_URL=http://production-api:8007
-
-# Environment variable
-export API_BASE_URL=http://staging-api:8007
-mvn test
-
-# application.properties
-api.base.url=http://localhost:8007
-```
-
-### Set Java Version
-```bash
-export JAVA_HOME=/path/to/java17
-mvn test
-```
-
----
-
-## Contributing
-
-### Adding a New Test
-1. Create test class: `APIxx_DescriptionTest.java`
-2. Extend with setup method
-3. Add @Test methods
-4. Run: `mvn test -Dtest=APIxx_DescriptionTest`
-
-### Test Naming Convention
-```java
-@DisplayName("API X - Operation")
-public class API_X_OperationTest {
-    
-    @Test
-    @DisplayName("Should [action] [expected result]")
-    public void test[Action]() throws Exception {
-        // Test code
-    }
-}
-```
-
----
-
-## Contact & Support
-
-For issues or questions:
-1. Check TEST_PLAN.md for comprehensive documentation
-2. Review MICROPHONE_TESTING_GUIDE.md for voice features
-3. Check CI logs for execution details
-4. Enable debug logging with `-X` flag
-
----
-
-## License
-
-This project is part of Voice Banking API automation suite.
-
+1. Create `src/test/java/com/voicebanking/tests/api/APIxx_DescriptionTest.java`
+2. Extend `BaseApiPage`
+3. Add test methods with appropriate groups:
+   ```java
+   @Test(groups = {"smoke", "regression", "api"}, description = "...")
+   public void testXxx() throws Exception { ... }
+   ```
+4. Add the class to `testng.xml`:
+   ```xml
+   <class name="com.voicebanking.tests.api.APIxx_DescriptionTest"/>
+   ```
+5. Run: `mvn test -Dtest=APIxx_DescriptionTest`
