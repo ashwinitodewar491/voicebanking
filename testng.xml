@@ -3,6 +3,10 @@
 
 <suite name="Voice Banking API Suite" verbose="1">
 
+    <listeners>
+        <listener class-name="com.voicebanking.listeners.TestListener"/>
+    </listeners>
+
     <test name="API Tests">
         <classes>
         

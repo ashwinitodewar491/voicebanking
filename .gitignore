@@ -6,3 +6,6 @@ test-output/
 surefire-reports/
 *.log
 .env
+
+# Extent Report — generated during test run, not committed
+extent-report/

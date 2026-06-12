@@ -158,18 +158,69 @@ voicebanking/
 
 ---
 
-## Test Results
+## Test Results & Reports
 
-Results are written to:
-```
-target/surefire-reports/
-```
+### How the report works
 
-Generate HTML report:
+Extent Report generates a **single self-contained `index.html`** — no server needed, open it in any browser, attach it to an email.
+
+| Step | What happens |
+|---|---|
+| `mvn clean test` | Tests run; `target/extent-report/index.html` is generated automatically |
+| Jenkins pipeline | Report is published as a build link and emailed as an attachment |
+
+### View report locally
 ```bash
-mvn surefire-report:report
-# Opens: target/site/surefire-report.html
+# Run tests — report generates automatically
+mvn clean test -DtestGroups=smoke
+
+# Open report (Windows)
+start target\extent-report\index.html
 ```
+
+The report shows:
+- Pass / Fail / Skip counts with a visual timeline
+- Full stack trace for every failure
+- Test categories (smoke / regression / api) as filterable tags
+- System info: environment, suite, API URL, Java version
+
+### Jenkins reports
+
+After each pipeline run:
+- **Test trend graph** — JUnit plugin, visible on the job's main page
+- **"Test Report" link** — Extent HTML published as a Jenkins build artifact
+- **Email** — sent automatically with `index.html` attached (open in browser)
+
+---
+
+## Jenkins Setup Checklist (DevOps)
+
+### Plugins required
+| Plugin | Purpose |
+|---|---|
+| **HTML Publisher** | Publishes `target/extent-report/index.html` as a Jenkins build link |
+| **Email Extension (emailext)** | Sends email with the HTML report attached |
+
+Install at: **Manage Jenkins → Plugins → Available plugins**
+
+### SMTP email configuration
+Go to **Manage Jenkins → Configure System → Extended E-mail Notification**:
+
+| Setting | Example |
+|---|---|
+| SMTP server | `smtp.gmail.com` or your company SMTP |
+| SMTP port | `587` (TLS) |
+| Credentials | Add Jenkins credential with SMTP username/password |
+| Default content type | `HTML (text/html)` |
+
+### Jenkins Global Environment Variables required
+Go to **Manage Jenkins → Configure System → Global properties → Environment variables**:
+
+| Variable | Example Value | Purpose |
+|---|---|---|
+| `STAGING_API_URL` | `http://staging-server:9090` | Staging API base URL |
+| `PROD_API_URL` | `http://98.93.75.232:9090` | Prod API base URL |
+| `AUTOMATION_EMAIL_TO` | `team@joshsoftware.com` | Report recipient(s) — comma-separated for multiple |
 
 ---
 
