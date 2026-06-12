@@ -14,6 +14,10 @@ public void setUp() {
         baseURL = Endpoints.BASE_URL_PROD;
     }
 
+    if (!baseURL.startsWith("http://") && !baseURL.startsWith("https://")) {
+        baseURL = "http://" + baseURL;
+    }
+
     apiClient = new APIClient(baseURL);
 }
 }
