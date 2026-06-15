@@ -1,6 +1,6 @@
-# VoiceBanking QA Automation — Claude Skills
+# VoiceBanking QA Automation — AI Skills
 
-This file teaches Claude Code how to generate, extend, and maintain API tests for this project.
+This file teaches AI coding assistants (Claude Code, Cursor, GitHub Copilot, Ollama) how to generate, extend, and maintain API tests for this project.
 Always follow these patterns exactly — do not introduce new libraries, frameworks, or abstractions.
 
 ---
@@ -225,10 +225,10 @@ public static String getBaseUrl() {
 
 Run commands:
 ```bash
-mvn clean test                          # prod (default)
-mvn clean test -Denv=stage             # stage
-mvn clean test -Denv=prod              # prod explicit
-mvn clean test -Denv=stage -DtestGroups=smoke   # stage + smoke only
+mvn clean test                                        # prod (default)
+mvn clean test -Denv=stage                           # stage
+mvn clean test -Denv=prod                            # prod explicit
+mvn clean test -Denv=stage -DtestGroups=smoke        # stage + smoke only
 ```
 
 ---

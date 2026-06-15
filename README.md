@@ -110,7 +110,7 @@ voicebanking/
 ├── testng.xml                      # Suite — all 9 classes
 ├── Jenkinsfile                     # CI pipeline
 ├── pom.xml                         # Maven config
-├── CLAUDE.md                       # AI skills — Claude Code test generation rules
+├── skills.md                       # AI skills — tool-agnostic test generation rules
 ├── TEST_PLAN.md                    # Full test plan + roadmap
 ├── TEST_CASES.xlsx                 # Test case register
 ├── QUICK_REFERENCE.md              # Commands cheat sheet
@@ -196,7 +196,7 @@ See [TEST_PLAN.md](TEST_PLAN.md) → Section 4 for the full UI roadmap.
 | File | Purpose |
 |---|---|
 | [README.md](README.md) | This file — start here |
-| [CLAUDE.md](CLAUDE.md) | AI skills — Claude Code rules for generating tests |
+| [skills.md](skills.md) | AI skills — tool-agnostic rules for any AI assistant to generate tests |
 | [TEST_PLAN.md](TEST_PLAN.md) | Full test plan, strategy, roadmap |
 | [TEST_CASES.xlsx](TEST_CASES.xlsx) | All test cases (automated + manual) with groups |
 | [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Commands cheat sheet, common issues |
