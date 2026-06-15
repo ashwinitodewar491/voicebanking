@@ -116,7 +116,7 @@ voicebanking/
 ├── testng.xml                      # Suite definition (all 9 classes)
 ├── Jenkinsfile                     # CI pipeline (ENV + SUITE params)
 ├── pom.xml                         # Maven config (Java 21, TestNG, Playwright)
-├── CLAUDE.md                       # AI skills — Claude Code test generation rules
+├── skills.md                       # AI skills — tool-agnostic test generation rules
 ├── TEST_PLAN.md                    # Full test plan + roadmap
 ├── TEST_CASES.xlsx                 # Test case register (automated + manual)
 ├── QUICK_REFERENCE.md              # This file
