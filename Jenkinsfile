@@ -36,7 +36,10 @@ pipeline {
 
     post {
         always {
-            // 1. Publish surefire XML for Jenkins test trend graph
+            // 1. Archive Extent report as a downloadable build artifact
+            archiveArtifacts artifacts: 'target/extent-report/index.html', allowEmptyArchive: true
+
+            // 2. Publish surefire XML for Jenkins test trend graph
             junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
 
             // 2. Publish Extent HTML report as a Jenkins build link
