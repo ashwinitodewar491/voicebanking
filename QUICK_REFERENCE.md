@@ -31,11 +31,11 @@ mvn clean test -DtestGroups=api
 
 ### Run against a specific environment
 ```bash
-# Staging
-mvn clean test -DtestGroups=smoke -DAPI_BASE_URL=http://staging-server:9090
+# Stage
+mvn clean test -DtestGroups=smoke -Denv=stage
 
-# Prod
-mvn clean test -DtestGroups=smoke -DAPI_BASE_URL=http://98.93.75.232:9090
+# Prod (also the default when -Denv is omitted)
+mvn clean test -DtestGroups=smoke -Denv=prod
 ```
 
 ### Run a single test class
@@ -63,17 +63,13 @@ mvn clean install -DskipTests
 
 | ENV | SUITE | What runs |
 |---|---|---|
-| staging | smoke | API1, API2, API3, API6 — quick sanity |
-| staging | regression | All 9 APIs |
+| stage | smoke | API1, API2, API3, API6 — quick sanity |
+| stage | regression | All 9 APIs |
 | prod | smoke | API1, API2, API3, API6 — prod sanity |
 | prod | regression | All 9 APIs |
 
-### Jenkins global vars required (DevOps to configure)
-```
-STAGING_API_URL = http://staging-server:9090
-PROD_API_URL    = http://98.93.75.232:9090
-```
-Set at: **Manage Jenkins → Configure System → Global properties → Environment variables**
+### No Jenkins global vars required
+URLs are managed in `Endpoints.java` and selected via `-Denv` — no server-side configuration needed.
 
 ---
 
@@ -120,6 +116,7 @@ voicebanking/
 ├── testng.xml                      # Suite definition (all 9 classes)
 ├── Jenkinsfile                     # CI pipeline (ENV + SUITE params)
 ├── pom.xml                         # Maven config (Java 21, TestNG, Playwright)
+├── CLAUDE.md                       # AI skills — Claude Code test generation rules
 ├── TEST_PLAN.md                    # Full test plan + roadmap
 ├── TEST_CASES.xlsx                 # Test case register (automated + manual)
 ├── QUICK_REFERENCE.md              # This file
@@ -167,7 +164,7 @@ Extent Report generates a **single self-contained `index.html`** — no server n
 | Step | What happens |
 |---|---|
 | `mvn clean test` | Tests run; `target/extent-report/index.html` is generated automatically |
-| Jenkins pipeline | Report is published as a build link and emailed as an attachment |
+| Jenkins pipeline | Report archived as downloadable artifact + viewable via "Test Report" link |
 
 ### View report locally
 ```bash
@@ -188,8 +185,8 @@ The report shows:
 
 After each pipeline run:
 - **Test trend graph** — JUnit plugin, visible on the job's main page
-- **"Test Report" link** — Extent HTML published as a Jenkins build artifact
-- **Email** — sent automatically with `index.html` attached (open in browser)
+- **Artifacts** — `index.html` downloadable from build page
+- **"Test Report" link** — Extent HTML viewable in Jenkins (requires HTML Publisher plugin)
 
 ---
 
@@ -198,29 +195,12 @@ After each pipeline run:
 ### Plugins required
 | Plugin | Purpose |
 |---|---|
-| **HTML Publisher** | Publishes `target/extent-report/index.html` as a Jenkins build link |
-| **Email Extension (emailext)** | Sends email with the HTML report attached |
+| **HTML Publisher** | Publishes `target/extent-report/index.html` as a clickable Jenkins build link |
 
-Install at: **Manage Jenkins → Plugins → Available plugins**
+Install at: **Manage Jenkins → Plugins → Available plugins** → search `HTML Publisher`
 
-### SMTP email configuration
-Go to **Manage Jenkins → Configure System → Extended E-mail Notification**:
-
-| Setting | Example |
-|---|---|
-| SMTP server | `smtp.gmail.com` or your company SMTP |
-| SMTP port | `587` (TLS) |
-| Credentials | Add Jenkins credential with SMTP username/password |
-| Default content type | `HTML (text/html)` |
-
-### Jenkins Global Environment Variables required
-Go to **Manage Jenkins → Configure System → Global properties → Environment variables**:
-
-| Variable | Example Value | Purpose |
-|---|---|---|
-| `STAGING_API_URL` | `http://staging-server:9090` | Staging API base URL |
-| `PROD_API_URL` | `http://98.93.75.232:9090` | Prod API base URL |
-| `AUTOMATION_EMAIL_TO` | `team@joshsoftware.com` | Report recipient(s) — comma-separated for multiple |
+### Jenkins Global Environment Variables
+None required — URLs are managed in `Endpoints.java`.
 
 ---
 

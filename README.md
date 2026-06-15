@@ -1,24 +1,24 @@
 # Voice Banking — Automation Suite
 
 API and UI test automation for the Voice Banking platform.  
-**Current coverage: 9 APIs, 21 test methods, 2 environments (staging + prod).**
+**Current coverage: 9 APIs, 21 test methods, 2 environments (stage + prod).**
 
 ---
 
 ## Quick Start
 
 ```bash
-# Run all tests (uses fallback prod URL)
+# Run all tests — defaults to prod URL
 mvn clean test
 
-# Run smoke suite
-mvn clean test -DtestGroups=smoke
+# Run smoke suite against prod
+mvn clean test -DtestGroups=smoke -Denv=prod
 
-# Run regression suite
-mvn clean test -DtestGroups=regression
+# Run smoke suite against stage
+mvn clean test -DtestGroups=smoke -Denv=stage
 
-# Run against staging
-mvn clean test -DtestGroups=smoke -DAPI_BASE_URL=http://staging-server:9090
+# Run full regression against stage
+mvn clean test -DtestGroups=regression -Denv=stage
 ```
 
 ---
@@ -30,7 +30,7 @@ mvn clean test -DtestGroups=smoke -DAPI_BASE_URL=http://staging-server:9090
 | Language | Java (Eclipse Temurin) | 21 |
 | Build | Maven | 3.8+ |
 | Test Framework | TestNG | 7.x |
-| HTTP Client | Playwright `APIRequestContext` | 1.50.0 |
+| HTTP Client | Java `java.net.http.HttpClient` | 21 built-in |
 | JSON Parsing | Jackson Databind | 2.16.0 |
 | CI/CD | Jenkins Declarative Pipeline | — |
 
@@ -41,13 +41,13 @@ mvn clean test -DtestGroups=smoke -DAPI_BASE_URL=http://staging-server:9090
 ```mermaid
 flowchart TD
     A[Backend Deploy\nor Frontend Deploy] --> B[Trigger Jenkins Job]
-    B --> C["Parameters:\nENV = staging | prod\nSUITE = smoke | regression"]
+    B --> C["Parameters:\nENV = prod | stage\nSUITE = smoke | regression"]
     C --> D[Checkout code from SCM]
-    D --> E["Set API_BASE_URL\n(STAGING_API_URL or PROD_API_URL\nfrom Jenkins global vars)"]
-    E --> F["mvn clean test\n-DtestGroups=SUITE"]
+    D --> E["mvn clean test\n-DtestGroups=SUITE -Denv=ENV"]
+    E --> F["Endpoints.getBaseUrl()\nreads -Denv system property\nreturns prod or stage URL"]
     F --> G["Maven Surefire Plugin\nreads testng.xml\nfilters by groups property"]
     G --> H["TestNG Runner\ndiscovers annotated test methods"]
-    H --> I["BaseApiPage\n@BeforeMethod alwaysRun=true\nnew APIClient(API_BASE_URL)"]
+    H --> I["BaseApiPage\n@BeforeMethod alwaysRun=true\nnew APIClient(Endpoints.getBaseUrl())"]
     I --> J{Group Selected}
     J -->|smoke| K["7 tests\nAPI1 API2 API3 API6"]
     J -->|regression| L["21 tests\nAll 9 APIs"]
@@ -78,10 +78,10 @@ flowchart TD
 
 ## Environments
 
-| Environment | URL | Trigger |
+| Environment | URL | How selected |
 |---|---|---|
-| `staging` | `STAGING_API_URL` Jenkins global var | Every backend/frontend deploy to staging |
-| `prod` | `PROD_API_URL` Jenkins global var | Every deploy to prod |
+| `prod` | `http://98.93.75.232:9090` | `-Denv=prod` or default (no flag) |
+| `stage` | `http://3.111.41.3:9090` | `-Denv=stage` |
 
 ---
 
@@ -110,6 +110,7 @@ voicebanking/
 ├── testng.xml                      # Suite — all 9 classes
 ├── Jenkinsfile                     # CI pipeline
 ├── pom.xml                         # Maven config
+├── CLAUDE.md                       # AI skills — Claude Code test generation rules
 ├── TEST_PLAN.md                    # Full test plan + roadmap
 ├── TEST_CASES.xlsx                 # Test case register
 ├── QUICK_REFERENCE.md              # Commands cheat sheet
@@ -143,38 +144,35 @@ The `Jenkinsfile` in the repo root defines the pipeline.
 
 **Parameters:**
 
-| Parameter | Options |
-|---|---|
-| `ENV` | `staging`, `prod` |
-| `SUITE` | `smoke`, `regression` |
+| Parameter | Options | Default |
+|---|---|---|
+| `ENV` | `prod`, `stage` | `prod` |
+| `SUITE` | `smoke`, `regression` | — |
 
-**DevOps must configure these Jenkins global environment variables:**
+**No Jenkins global environment variables required** — URLs are hardcoded in `Endpoints.java` and selected via `-Denv`.
 
-| Variable | Example |
-|---|---|
-| `STAGING_API_URL` | `http://staging-server:9090` |
-| `PROD_API_URL` | `http://98.93.75.232:9090` |
-
-**Auto-trigger setup** (DevOps to configure on backend/frontend deploy jobs):
-
-```
-After successful backend deploy to staging  → trigger this job: ENV=staging, SUITE=smoke
-After successful frontend deploy to staging → trigger this job: ENV=staging, SUITE=smoke
-After successful deploy to prod             → trigger this job: ENV=prod,    SUITE=smoke
-Nightly scheduled (staging)                 → trigger this job: ENV=staging, SUITE=regression
+**Auto-trigger** — dev teams call this after deployment:
+```bash
+curl -X POST "http://JENKINS_URL/job/voicebanking-automation/buildWithParameters" \
+  --user "username:api_token" \
+  --data "token=voicebanking-trigger&ENV=stage&SUITE=smoke"
 ```
 
 ---
 
 ## Test Results
 
-Results in `target/surefire-reports/`.
+Results in `target/surefire-reports/` and `target/extent-report/index.html`.
 
 ```bash
-# HTML report
-mvn surefire-report:report
-# Opens: target/site/surefire-report.html
+# Run tests — Extent report auto-generates
+mvn clean test -Denv=stage
+
+# Open Extent report (Windows)
+start target\extent-report\index.html
 ```
+
+Jenkins publishes the report as a downloadable artifact and a **"Test Report"** link on the build page (requires HTML Publisher plugin).
 
 ---
 
@@ -198,6 +196,7 @@ See [TEST_PLAN.md](TEST_PLAN.md) → Section 4 for the full UI roadmap.
 | File | Purpose |
 |---|---|
 | [README.md](README.md) | This file — start here |
+| [CLAUDE.md](CLAUDE.md) | AI skills — Claude Code rules for generating tests |
 | [TEST_PLAN.md](TEST_PLAN.md) | Full test plan, strategy, roadmap |
 | [TEST_CASES.xlsx](TEST_CASES.xlsx) | All test cases (automated + manual) with groups |
 | [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Commands cheat sheet, common issues |
