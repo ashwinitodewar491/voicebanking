@@ -4,7 +4,7 @@ pipeline {
     parameters {
         choice(
             name: 'ENV',
-            choices: ['staging', 'prod'],
+            choices: ['prod', 'stage'],
             description: 'Target environment'
         )
         choice(
@@ -16,12 +16,8 @@ pipeline {
 
     environment {
         // Jenkins Global Environment Variables required (Manage Jenkins → Configure System):
-        //   STAGING_API_URL       e.g. http://staging-server:9090
-        //   PROD_API_URL          e.g. http://98.93.75.232:9090
         //   AUTOMATION_EMAIL_TO   e.g. team@joshsoftware.com
-        API_BASE_URL = "${params.ENV == 'prod' ? env.PROD_API_URL : env.STAGING_API_URL}"
-        ENV          = "${params.ENV}"
-        SUITE        = "${params.SUITE}"
+        SUITE = "${params.SUITE}"
     }
 
     stages {
@@ -33,7 +29,7 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                bat "mvn clean test -DtestGroups=${params.SUITE}"
+                bat "mvn clean test -DtestGroups=${params.SUITE} -Denv=${params.ENV}"
             }
         }
     }

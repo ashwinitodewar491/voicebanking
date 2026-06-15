@@ -6,7 +6,15 @@ public final class Endpoints {
     }
 
     public static final String BASE_URL_PROD
-            = "http://3.111.41.3:9090"; // "http://98.93.75.232:9090";
+            = "http://98.93.75.232:9090";
+
+    public static final String BASE_URL_STAGE
+            = "http://3.111.41.3:9090";
+
+    public static String getBaseUrl() {
+        String env = System.getProperty("env", System.getenv("ENV") != null ? System.getenv("ENV") : "prod");
+        return "stage".equalsIgnoreCase(env) ? BASE_URL_STAGE : BASE_URL_PROD;
+    }
 
     public static final String ACCOUNT_LIST
             = "/api/v1/accounts/list";
