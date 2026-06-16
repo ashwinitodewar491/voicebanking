@@ -168,4 +168,82 @@ public class API4_GetBeneficiariesListTest extends BaseApiPage {
                 beneficiary2Found,
                 Constants.BENEFICIARY_2_NAME + " not found");
     }
+
+    // --- Negative Tests ---
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Beneficiaries API should reject non-existent customer ID")
+    public void testBeneficiariesWithInvalidCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("customerId", Constants.INVALID_CUSTOMER_ID);
+        requestBody.put("accountId", Constants.EXISTING_ACCOUNT_ID);
+
+        JsonNode response = apiClient.post(Endpoints.BENEFICIARIES_LIST, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject non-existent customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_ACCOUNT_NOT_FOUND,
+                "Error message should indicate account not found");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Beneficiaries API should reject non-existent account ID")
+    public void testBeneficiariesWithInvalidAccountId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("customerId", Constants.EXISTING_CUSTOMER_ID);
+        requestBody.put("accountId", Constants.INVALID_ACCOUNT_ID);
+
+        JsonNode response = apiClient.post(Endpoints.BENEFICIARIES_LIST, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject non-existent accountId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_ACCOUNT_NOT_FOUND,
+                "Error message should indicate account not found");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Beneficiaries API should reject request with missing fields")
+    public void testBeneficiariesWithMissingFields() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+
+        JsonNode response = apiClient.post(Endpoints.BENEFICIARIES_LIST, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject request with missing fields");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        String errorMessage = response.get("error").get("message").asText();
+        Assert.assertTrue(
+                errorMessage.contains(Constants.ERR_CUSTOMER_ID_REQUIRED),
+                "Error message should indicate customerId is required");
+        Assert.assertTrue(
+                errorMessage.contains(Constants.ERR_ACCOUNT_ID_REQUIRED),
+                "Error message should indicate accountId is required");
+    }
 }

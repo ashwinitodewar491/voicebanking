@@ -106,4 +106,76 @@ public class API1_GetAccountListTest extends BaseApiPage {
                 currentAccountFound,
                 "Current account not found");
     }
+
+    // --- Negative Tests ---
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Account list API returns empty list for non-existent customer ID")
+    public void testGetAccountListWithInvalidCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("customerId", Constants.INVALID_CUSTOMER_ID);
+
+        JsonNode response = apiClient.post(Endpoints.ACCOUNT_LIST, requestBody);
+
+        Assert.assertEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API returns success for non-existent customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.SUCCESS_STATUS,
+                "Response status should be success");
+
+        Assert.assertTrue(
+                response.get("data").get("accountList").isEmpty(),
+                "Account list should be empty for non-existent customerId");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Account list API should reject empty customer ID")
+    public void testGetAccountListWithEmptyCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("customerId", "");
+
+        JsonNode response = apiClient.post(Endpoints.ACCOUNT_LIST, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject empty customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_CUSTOMER_ID_REQUIRED,
+                "Error message should indicate missing customerId");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Account list API should reject request with missing customer ID field")
+    public void testGetAccountListWithMissingCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+
+        JsonNode response = apiClient.post(Endpoints.ACCOUNT_LIST, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject request missing customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_CUSTOMER_ID_REQUIRED,
+                "Error message should indicate missing customerId");
+    }
 }

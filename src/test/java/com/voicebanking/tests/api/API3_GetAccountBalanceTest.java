@@ -125,4 +125,100 @@ public class API3_GetAccountBalanceTest extends BaseApiPage {
                 maskedAccount.isBlank(),
                 "accountNumberMasked should not be empty");
     }
+
+    // --- Negative Tests ---
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Account balance API should reject non-existent account ID")
+    public void testAccountBalanceWithInvalidAccountId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("accountId", Constants.INVALID_ACCOUNT_ID);
+        requestBody.put("customerId", Constants.EXISTING_CUSTOMER_ID);
+        requestBody.put("accountType", Constants.SAVINGS_ACCOUNT_TYPE);
+
+        JsonNode response = apiClient.post(Endpoints.ACCOUNT_BALANCE, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject non-existent accountId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_ACCOUNT_NOT_FOUND,
+                "Error message should indicate account not found");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Account balance API looks up by accountId only — customerId is not validated")
+    public void testAccountBalanceWithInvalidCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("accountId", Constants.EXISTING_ACCOUNT_ID);
+        requestBody.put("customerId", Constants.INVALID_CUSTOMER_ID);
+        requestBody.put("accountType", Constants.SAVINGS_ACCOUNT_TYPE);
+
+        JsonNode response = apiClient.post(Endpoints.ACCOUNT_BALANCE, requestBody);
+
+        Assert.assertEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API returns success — customerId is not strictly validated");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.SUCCESS_STATUS,
+                "Response status should be success");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Account balance API ignores invalid accountType and returns data by accountId")
+    public void testAccountBalanceWithInvalidAccountType() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("accountId", Constants.EXISTING_ACCOUNT_ID);
+        requestBody.put("customerId", Constants.EXISTING_CUSTOMER_ID);
+        requestBody.put("accountType", Constants.INVALID_ACCOUNT_TYPE);
+
+        JsonNode response = apiClient.post(Endpoints.ACCOUNT_BALANCE, requestBody);
+
+        Assert.assertEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API returns success — accountType parameter is not validated");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.SUCCESS_STATUS,
+                "Response status should be success");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Account balance API should reject request with all empty fields")
+    public void testAccountBalanceWithEmptyFields() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("accountId", "");
+        requestBody.put("customerId", "");
+        requestBody.put("accountType", "");
+
+        JsonNode response = apiClient.post(Endpoints.ACCOUNT_BALANCE, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject empty fields");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_ACCOUNT_ID_REQUIRED,
+                "Error message should indicate missing accountId");
+    }
 }
