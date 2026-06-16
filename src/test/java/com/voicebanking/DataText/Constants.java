@@ -83,8 +83,8 @@ public final class Constants {
 
     public static final int LOAN_STATEMENT_PAGE = 0;
     public static final int LOAN_STATEMENT_SIZE = 10;
-    public static final int LOAN_STATEMENT_TOTAL_PAGES = 5;
-    public static final int LOAN_STATEMENT_TOTAL_ELEMENTS = 50;
+    public static final int LOAN_STATEMENT_TOTAL_PAGES = 6;
+    public static final int LOAN_STATEMENT_TOTAL_ELEMENTS = 51;
     // Loan Statement
 
     public static final String LOAN_STATEMENT_FROM_DATE = "2022-03-01";
@@ -111,6 +111,35 @@ public final class Constants {
     public static final String MONTH_TERM_UNIT = "M";
 
     public static final String TRANSACTION_TO_DATE = "2026-05-26";
+
+    // Negative test data
+    public static final String INVALID_CUSTOMER_ID = "INVALID_CIF_999";
+    public static final String INVALID_ACCOUNT_ID = "INVALID_ACC_999";
+    public static final String INVALID_LOAN_ACCOUNT_ID = "INVALID_LN_999";
+    public static final String INVALID_BENEFICIARY_ID = "00000000-0000-0000-0000-000000000000";
+    public static final String INVALID_ACCOUNT_TYPE = "INVALID_TYPE";
+    public static final String INVALID_DATE_FORMAT = "not-a-date";
+    public static final String REVERSED_FROM_DATE = "2026-09-01";
+    public static final String REVERSED_TO_DATE = "2022-03-01";
+    public static final double EXCESSIVE_TRANSFER_AMOUNT = 9999999.99;
+    public static final double ZERO_TRANSFER_AMOUNT = 0.0;
+    public static final double NEGATIVE_TRANSFER_AMOUNT = -100.0;
+
+    // Error response constants
+    public static final String ERROR_STATUS = "error";
+    public static final String ERR_CUSTOMER_ID_REQUIRED = "customerId is required";
+    public static final String ERR_ACCOUNT_ID_REQUIRED = "accountId is required";
+    public static final String ERR_AMOUNT_POSITIVE = "Amount must be greater than 0";
+    public static final String ERR_ACCOUNT_NOT_FOUND = "Account not found";
+    public static final String ERR_LOAN_NOT_FOUND = "Loan details not found";
+    public static final String ERR_BENEFICIARY_NOT_FOUND = "Beneficiary not found";
+    public static final String ERR_INSUFFICIENT_BALANCE = "Insufficient balance";
+    public static final String ERR_PAGE_SIZE_MIN = "size must be >= 1";
+    public static final String ERR_DATE_RANGE_REVERSED = "toDate must not be before fromDate";
+    public static final String ERR_LOAN_ACCOUNT_REQUIRED = "account is required";
+    public static final String ERR_BOTH_IDS_REQUIRED = "accountId is required; customerId is required";
+    public static final String ERR_CUSTOMER_NOT_FOUND = "not found";
+    public static final String ERR_NULL_ID = "The given id must not be null";
 
     public static final int DEFAULT_PAGE = 0;
     public static final int DEFAULT_PAGE_SIZE = 100;

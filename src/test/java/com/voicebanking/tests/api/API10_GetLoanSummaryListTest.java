@@ -193,4 +193,76 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
                 personalLoanFound,
                 "PERSONAL_LOAN not found");
     }
+
+    // --- Negative Tests ---
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Loan summary API returns success with no data for non-existent customer ID")
+    public void testLoanSummaryWithInvalidCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("customerId", Constants.INVALID_CUSTOMER_ID);
+
+        JsonNode response = apiClient.post(Endpoints.LOAN_SUMMARY, requestBody);
+
+        Assert.assertEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API returns success for non-existent customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.SUCCESS_STATUS,
+                "Response status should be success");
+
+        Assert.assertFalse(
+                response.has("data"),
+                "No data should be returned for non-existent customerId");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Loan summary API should reject empty customer ID")
+    public void testLoanSummaryWithEmptyCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("customerId", "");
+
+        JsonNode response = apiClient.post(Endpoints.LOAN_SUMMARY, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject empty customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_CUSTOMER_ID_REQUIRED,
+                "Error message should indicate missing customerId");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Loan summary API should reject request with missing customer ID field")
+    public void testLoanSummaryWithMissingCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+
+        JsonNode response = apiClient.post(Endpoints.LOAN_SUMMARY, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject request missing customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_CUSTOMER_ID_REQUIRED,
+                "Error message should indicate missing customerId");
+    }
 }

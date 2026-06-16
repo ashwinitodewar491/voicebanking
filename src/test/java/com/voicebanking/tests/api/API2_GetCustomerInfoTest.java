@@ -128,4 +128,77 @@ public class API2_GetCustomerInfoTest extends BaseApiPage {
                 data.get("updatedDate").asText().isBlank(),
                 "updatedDate should not be empty");
     }
+
+    // --- Negative Tests ---
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Customer info API should reject non-existent customer ID")
+    public void testGetCustomerInfoWithInvalidCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("customerId", Constants.INVALID_CUSTOMER_ID);
+
+        JsonNode response = apiClient.post(Endpoints.CUSTOMER_INFO, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject non-existent customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_CUSTOMER_NOT_FOUND,
+                "Error message should indicate customer not found");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Customer info API should reject empty customer ID")
+    public void testGetCustomerInfoWithEmptyCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("customerId", "");
+
+        JsonNode response = apiClient.post(Endpoints.CUSTOMER_INFO, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject empty customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_CUSTOMER_ID_REQUIRED,
+                "Error message should indicate missing customerId");
+    }
+
+    @Test(groups = {"negative", "regression", "api"},
+            description = "Customer info API should reject request with missing customer ID field")
+    public void testGetCustomerInfoWithMissingCustomerId() throws Exception {
+        Map<String, String> requestBody = new HashMap<>();
+
+        JsonNode response = apiClient.post(Endpoints.CUSTOMER_INFO, requestBody);
+
+        Assert.assertNotEquals(
+                response.get("statusCode").asInt(),
+                Constants.SUCCESS_STATUS_CODE,
+                "API should reject request missing customerId");
+
+        Assert.assertEquals(
+                response.get("status").asText(),
+                Constants.ERROR_STATUS,
+                "Response status should be error");
+
+        Assert.assertEquals(
+                response.get("error").get("message").asText(),
+                Constants.ERR_CUSTOMER_ID_REQUIRED,
+                "Error message should indicate missing customerId");
+    }
 }
