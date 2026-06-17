@@ -9,7 +9,7 @@
 
     <test name="API Tests">
         <classes>
-        
+
             <class name="com.voicebanking.tests.api.API1_GetAccountListTest"/>
             <class name="com.voicebanking.tests.api.API2_GetCustomerInfoTest"/>
             <class name="com.voicebanking.tests.api.API3_GetAccountBalanceTest"/>
@@ -19,6 +19,17 @@
             <class name="com.voicebanking.tests.api.API8_GetLoanStatementTest"/>
             <class name="com.voicebanking.tests.api.API9_GetLoanOverdueDetailsTest"/>
             <class name="com.voicebanking.tests.api.API10_GetLoanSummaryListTest"/>
+        </classes>
+    </test>
+
+    <test name="UI Tests">
+        <classes>
+            <class name="com.voicebanking.tests.ui.UI1_WelcomePageTest"/>
+            <class name="com.voicebanking.tests.ui.UI2_LoginTest"/>
+            <class name="com.voicebanking.tests.ui.UI3_OtpTest"/>
+            <class name="com.voicebanking.tests.ui.UI4_LanguageTest"/>
+            <class name="com.voicebanking.tests.ui.UI5_VoiceRegistrationTest"/>
+            <class name="com.voicebanking.tests.ui.UI6_HomePageTest"/>
         </classes>
     </test>
 
