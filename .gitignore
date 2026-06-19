@@ -9,3 +9,6 @@ surefire-reports/
 
 # Extent Report — generated during test run, not committed
 extent-report/
+
+# Local API keys — never commit
+src/test/resources/local.properties

@@ -7,10 +7,13 @@ import java.nio.file.Path;
 public class TtsUtil {
 
     public static String generateWav(String text) throws Exception {
+        return generateWavSapi(text);
+    }
+
+    private static String generateWavSapi(String text) throws Exception {
         Path tempFile = Files.createTempFile("voice_query_", ".wav");
         String wavPath = tempFile.toAbsolutePath().toString();
 
-        // 16 kHz + 6 s silence: standard ASR sample rate; silence prevents Chromium looping the phrase mid-hold.
         String psCommand =
                 "Add-Type -AssemblyName System.Speech; " +
                 "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
@@ -31,15 +34,12 @@ public class TtsUtil {
         String output = new String(process.getInputStream().readAllBytes());
         int exitCode = process.waitFor();
         if (exitCode != 0) {
-            throw new RuntimeException("TTS generation failed for: " + text + "\n" + output);
+            throw new RuntimeException("SAPI TTS failed for: " + text + "\n" + output);
         }
-
         return wavPath;
     }
 
     public static void deleteWav(String wavPath) {
-        if (wavPath != null) {
-            new File(wavPath).delete();
-        }
+        if (wavPath != null) new File(wavPath).delete();
     }
 }
