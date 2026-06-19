@@ -22,7 +22,7 @@ public class UI6_HomePageTest extends BasePage {
 
     @BeforeClass(alwaysRun = true)
     public void setAudioFile() throws Exception {
-        generatedWavPath = TtsUtil.generateWav(VoiceQueries.ACCOUNT_BALANCE);
+        generatedWavPath = TtsUtil.generateWav(VoiceQueries.English.ACCOUNT_BALANCE);
         System.setProperty("audioFile", generatedWavPath);
     }
 
@@ -120,8 +120,7 @@ public class UI6_HomePageTest extends BasePage {
         HomePage homePage = navigateToHomePage();
 
         homePage.holdToSpeak(5000);
-
-        page.waitForTimeout(5000);
+        homePage.waitForVoiceResponse(15000);
 
         Assert.assertTrue(
                 homePage.isPageVisible(),

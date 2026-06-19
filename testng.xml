@@ -30,6 +30,7 @@
             <class name="com.voicebanking.tests.ui.UI4_LanguageTest"/>
             <class name="com.voicebanking.tests.ui.UI5_VoiceRegistrationTest"/>
             <class name="com.voicebanking.tests.ui.UI6_HomePageTest"/>
+            <class name="com.voicebanking.tests.ui.UI7_VoiceLanguageTest"/>
         </classes>
     </test>
 
