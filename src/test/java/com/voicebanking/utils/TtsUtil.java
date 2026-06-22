@@ -23,6 +23,7 @@ public class TtsUtil {
                 "[System.Speech.AudioFormat.AudioChannel]::Mono); " +
                 "$s.SetOutputToWaveFile('" + wavPath + "', $fmt); " +
                 "$b = New-Object System.Speech.Synthesis.PromptBuilder; " +
+                "$b.AppendBreak([TimeSpan]::FromSeconds(1.5)); " +
                 "$b.AppendText('" + text.replace("'", "''") + "'); " +
                 "$b.AppendBreak([TimeSpan]::FromSeconds(6)); " +
                 "$s.Speak($b); " +

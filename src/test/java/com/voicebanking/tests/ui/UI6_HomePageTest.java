@@ -5,6 +5,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.Test;
 
+import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.LoadState;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.DataText.VoiceQueries;
@@ -41,14 +42,17 @@ public class UI6_HomePageTest extends BasePage {
 
         OtpPage otpPage = new OtpPage(page);
         otpPage.waitForPageLoad();
-        otpPage.enterOtp(OtpPage.generateRandomOtp());
+        otpPage.enterOtp(OtpPage.getTestOtp());
         otpPage.clickContinue();
 
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        // Language page only appears on first login; wait up to 10s, skip if absent
         LanguagePage languagePage = new LanguagePage(page);
-        if (languagePage.isPageVisible()) {
+        try {
+            languagePage.waitForPageLoad();
             languagePage.selectEnglish();
             languagePage.clickContinue();
+        } catch (PlaywrightException ignored) {
+            // language page not present (returning user), continue
         }
 
         VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);

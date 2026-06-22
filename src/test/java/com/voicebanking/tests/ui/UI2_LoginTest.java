@@ -44,6 +44,52 @@ public class UI2_LoginTest extends BasePage {
     }
 
     @Test(groups = {"ui", "regression"},
+            description = "Should show validation error when phone number is blank")
+    public void testBlankPhoneShowsValidationError() {
+        WelcomePage welcomePage = openWelcomePage();
+
+        // Leave phone blank and click Send OTP to trigger validation
+        welcomePage.clickSendOtp();
+
+        Assert.assertTrue(
+                welcomePage.isPhoneErrorVisible(),
+                "Validation error should appear when phone number is blank");
+        Assert.assertEquals(
+                welcomePage.getPhoneErrorText(),
+                "Please enter a valid 10-digit mobile number",
+                "Correct validation message should be shown for blank phone");
+    }
+
+    @Test(groups = {"ui", "regression"},
+            description = "Should show validation error when phone number has less than 10 digits")
+    public void testShortPhoneShowsValidationError() {
+        WelcomePage welcomePage = openWelcomePage();
+
+        // Enter only 8 digits (less than required 10)
+        welcomePage.enterPhoneNumber("98765432");
+        welcomePage.clickSendOtp();
+
+        Assert.assertTrue(
+                welcomePage.isPhoneErrorVisible(),
+                "Validation error should appear when phone number has fewer than 10 digits");
+        Assert.assertEquals(
+                welcomePage.getPhoneErrorText(),
+                "Please enter a valid 10-digit mobile number",
+                "Correct validation message should be shown for short phone number");
+    }
+
+    @Test(groups = {"ui", "regression"},
+            description = "Should display Terms & Conditions link on the login/welcome page")
+    public void testLoginPageTermsAndConditions() {
+        WelcomePage welcomePage = openWelcomePage();
+
+        Assert.assertTrue(welcomePage.isTermsLinkVisible(),
+                "Terms & Conditions link should be visible on the login page");
+        Assert.assertEquals(welcomePage.getTermsLinkHref(), "/terms",
+                "Terms & Conditions link should point to /terms");
+    }
+
+    @Test(groups = {"ui", "regression"},
             description = "Should navigate away from welcome page after clicking Send OTP")
     public void testSendOtpClickNavigation() {
         WelcomePage welcomePage = openWelcomePage();

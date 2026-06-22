@@ -10,6 +10,7 @@ public class LanguagePage {
 
     private static final String LANG_EN      = "[data-testid='language-select-btn-en']";
     private static final String CONTINUE_BTN = "[data-testid='language-continue-btn']";
+    private static final String BACK_BTN     = "[data-testid='language-back-btn']";
 
     public LanguagePage(Page page) {
         this.page = page;
@@ -42,5 +43,9 @@ public class LanguagePage {
 
     public void clickContinue() {
         page.locator(CONTINUE_BTN).click();
+    }
+
+    public void clickBack() {
+        page.locator(BACK_BTN).click();
     }
 }

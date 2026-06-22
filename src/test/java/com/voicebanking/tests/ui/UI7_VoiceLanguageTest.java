@@ -5,7 +5,7 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
-import com.microsoft.playwright.options.LoadState;
+import com.microsoft.playwright.PlaywrightException;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.DataText.VoiceQueries;
 import com.voicebanking.pages.HomePage;
@@ -45,14 +45,13 @@ public class UI7_VoiceLanguageTest {
 
         currentAudioPath = TtsUtil.generateWav(query);
 
-        boolean headless = Boolean.parseBoolean(System.getProperty("headless", "true"));
-        double slowMo = headless ? 0 : 800;
+        // Web Speech API does not work in headless Chromium; voice tests always run headed
+        boolean headless = Boolean.parseBoolean(System.getProperty("headless", "false"));
 
         playwright = Playwright.create();
         browser = playwright.chromium().launch(
                 new BrowserType.LaunchOptions()
                         .setHeadless(headless)
-                        .setSlowMo(slowMo)
                         .setArgs(List.of(
                                 "--use-fake-device-for-media-stream",
                                 "--use-file-for-fake-audio-capture=" + currentAudioPath)));
@@ -82,14 +81,17 @@ public class UI7_VoiceLanguageTest {
 
         OtpPage otpPage = new OtpPage(page);
         otpPage.waitForPageLoad();
-        otpPage.enterOtp(OtpPage.generateRandomOtp());
+        otpPage.enterOtp(OtpPage.getTestOtp());
         otpPage.clickContinue();
 
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        // Language page only appears on first login; wait up to 10s, skip if absent
         LanguagePage languagePage = new LanguagePage(page);
-        if (languagePage.isPageVisible()) {
+        try {
+            languagePage.waitForPageLoad();
             languagePage.selectByLocale(VoiceQueries.English.LOCALE);
             languagePage.clickContinue();
+        } catch (PlaywrightException ignored) {
+            // language page not present (returning user), continue
         }
 
         VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);

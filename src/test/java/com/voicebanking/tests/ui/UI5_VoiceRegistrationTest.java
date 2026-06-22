@@ -3,6 +3,7 @@ package com.voicebanking.tests.ui;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.LoadState;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BasePage;
@@ -22,15 +23,17 @@ public class UI5_VoiceRegistrationTest extends BasePage {
 
         OtpPage otpPage = new OtpPage(page);
         otpPage.waitForPageLoad();
-        otpPage.enterOtp(OtpPage.generateRandomOtp());
+        otpPage.enterOtp(OtpPage.getTestOtp());
         otpPage.clickContinue();
 
-        // Language page only appears on first login; skip interaction if already set
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        // Language page only appears on first login; wait up to 10s, skip if absent
         LanguagePage languagePage = new LanguagePage(page);
-        if (languagePage.isPageVisible()) {
+        try {
+            languagePage.waitForPageLoad();
             languagePage.selectEnglish();
             languagePage.clickContinue();
+        } catch (PlaywrightException ignored) {
+            // language page not present (returning user), continue
         }
 
         VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
@@ -72,6 +75,22 @@ public class UI5_VoiceRegistrationTest extends BasePage {
         Assert.assertFalse(
                 voicePage.isStartButtonDisabled(),
                 "Start Registration button should be enabled after consent is checked");
+    }
+
+    @Test(groups = {"ui", "regression"},
+            description = "Start Registration button should be disabled again after unchecking consent")
+    public void testStartButtonDisabledAfterUncheckingConsent() {
+        VoiceRegistrationPage voicePage = navigateToVoiceRegistrationPage();
+
+        voicePage.checkConsent();
+        Assert.assertFalse(
+                voicePage.isStartButtonDisabled(),
+                "Start Registration button should be enabled after checking consent");
+
+        voicePage.uncheckConsent();
+        Assert.assertTrue(
+                voicePage.isStartButtonDisabled(),
+                "Start Registration button should be disabled again after unchecking consent");
     }
 
     @Test(groups = {"ui", "regression"},
