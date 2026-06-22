@@ -91,11 +91,7 @@ public class HomePage {
     }
 
     public void waitForVoiceResponse(int timeoutMs) {
-        // Wait for transcribed user message to appear (confirms audio was heard)
-        page.locator(USER_BUBBLE).first()
-                .waitFor(new Locator.WaitForOptions()
-                        .setState(WaitForSelectorState.VISIBLE)
-                        .setTimeout(timeoutMs));
+        // USER_BUBBLE already confirmed by holdToSpeakWithRetry — just wait for bot reply
         // nth(0) = bot welcome message, nth(1) = response to the voice query
         page.locator(BOT_BUBBLE).nth(1)
                 .waitFor(new Locator.WaitForOptions()

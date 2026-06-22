@@ -35,6 +35,10 @@ public class VoiceRegistrationPage {
         page.locator(CONSENT_CHECKBOX).check();
     }
 
+    public void uncheckConsent() {
+        page.locator(CONSENT_CHECKBOX).uncheck();
+    }
+
     public boolean isConsentChecked() {
         return page.locator(CONSENT_CHECKBOX).isChecked();
     }

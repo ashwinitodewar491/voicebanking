@@ -12,6 +12,7 @@
         <maven.compiler.target>21</maven.compiler.target>
         <playwright.version>1.50.0</playwright.version>
         <testGroups></testGroups>
+        <suiteXmlFile>testng.xml</suiteXmlFile>
     </properties>
 
     <dependencies>
@@ -47,7 +48,7 @@
 
                 <configuration>
                     <suiteXmlFiles>
-                        <suiteXmlFile>testng.xml</suiteXmlFile>
+                        <suiteXmlFile>${suiteXmlFile}</suiteXmlFile>
                     </suiteXmlFiles>
                     <groups>${testGroups}</groups>
                 </configuration>

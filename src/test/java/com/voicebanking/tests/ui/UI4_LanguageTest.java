@@ -21,7 +21,7 @@ public class UI4_LanguageTest extends BasePage {
 
         OtpPage otpPage = new OtpPage(page);
         otpPage.waitForPageLoad();
-        otpPage.enterOtp(OtpPage.generateRandomOtp());
+        otpPage.enterOtp(OtpPage.getTestOtp());
         otpPage.clickContinue();
 
         LanguagePage languagePage = new LanguagePage(page);
@@ -47,6 +47,20 @@ public class UI4_LanguageTest extends BasePage {
         Assert.assertTrue(
                 languagePage.isEnglishSelected(),
                 "English should be selected by default on the language screen");
+    }
+
+    @Test(groups = {"ui", "regression"},
+            description = "Back button on language page should return to OTP screen")
+    public void testBackButtonReturnsToOtp() {
+        LanguagePage languagePage = navigateToLanguagePage();
+
+        languagePage.clickBack();
+
+        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+
+        Assert.assertTrue(
+                page.url().contains("/otp"),
+                "Back button on language page should navigate back to /otp");
     }
 
     @Test(groups = {"ui", "regression"},

@@ -75,4 +75,57 @@ public class UI3_OtpTest extends BasePage {
                 page.url().contains("/welcome"),
                 "Back button should return to /welcome page");
     }
+
+    @Test(groups = {"ui", "regression"},
+            description = "Should display correct heading, subheading and label on OTP page")
+    public void testOtpPageContent() {
+        OtpPage otpPage = navigateToOtpPage();
+
+        Assert.assertTrue(otpPage.isHeadingVisible(),
+                "'Verify OTP' heading should be visible on the OTP page");
+        Assert.assertTrue(otpPage.isSubheadingVisible(),
+                "'Enter the 4-digit code sent to your mobile' subheading should be visible");
+        Assert.assertTrue(otpPage.isOtpLabelVisible(),
+                "'Enter OTP' label should be visible on the OTP page");
+    }
+
+    @Test(groups = {"ui", "regression"},
+            description = "Should show validation error when OTP is blank on Continue")
+    public void testBlankOtpShowsValidationError() {
+        OtpPage otpPage = navigateToOtpPage();
+
+        otpPage.clickContinue();
+
+        Assert.assertTrue(otpPage.isOtpErrorVisible(),
+                "Validation error should appear when no OTP digits are entered");
+        Assert.assertEquals(otpPage.getOtpErrorText(),
+                "Please enter all 4 digits of your OTP",
+                "Correct validation message should be shown for blank OTP");
+    }
+
+    @Test(groups = {"ui", "regression"},
+            description = "Should show validation error when only 3 OTP digits are entered")
+    public void testShortOtpShowsValidationError() {
+        OtpPage otpPage = navigateToOtpPage();
+
+        otpPage.enterPartialOtp("123");
+        otpPage.clickContinue();
+
+        Assert.assertTrue(otpPage.isOtpErrorVisible(),
+                "Validation error should appear when only 3 OTP digits are entered");
+        Assert.assertEquals(otpPage.getOtpErrorText(),
+                "Please enter all 4 digits of your OTP",
+                "Correct validation message should be shown for incomplete OTP");
+    }
+
+    @Test(groups = {"ui", "regression"},
+            description = "Should display Terms & Conditions link on OTP page")
+    public void testOtpPageTermsAndConditions() {
+        OtpPage otpPage = navigateToOtpPage();
+
+        Assert.assertTrue(otpPage.isTermsLinkVisible(),
+                "Terms & Conditions link should be visible on the OTP page");
+        Assert.assertEquals(otpPage.getTermsLinkHref(), "/terms",
+                "Terms & Conditions link should point to /terms");
+    }
 }

@@ -19,6 +19,12 @@ public class WelcomePage {
     private static final String PHONE_INPUT   = "[data-testid='welcome-phone-input']";
     private static final String SEND_OTP_BTN  = "[data-testid='welcome-send-otp-btn']";
 
+    private static final String HEADING           = "text=VoiceBank";
+    private static final String SUBHEADING        = "text=Bank with Your Voice";
+    private static final String PHONE_LABEL       = "text=Mobile Number";
+    private static final String PHONE_ERROR_MSG   = "p.text-red-300";
+    private static final String TERMS_LINK        = "[data-testid='welcome-terms-link']";
+
     public WelcomePage(Page page, String baseUrl) {
         this.page = page;
         this.baseUrl = baseUrl;
@@ -28,6 +34,15 @@ public class WelcomePage {
         page.navigate(baseUrl + "/welcome");
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
     }
+
+    public boolean isHeadingVisible()    { return page.locator(HEADING).isVisible(); }
+    public boolean isSubheadingVisible() { return page.locator(SUBHEADING).isVisible(); }
+    public boolean isPhoneLabelVisible() { return page.locator(PHONE_LABEL).isVisible(); }
+
+    public boolean isPhoneErrorVisible() { return page.locator(PHONE_ERROR_MSG).isVisible(); }
+    public String  getPhoneErrorText()   { return page.locator(PHONE_ERROR_MSG).textContent().trim(); }
+    public boolean isTermsLinkVisible()  { return page.locator(TERMS_LINK).isVisible(); }
+    public String  getTermsLinkHref()    { return page.locator(TERMS_LINK).getAttribute("href"); }
 
     public boolean isPwaPopupVisible() {
         try {
