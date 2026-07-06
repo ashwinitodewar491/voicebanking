@@ -50,6 +50,7 @@ public abstract class BaseVoiceTest {
         boolean headless = Boolean.parseBoolean(System.getProperty("headless", "false"));
 
         List<String> chromiumArgs = new ArrayList<>();
+        chromiumArgs.add("--disable-gpu");               // required on Windows CI — without this Chromium hangs on GPU init when there is no display
         chromiumArgs.add("--use-fake-device-for-media-stream");
         chromiumArgs.add("--use-fake-ui-for-media-stream");
         chromiumArgs.add("--use-file-for-fake-audio-capture=" + currentAudioPath);
