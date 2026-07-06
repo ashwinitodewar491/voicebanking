@@ -47,7 +47,7 @@ public abstract class BaseVoiceTest {
         String query = (String) params[1];
         currentAudioPath = TtsUtil.generateWav(query);
 
-        boolean headless = Boolean.parseBoolean(System.getProperty("headless", "false"));
+        boolean headless = Boolean.parseBoolean(System.getProperty("headless", "true"));
 
         List<String> chromiumArgs = new ArrayList<>();
         chromiumArgs.add("--disable-gpu");               // required on Windows CI — without this Chromium hangs on GPU init when there is no display
