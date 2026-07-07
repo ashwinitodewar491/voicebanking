@@ -106,7 +106,7 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
         };
     }
 
-    @Test(dataProvider = "voiceQueries", groups = {"ui", "regression", "balance"},
+    @Test(dataProvider = "voiceQueries", groups = {"ui", "regression", "botverification"},
             description = "Should process English balance voice query and verify bot response")
     public void testVoiceQuery(String queryName, String query, String[] expectedKeywords,
                                 String assertionPattern, String disambiguationAccount) throws Exception {
