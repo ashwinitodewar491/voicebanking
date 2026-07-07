@@ -1,8 +1,12 @@
-# BDD Framework Options for API-Only Testing (No Cucumber)
+# BDD Framework Options for API & UI Testing (No Cucumber)
+
+> Note: this project actually runs **TestNG**, not JUnit 5 as shown in the examples below — the code samples here are illustrative of the three approaches, not drop-in for this codebase. See [skills.md](skills.md) for the real TestNG/DataProvider patterns already in use.
+>
+> The project's real UI/voice suite (`UI7_BalanceInquiryTest` + `BaseVoiceTest`) already reads like BDD without any extra framework: TestNG's `@DataProvider` rows are effectively "Given a query, When spoken, Then assert bot response" scenarios, and `runVoiceQuery(...)` is the shared Given/When/Then implementation. See "Applying This to UI/Voice Tests" below for how these options would extend to that suite.
 
 ## Overview
 
-Three approaches to add BDD to your API tests without Cucumber:
+Three approaches to add BDD to your API and UI tests without Cucumber:
 
 ### Option 1: JBehave (Recommended) ⭐
 - **Pros**: True BDD framework, Gherkin-like syntax, Java-native
@@ -500,4 +504,16 @@ If you want to start with Option 2 and later upgrade to JBehave:
 3. **Week 4+**: Gradually migrate or keep both
 
 This gives you flexibility without breaking changes.
+
+---
+
+## Applying This to UI/Voice Tests
+
+The same three options extend naturally to the voice-query suite (`UI7_BalanceInquiryTest`):
+
+- **Option 1 (JBehave/Gherkin)**: a story would read `Given the query "What is my balance"`, `When I speak it`, `Then the bot asks me to choose an account`, `And I answer "savings"`, `Then the bot reports my SAVINGS balance` — mirroring the disambiguation flow `BaseVoiceTest.runVoiceQuery()` already implements in code.
+- **Option 2 (JUnit 5 `@Nested` BDD style)**: would map to `@Nested class AmbiguousBalanceQuery` / `@Nested class ExplicitCurrentBalanceQuery`, each with `given/when/then`-named test methods — conceptually identical to the current DataProvider rows (`{queryName, query, expectedKeywords, assertionPattern, disambiguationAccount}`), just spelled out as separate methods instead of data rows.
+- **Option 3 (Custom context)**: a `VoiceBDDContext` would wrap `givenQuery(...)`, `whenSpoken()`, `thenBotAsksToChooseAccount()`, `andIAnswer("savings")`, `thenBalanceMatches(SAVINGS_PATTERN)` — effectively renaming the existing `BaseVoiceTest` methods to Given/When/Then verbs.
+
+**Recommendation for voice tests**: stick with the current TestNG `@DataProvider` approach (Option "0" — already implemented) rather than adopting any of the above. The 5-tuple rows are already scenario-like and self-documenting via the `queryName` field; introducing a second BDD layer on top would duplicate what `runVoiceQuery(...)` already does without adding readability for this team.
 
