@@ -103,8 +103,8 @@ public abstract class BaseVoiceTest {
     }
 
     /** Navigates, logs in, speaks the query, retries on transcription mismatch, and asserts the bot response. */
-    protected void runVoiceQuery(String queryName, String query,
-                                  String[] expectedKeywords, String assertionPattern) throws Exception {
+    protected void runVoiceQuery(String queryName, String query, String[] expectedKeywords,
+                                  String assertionPattern, String disambiguationAccount) throws Exception {
 
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();
@@ -169,10 +169,16 @@ public abstract class BaseVoiceTest {
                 + " expected [" + query + "] got [" + transcribed + "]");
 
         if (isAccountDisambiguation(botResponse)) {
-            System.out.println("[" + queryName + "] Bot asked to choose account — following up with 'savings'...");
+            String followUpAccount = disambiguationAccount != null ? disambiguationAccount : "savings";
+            String expectedPattern = "current".equalsIgnoreCase(followUpAccount)
+                    ? BotResponsePatterns.Balance.CURRENT
+                    : BotResponsePatterns.Balance.SAVINGS;
+
+            System.out.println("[" + queryName + "] Bot asked to choose account — following up with '"
+                    + followUpAccount + "'...");
 
             long oldAudioDurationMs = TtsUtil.getWavDurationMs(currentAudioPath);
-            String followUpPath = TtsUtil.generateWav("savings");
+            String followUpPath = TtsUtil.generateWav(followUpAccount);
             Files.copy(Path.of(followUpPath), Path.of(currentAudioPath), StandardCopyOption.REPLACE_EXISTING);
             int followUpHoldMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
             TtsUtil.deleteWav(followUpPath);
@@ -186,11 +192,12 @@ public abstract class BaseVoiceTest {
             System.out.println("[" + queryName + "] Follow-up Transcribed : " + followUpTranscribed);
             System.out.println("[" + queryName + "] Follow-up Bot response: " + followUpResponse);
 
-            boolean matched = Pattern.compile(BotResponsePatterns.Balance.SAVINGS)
+            boolean matched = Pattern.compile(expectedPattern)
                                      .matcher(followUpResponse).find();
             Assert.assertTrue(matched,
-                    "[" + queryName + "] After account selection, expected SAVINGS balance.\n"
-                    + "  Pattern : " + BotResponsePatterns.Balance.SAVINGS + "\n"
+                    "[" + queryName + "] After account selection, expected " + followUpAccount.toUpperCase()
+                    + " balance.\n"
+                    + "  Pattern : " + expectedPattern + "\n"
                     + "  Got     : " + followUpResponse);
             System.out.println("[" + queryName + "] PASS");
             return;
@@ -225,7 +232,9 @@ public abstract class BaseVoiceTest {
     /** Returns true when the bot response is asking the user to choose between account types. */
     private boolean isAccountDisambiguation(String response) {
         String lower = response.toLowerCase();
-        return lower.contains("choose") && lower.contains("account");
+        boolean asksToChoose = (lower.contains("choose") || lower.contains("which")) && lower.contains("account");
+        boolean listsBothAccounts = lower.contains("current") && lower.contains("savings") && lower.contains("account");
+        return asksToChoose || listsBothAccounts;
     }
 
     /** Returns true when at least one keyword appears in the bot response text. */
