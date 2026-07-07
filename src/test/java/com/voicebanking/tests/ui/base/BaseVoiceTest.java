@@ -174,23 +174,39 @@ public abstract class BaseVoiceTest {
                     ? BotResponsePatterns.Balance.CURRENT
                     : BotResponsePatterns.Balance.SAVINGS;
 
-            System.out.println("[" + queryName + "] Bot asked to choose account — following up with '"
-                    + followUpAccount + "'...");
+            String followUpTranscribed = "";
+            String followUpResponse = "";
 
-            long oldAudioDurationMs = TtsUtil.getWavDurationMs(currentAudioPath);
-            String followUpPath = TtsUtil.generateWav(followUpAccount);
-            Files.copy(Path.of(followUpPath), Path.of(currentAudioPath), StandardCopyOption.REPLACE_EXISTING);
-            int followUpHoldMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
-            TtsUtil.deleteWav(followUpPath);
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                System.out.println("[" + queryName + "] Bot asked to choose account — following up with '"
+                        + followUpAccount + "' (attempt " + attempt + ")...");
 
-            int preWaitMs = (int) oldAudioDurationMs + 2000;
-            homePage.speakFollowUp(preWaitMs, followUpHoldMs, 8000);
-            homePage.waitForVoiceResponse(15000);
+                long oldAudioDurationMs = TtsUtil.getWavDurationMs(currentAudioPath);
+                String followUpPath = TtsUtil.generateWav(followUpAccount);
+                Files.copy(Path.of(followUpPath), Path.of(currentAudioPath), StandardCopyOption.REPLACE_EXISTING);
+                int followUpHoldMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
+                TtsUtil.deleteWav(followUpPath);
 
-            String followUpTranscribed = homePage.getLastTranscribedText();
-            String followUpResponse    = homePage.getLastBotResponse();
-            System.out.println("[" + queryName + "] Follow-up Transcribed : " + followUpTranscribed);
-            System.out.println("[" + queryName + "] Follow-up Bot response: " + followUpResponse);
+                // Extra wait per retry — gives the fake-audio-capture loop (which replays the
+                // previously loaded file in memory) more cycles to pick up the overwritten content.
+                int preWaitMs = (int) oldAudioDurationMs + 2000 + ((attempt - 1) * 2000);
+                homePage.speakFollowUp(preWaitMs, followUpHoldMs, 8000);
+                homePage.waitForVoiceResponse(15000);
+
+                followUpTranscribed = homePage.getLastTranscribedText();
+                followUpResponse    = homePage.getLastBotResponse();
+                System.out.println("[" + queryName + "] Follow-up Transcribed : " + followUpTranscribed);
+                System.out.println("[" + queryName + "] Follow-up Bot response: " + followUpResponse);
+
+                boolean heardExpectedAccount =
+                        followUpTranscribed.toLowerCase().contains(followUpAccount.toLowerCase());
+                if (heardExpectedAccount && !isAccountDisambiguation(followUpResponse)) {
+                    break;
+                }
+                System.out.println("[" + queryName + "] WARN — follow-up not recognised (attempt " + attempt
+                        + "): expected [" + followUpAccount + "] got transcribed [" + followUpTranscribed
+                        + "], bot [" + followUpResponse + "] — retrying...");
+            }
 
             boolean matched = Pattern.compile(expectedPattern)
                                      .matcher(followUpResponse).find();
