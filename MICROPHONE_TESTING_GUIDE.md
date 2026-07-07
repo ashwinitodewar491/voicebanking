@@ -1,5 +1,29 @@
 # Playwright Java Microphone Testing Guide
 
+## Actual Implementation in This Project
+
+Everything below this section is a generic Playwright/microphone reference (JUnit 5 style, illustrative selectors). This project's **real** implementation differs in a few important ways — read this first before copy-pasting from the examples further down:
+
+| Generic guide says | This project actually does |
+|---|---|
+| JUnit 5 (`@BeforeEach`, `assertTrue`) | **TestNG** (`@BeforeMethod`, `Assert.assertTrue`) — see `BaseVoiceTest.java` |
+| `browser.headless=false` (properties file) | `headless` system property, **defaults to `true`** for CI; pass `-Dheadless=false` locally — see `BaseVoiceTest.java:50` |
+| `simulateVoiceInput()` via `SpeechSynthesisUtterance` | Real speech via Chromium `--use-file-for-fake-audio-capture=<wav>`, WAV generated per query by `TtsUtil.generateWav(query)` |
+| Fictional selectors (`.balance-display`, `[data-testid='voice-button']`) | Real selectors in `HomePage.java`: `[data-testid='listening-hold-to-speak-btn']`, `.mobile-scroll div.justify-end .whitespace-pre-line` (user bubble), `.mobile-scroll div.justify-start .whitespace-pre-line` (bot bubble) |
+| GitHub Actions CI example | **Jenkins** (`Jenkinsfile`, `mvn clean test -DtestGroups=...`) |
+| One-shot mic click | "Hold to speak" — `HomePage.pressAndHold()` holds the mouse down for the WAV's duration, then releases |
+
+**Voice test suite:** `UI7_BalanceInquiryTest` (extends `BaseVoiceTest`), 43 queries, group `botverification`. Run with:
+```bash
+mvn clean test -DtestGroups=botverification
+```
+
+**Account disambiguation:** when a query is ambiguous (e.g. "What is my balance"), the bot asks which account. `BaseVoiceTest.runVoiceQuery()` detects this via `isAccountDisambiguation()` (matches "choose ... account", "which ... account", or a response naming both SAVINGS and CURRENT), then speaks back "savings" or "current" (from the DataProvider's `disambiguationAccount` field) and retries up to 3 times — because `--use-file-for-fake-audio-capture` loops the WAV it already loaded into memory, and an overwritten file isn't always picked up before the next hold-to-speak window closes.
+
+See [skills.md](skills.md) → "UI / Voice Automation Rules" and [TEST_PLAN.md](TEST_PLAN.md) → Section 4 for the authoritative rules and current status. Everything from here down is generic reference material, not a description of this codebase.
+
+---
+
 ## Quick Start
 
 ### 1. Browser Setup with Microphone Permission
@@ -512,7 +536,7 @@ jobs:
 
 | Issue | Solution |
 |-------|----------|
-| Microphone not available | Ensure headless=false in local testing |
+| Microphone not available | In this project: pass `-Dheadless=false` locally to watch the browser (CI defaults to `headless=true`) |
 | Permission denied | Pre-grant in BrowserContext options |
 | Audio stream not working | Check browser version, use Chromium |
 | Voice recognition fails | Verify audio input device is available |

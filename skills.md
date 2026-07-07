@@ -1,7 +1,9 @@
 # VoiceBanking QA Automation — AI Skills
 
-This file teaches AI coding assistants (Claude Code, Cursor, GitHub Copilot, Ollama) how to generate, extend, and maintain API tests for this project.
+This file teaches AI coding assistants (Claude Code, Cursor, GitHub Copilot, Ollama) how to generate, extend, and maintain API and UI/voice tests for this project.
 Always follow these patterns exactly — do not introduce new libraries, frameworks, or abstractions.
+
+Jump to: [API rules](#project-stack) · [UI / Voice rules](#ui--voice-automation-rules)
 
 ---
 
@@ -243,6 +245,73 @@ mvn clean test -Denv=stage -DtestGroups=smoke        # stage + smoke only
 - Do not modify `TestListener.java` or `BaseApiPage.java` for individual test needs
 - Do not create helper classes outside the existing package structure
 - Do not add comments that describe what the code does — only add comments for non-obvious constraints
+
+---
+
+## UI / Voice Automation Rules
+
+### Project Structure
+
+```
+src/test/java/com/voicebanking/
+├── tests/ui/
+│   ├── base/
+│   │   └── BaseVoiceTest.java   # Browser lifecycle + shared voice-query flow — extend ONLY for voice-driven tests
+│   └── UI{N}_{FeatureName}Test.java   # One file per screen/flow (UI1_WelcomePageTest ... UI7_BalanceInquiryTest)
+├── pages/
+│   ├── BasePage.java             # Shared Playwright browser setup for non-voice UI tests
+│   ├── HomePage.java, WelcomePage.java, OtpPage.java, LanguagePage.java, VoiceRegistrationPage.java
+├── DataText/
+│   ├── VoiceQueries.java         # All spoken query text, grouped by locale (English, ...)
+│   └── BotResponsePatterns.java  # Regex patterns for bot responses (Balance.ANY/SAVINGS/CURRENT, ...)
+└── utils/
+    └── TtsUtil.java               # Generates/deletes WAV files for fake-mic input, computes duration
+```
+
+### Naming Conventions
+
+| What | Pattern | Example |
+|---|---|---|
+| Test class | `UI{N}_{FeatureName}Test` | `UI7_BalanceInquiryTest` |
+| Test method | `test{WhatIsVerified}` | `testVoiceQuery` |
+| Page object | `{Screen}Page` | `HomePage` |
+| Voice query constant | `SCREAMING_SNAKE_CASE` describing the phrase | `VoiceQueries.English.CURRENT_BALANCE` |
+
+### Test Groups
+
+| Group | When to use |
+|---|---|
+| `ui` | All UI tests |
+| `regression` | Full validation — runs on scheduled/manual runs |
+| `botverification` | Voice-query bot-response regression suite (`UI7_BalanceInquiryTest`) — run with `-DtestGroups=botverification` |
+
+### Adding a Voice Query Test — Step-by-Step
+
+1. Add the phrase to `VoiceQueries.java` (English, or the relevant locale class).
+2. Add the expected bot-response regex to `BotResponsePatterns.java` if a new pattern is needed — reuse `Balance.ANY/SAVINGS/CURRENT` where possible instead of inlining regex literals in the test class.
+3. Add a row to the test's `@DataProvider`. Rows are **5-tuples**:
+   ```java
+   {"Query Name", VoiceQueries.English.YOUR_QUERY,
+           new String[]{"keyword1", "keyword2"}, BotResponsePatterns.Balance.ANY, "savings"}
+   ```
+   - `disambiguationAccount` (5th field) is `"savings"` or `"current"` when the query is **ambiguous** (bot may ask "which account?"), and `null` when the query already names an account explicitly (e.g. "current account balance").
+   - When adding several ambiguous queries at once, **alternate** `"savings"`/`"current"` across rows so both disambiguation branches get exercised — don't default every row to the same value.
+4. Call `runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount)` from the `@Test` method. Do not duplicate the navigate → login → speak → assert flow inline in a test class.
+
+### BaseVoiceTest Rules
+
+- Any test that drives audio through the "hold to speak" flow must extend `BaseVoiceTest`, not `BasePage`.
+- `@BeforeMethod` launches Chromium with `--use-file-for-fake-audio-capture` pointed at a generated WAV. `headless` defaults to `true` via the `headless` system property — **never hardcode** `setHeadless(...)`; pass `-Dheadless=false` locally to watch the browser run.
+- `isAccountDisambiguation()` matches several bot phrasings: "choose ... account", "which ... account", or a response that names both `CURRENT` and `SAVINGS`. If you hit a new phrasing that isn't caught, extend that method — don't special-case it inside `runVoiceQuery`.
+- The disambiguation follow-up retries up to 3 times before asserting. This exists because `--use-file-for-fake-audio-capture` loops whatever WAV content it already loaded into memory, and doesn't always pick up an overwritten file before the hold-to-speak window closes. Keep the retry loop when touching that block — do not collapse it back to a single attempt.
+- Transcription/keyword matching (`transcriptionContainsExpectedWords`, `containsAnyKeyword`) is already case-insensitive — don't add extra `.toLowerCase()` calls at the call site.
+
+### What NOT to Do (UI additions)
+
+- Do not hardcode `setHeadless(true)` or `setHeadless(false)` in a test or page object — always read the `headless` system property with the existing default pattern.
+- Do not hardcode a disambiguation follow-up word — always take it from the DataProvider's `disambiguationAccount` param.
+- Do not skip `BaseVoiceTest.tearDown` cleanup (WAV deletion, browser close) when adding new voice test classes.
+- Do not add a case-sensitive string comparison for transcribed speech or bot response text.
 
 ---
 

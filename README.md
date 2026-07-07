@@ -1,7 +1,7 @@
 # Voice Banking — Automation Suite
 
 API and UI test automation for the Voice Banking platform.  
-**Current coverage: 9 APIs, 21 test methods, 2 environments (stage + prod).**
+**Current coverage: 9 APIs (21 test methods) + 7 UI/voice screens (incl. a 43-query voice balance-inquiry regression suite), 2 environments (stage + prod).**
 
 ---
 
@@ -19,6 +19,15 @@ mvn clean test -DtestGroups=smoke -Denv=stage
 
 # Run full regression against stage
 mvn clean test -DtestGroups=regression -Denv=stage
+
+# Run all UI tests
+mvn clean test -DtestGroups=ui
+
+# Run just the voice balance-inquiry regression suite (43 queries)
+mvn clean test -DtestGroups=botverification
+
+# Run a UI test headed (visible browser) instead of the CI default (headless)
+mvn clean test -Dtest=UI7_BalanceInquiryTest -Dheadless=false
 ```
 
 ---
@@ -71,8 +80,10 @@ flowchart TD
 | Group | Tests | Purpose |
 |---|---|---|
 | `smoke` | 7 methods (API1, API2, API3, API6) | Quick sanity after any deploy |
-| `regression` | 21 methods (all 9 APIs) | Full regression |
+| `regression` | 21 API methods + all UI classes | Full regression |
 | `api` | 21 methods (all 9 APIs) | Run all API tests |
+| `ui` | UI1–UI7 | Run all UI tests |
+| `botverification` | UI7 — 43 voice balance-inquiry queries | Voice/bot-response regression suite |
 
 ---
 
@@ -91,31 +102,45 @@ flowchart TD
 voicebanking/
 ├── src/test/java/com/voicebanking/
 │   ├── DataText/
-│   │   ├── Constants.java          # Test data, expected values
-│   │   └── Endpoints.java          # API paths + base URLs
+│   │   ├── Constants.java          # API test data, expected values
+│   │   ├── Endpoints.java          # API paths + base URLs, UI base URL
+│   │   ├── VoiceQueries.java       # Spoken query text for voice tests
+│   │   └── BotResponsePatterns.java # Regex patterns for bot responses (Balance.ANY/SAVINGS/CURRENT)
 │   ├── utils/
-│   │   └── APIClient.java          # Playwright HTTP wrapper
+│   │   ├── APIClient.java          # Playwright HTTP wrapper
+│   │   └── TtsUtil.java            # Generates/deletes WAV files for fake-mic voice input
 │   ├── pages/
-│   │   └── BaseApiPage.java        # @BeforeMethod — creates APIClient
-│   └── tests/api/
-│       ├── API1_GetAccountListTest.java
-│       ├── API2_GetCustomerInfoTest.java
-│       ├── API3_GetAccountBalanceTest.java
-│       ├── API4_GetBeneficiariesListTest.java
-│       ├── API5_GetTransactionsListTest.java
-│       ├── API6_TransferMoneyTest.java
-│       ├── API8_GetLoanStatementTest.java
-│       ├── API9_GetLoanOverdueDetailsTest.java
-│       └── API10_GetLoanSummaryListTest.java
-├── testng.xml                      # Suite — all 9 classes
+│   │   ├── BaseApiPage.java        # @BeforeMethod — creates APIClient
+│   │   ├── BasePage.java           # Shared Playwright browser setup for non-voice UI tests
+│   │   ├── HomePage.java, WelcomePage.java, OtpPage.java, LanguagePage.java, VoiceRegistrationPage.java
+│   ├── tests/api/
+│   │   ├── API1_GetAccountListTest.java
+│   │   ├── API2_GetCustomerInfoTest.java
+│   │   ├── API3_GetAccountBalanceTest.java
+│   │   ├── API4_GetBeneficiariesListTest.java
+│   │   ├── API5_GetTransactionsListTest.java
+│   │   ├── API6_TransferMoneyTest.java
+│   │   ├── API8_GetLoanStatementTest.java
+│   │   ├── API9_GetLoanOverdueDetailsTest.java
+│   │   └── API10_GetLoanSummaryListTest.java
+│   └── tests/ui/
+│       ├── base/BaseVoiceTest.java # Chromium + fake-mic lifecycle, shared runVoiceQuery() flow
+│       ├── UI1_WelcomePageTest.java
+│       ├── UI2_LoginTest.java
+│       ├── UI3_OtpTest.java
+│       ├── UI4_LanguageTest.java
+│       ├── UI5_VoiceRegistrationTest.java
+│       ├── UI6_HomePageTest.java
+│       └── UI7_BalanceInquiryTest.java   # 43-query voice balance-inquiry regression suite
+├── testng.xml                      # Suite — all API + UI classes
 ├── Jenkinsfile                     # CI pipeline
 ├── pom.xml                         # Maven config
-├── skills.md                       # AI skills — tool-agnostic test generation rules
-├── TEST_PLAN.md                    # Full test plan + roadmap
+├── skills.md                       # AI skills — tool-agnostic rules for API AND UI/voice test generation
+├── TEST_PLAN.md                    # Full test plan + roadmap (API + UI)
 ├── TEST_CASES.xlsx                 # Test case register
-├── QUICK_REFERENCE.md              # Commands cheat sheet
-├── MICROPHONE_TESTING_GUIDE.md    # Future voice testing reference
-└── BDD_FRAMEWORKS_GUIDE.md        # Future BDD options reference
+├── QUICK_REFERENCE.md              # Commands cheat sheet (API + UI)
+├── MICROPHONE_TESTING_GUIDE.md     # Voice/microphone reference
+└── BDD_FRAMEWORKS_GUIDE.md         # BDD options reference (API + UI)
 ```
 
 ---
@@ -135,6 +160,23 @@ voicebanking/
 | 9 — Loan Overdue | POST `/api/v1/loans/overdue` | regression, api | ✅ |
 | 10 — Loan Summary | POST `/api/v1/loans/summary` | regression, api | ✅ |
 | 11–13 — (out of scope) | — | — | — |
+
+---
+
+## UI / Voice Coverage
+
+| Screen | Test Class | Groups | Auto |
+|---|---|---|---|
+| Welcome / phone entry | UI1_WelcomePageTest | ui, regression | ✅ |
+| Login | UI2_LoginTest | ui, regression | ✅ |
+| OTP | UI3_OtpTest | ui, regression | ✅ |
+| Language selection | UI4_LanguageTest | ui, regression | ✅ |
+| Voice registration | UI5_VoiceRegistrationTest | ui, regression | ✅ |
+| Home screen | UI6_HomePageTest | ui, regression | ✅ |
+| Voice balance inquiry (43 queries) | UI7_BalanceInquiryTest | ui, regression, botverification | ✅ |
+| Transfer / beneficiary UI flows | — | — | 🔜 planned |
+
+UI7 drives real speech via Chromium's `--use-file-for-fake-audio-capture` (a generated WAV per query), asserts the bot's response against regex patterns in `BotResponsePatterns.Balance`, and handles account disambiguation ("which account — savings or current?") with a retry loop for flaky fake-audio timing. See [TEST_PLAN.md](TEST_PLAN.md) → Section 4 for details.
 
 ---
 
@@ -176,16 +218,13 @@ Jenkins publishes the report as a downloadable artifact and a **"Test Report"** 
 
 ---
 
-## Future: UI Automation
+## Future: UI Automation Beyond Balance Inquiry
 
-UI automation is planned using Playwright browser APIs (same framework dependency already in `pom.xml`).
-
-Planned coverage:
-- Login / Logout
-- Account list and balance screens
-- Transfer money flow
-- Loan summary and statement pages
-- Voice / Microphone permission and voice command tests
+Login, OTP, language, voice registration, home screen, and voice balance inquiry are already automated (see UI/Voice Coverage above). Still planned:
+- Transfer money end-to-end UI flow
+- Beneficiary add / edit
+- Voice commands beyond balance inquiry (transfers, beneficiaries)
+- Cross-browser UI runs
 
 See [TEST_PLAN.md](TEST_PLAN.md) → Section 4 for the full UI roadmap.
 
@@ -196,14 +235,14 @@ See [TEST_PLAN.md](TEST_PLAN.md) → Section 4 for the full UI roadmap.
 | File | Purpose |
 |---|---|
 | [README.md](README.md) | This file — start here |
-| [skills.md](skills.md) | AI skills — tool-agnostic rules for any AI assistant to generate tests |
-| [TEST_PLAN.md](TEST_PLAN.md) | Full test plan, strategy, roadmap |
+| [skills.md](skills.md) | AI skills — tool-agnostic rules for API AND UI/voice test generation |
+| [TEST_PLAN.md](TEST_PLAN.md) | Full test plan, strategy, roadmap (API + UI) |
 | [TEST_CASES.xlsx](TEST_CASES.xlsx) | All test cases (automated + manual) with groups |
-| [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Commands cheat sheet, common issues |
-| [MICROPHONE_TESTING_GUIDE.md](MICROPHONE_TESTING_GUIDE.md) | Voice/microphone implementation reference |
-| [BDD_FRAMEWORKS_GUIDE.md](BDD_FRAMEWORKS_GUIDE.md) | BDD options for future consideration |
+| [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Commands cheat sheet, common issues (API + UI) |
+| [MICROPHONE_TESTING_GUIDE.md](MICROPHONE_TESTING_GUIDE.md) | Voice/microphone reference — see "Actual Implementation" section for this project's real setup |
+| [BDD_FRAMEWORKS_GUIDE.md](BDD_FRAMEWORKS_GUIDE.md) | BDD options for future consideration (API + UI) |
 
 ---
 
-**Status**: API automation complete ✅ | UI automation planned 🔜  
+**Status**: API automation complete ✅ | UI automation in progress 🔄 (Welcome/Login/OTP/Language/VoiceRegistration/Home + 43-query voice Balance Inquiry done; Transfer/Beneficiary UI + voice flows planned)  
 **Java**: 21 | **Framework**: TestNG | **CI**: Jenkins

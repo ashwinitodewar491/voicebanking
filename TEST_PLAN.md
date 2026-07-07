@@ -20,10 +20,15 @@
 - Smoke and Regression groups
 - Automated via TestNG + Playwright Java
 
+**In Scope — Current (UI/Voice Automation)**
+- Welcome, Login/OTP, Language, Voice Registration, Home screens (UI1–UI6)
+- Voice Balance Inquiry — 43-query regression suite with account disambiguation handling (UI7, `botverification` group)
+- Playwright Chromium with `--use-file-for-fake-audio-capture` for mic simulation
+
 **In Scope — Future (UI Automation)**
-- Login, Dashboard, Transaction, Transfer, Loan UI flows
-- Voice / Microphone permission and command testing
-- Playwright Browser Automation
+- Transaction, Transfer, Loan UI flows beyond balance inquiry
+- Voice commands for transfers and beneficiaries
+- Cross-browser UI runs
 
 **Out of Scope**
 - APIs 7, 11, 12, 13 (Loan Details, Passbook, RD List, Account Details)
@@ -139,7 +144,7 @@ target/surefire-reports/*.xml
 
 ---
 
-## 4. Future Plan — UI Automation
+## 4. UI Automation — Current & Planned
 
 ### 4.1 Why Playwright for UI
 
@@ -147,71 +152,50 @@ target/surefire-reports/*.xml
 |---|---|
 | API + UI in one framework | Native — `APIRequestContext` + `Page` |
 | Microphone permission for voice banking | `context.grantPermissions(["microphone"])` |
-| Cross-browser (Chrome, Firefox, Safari) | Built-in |
+| Fake mic input for voice queries | Chromium `--use-file-for-fake-audio-capture=<wav>` |
 | Java / Maven | Full support |
 | Video recording | Built-in |
-| CI/CD headless mode | Default headless mode |
+| CI/CD headless mode | `headless` system property, defaults to `true` |
 
-### 4.2 Planned UI Test Coverage
+### 4.2 UI Test Coverage — Current
 
-**Phase 1 — Core Flows**
-- Login / Logout
-- Dashboard — account list display
-- Account balance screen
-- Transaction history with pagination
+| Class | Covers | Group(s) |
+|---|---|---|
+| `UI1_WelcomePageTest` | Phone entry, OTP trigger | `ui`, `regression` |
+| `UI2_LoginTest` | Login flow | `ui`, `regression` |
+| `UI3_OtpTest` | OTP verification | `ui`, `regression` |
+| `UI4_LanguageTest` | Language selection | `ui`, `regression` |
+| `UI5_VoiceRegistrationTest` | Voice registration screen | `ui`, `regression` |
+| `UI6_HomePageTest` | Home screen elements, one mocked voice balance query | `ui`, `regression` |
+| `UI7_BalanceInquiryTest` | 43 real voice balance queries (fake-mic WAV → STT → bot response), incl. account disambiguation follow-up (savings/current) with retry | `ui`, `regression`, `botverification` |
 
-**Phase 2 — Transactions**
+`BaseVoiceTest` (used by UI7) owns the Chromium+fake-audio lifecycle and the shared `runVoiceQuery(...)` flow: navigate → login → speak query → assert bot response, with automatic retry on transcription mismatch and on account-disambiguation follow-up.
+
+Run just the voice-verification suite:
+```bash
+mvn clean test -DtestGroups=botverification
+```
+
+### 4.3 Planned — Not Yet Automated
+
+**Transactions & Transfers**
 - Transfer money end-to-end UI flow
 - Beneficiary add / edit
 - Transfer success / error messages
 
-**Phase 3 — Voice Features**
-- Microphone permission grant via Playwright context
-- Voice command simulation (balance, transfer, beneficiaries)
-- Speech recognition response validation
+**Voice Features Beyond Balance**
+- Voice command simulation for transfers, beneficiaries
+- Multi-locale voice queries
 
-**Phase 4 — Quality & Coverage**
+**Quality & Coverage**
 - Cross-browser runs (Chrome, Firefox)
 - Accessibility checks
 - Session timeout handling
 - Error state UI validation
 
-### 4.3 UI Group Strategy (Planned)
+### 4.4 Known Limitation — Fake Audio Follow-ups
 
-```
-ui-smoke      → critical login + dashboard check
-ui-regression → all UI flows
-ui-voice      → microphone and voice command tests
-```
-
-### 4.4 Proposed BaseUIPage (Future)
-
-```java
-public class BaseUIPage {
-
-    protected Page page;
-    protected BrowserContext context;
-
-    @BeforeMethod(alwaysRun = true)
-    public void setupBrowser() {
-        Playwright pw = Playwright.create();
-        Browser browser = pw.chromium().launch(
-            new BrowserType.LaunchOptions().setHeadless(true)
-        );
-        context = browser.newContext(
-            new Browser.NewContextOptions()
-                .setPermissions(List.of("microphone"))
-        );
-        page = context.newPage();
-        page.navigate(System.getenv("UI_BASE_URL"));
-    }
-
-    @AfterMethod(alwaysRun = true)
-    public void closeBrowser() {
-        context.close();
-    }
-}
-```
+`--use-file-for-fake-audio-capture` loads the WAV file into memory and loops it; overwriting the file on disk for a disambiguation follow-up ("savings"/"current") doesn't always get picked up before the next hold-to-speak window closes. `BaseVoiceTest` mitigates this with up to 3 retries (increasing pre-wait each attempt) rather than asserting on the first attempt. This is a framework-level workaround, not a product bug — keep it in mind if new voice flows need a second spoken input.
 
 ---
 
@@ -225,7 +209,7 @@ public class BaseUIPage {
           └─────────┬───────────┘
                     │
           ┌─────────▼───────────┐
-          │    UI Automation     │  ~20% (Planned — Playwright)
+          │    UI Automation     │  ~20% (In Progress — Playwright)
           │  (Login, Dashboard,  │
           │   Transfer, Voice)   │
           └─────────┬───────────┘
@@ -246,7 +230,7 @@ public class BaseUIPage {
 | Phase 1: API Framework Setup | ✅ Done | BaseApiPage, APIClient, pom.xml, TestNG config |
 | Phase 2: API Tests | ✅ Done | All 9 APIs automated (21 test methods) |
 | Phase 3: Jenkins CI/CD | ✅ Done | Jenkinsfile with ENV/SUITE params, group filtering |
-| Phase 4: UI Test Framework | 🔜 Planned | BaseUIPage, browser setup, page objects |
-| Phase 5: UI Tests | 🔜 Planned | Login, Dashboard, Transfer, Loan flows |
-| Phase 6: Voice/Microphone | 🔜 Planned | Playwright permission + voice command tests |
+| Phase 4: UI Test Framework | ✅ Done | `BaseVoiceTest`, `BasePage`, page objects, headless-by-default browser setup |
+| Phase 5: UI Tests | 🔄 In Progress | Welcome/Login/OTP/Language/VoiceRegistration/Home done (UI1–UI6); Transfer/Loan UI flows planned |
+| Phase 6: Voice/Microphone | 🔄 In Progress | Fake-audio-capture + account disambiguation (with retry) working for Balance Inquiry (UI7, `botverification` group); transfer/beneficiary voice commands planned |
 | Phase 7: Allure Reporting | 🔜 Planned | Rich HTML reports with screenshots |

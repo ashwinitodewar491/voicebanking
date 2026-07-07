@@ -22,11 +22,23 @@ mvn clean test
 # Smoke only — fast sanity check (API1, API2, API3, API6)
 mvn clean test -DtestGroups=smoke
 
-# Full regression — all 9 APIs (21 test methods)
+# Full regression — all 9 APIs (21 test methods) + all UI classes
 mvn clean test -DtestGroups=regression
 
 # All API tests
 mvn clean test -DtestGroups=api
+
+# All UI tests (UI1-UI7)
+mvn clean test -DtestGroups=ui
+
+# Voice balance-inquiry bot-response regression suite only (43 queries, UI7)
+mvn clean test -DtestGroups=botverification
+```
+
+### Run a UI test headed (visible browser)
+```bash
+# CI defaults to headless=true — override locally to watch the browser
+mvn clean test -Dtest=UI7_BalanceInquiryTest -Dheadless=false
 ```
 
 ### Run against a specific environment
@@ -42,6 +54,7 @@ mvn clean test -DtestGroups=smoke -Denv=prod
 ```bash
 mvn test -Dtest=API1_GetAccountListTest
 mvn test -Dtest=API6_TransferMoneyTest
+mvn test -Dtest=UI7_BalanceInquiryTest
 ```
 
 ### Skip tests during build
@@ -64,9 +77,11 @@ mvn clean install -DskipTests
 | ENV | SUITE | What runs |
 |---|---|---|
 | stage | smoke | API1, API2, API3, API6 — quick sanity |
-| stage | regression | All 9 APIs |
+| stage | regression | All 9 APIs + all UI classes (UI1–UI7) |
 | prod | smoke | API1, API2, API3, API6 — prod sanity |
-| prod | regression | All 9 APIs |
+| prod | regression | All 9 APIs + all UI classes (UI1–UI7) |
+
+Jenkins `SUITE` currently offers `smoke`/`regression` only. To run just `botverification` or `ui` via CI, trigger manually with `mvn clean test -DtestGroups=botverification` (or add it as a Jenkins `SUITE` choice — see Jenkinsfile).
 
 ### No Jenkins global vars required
 URLs are managed in `Endpoints.java` and selected via `-Denv` — no server-side configuration needed.
@@ -91,38 +106,63 @@ URLs are managed in `Endpoints.java` and selected via `-Denv` — no server-side
 
 ---
 
+## UI / Voice Test Coverage Summary
+
+| Class | Groups | Covers |
+|---|---|---|
+| UI1_WelcomePageTest | ui, regression | Phone entry, OTP trigger |
+| UI2_LoginTest | ui, regression | Login flow |
+| UI3_OtpTest | ui, regression | OTP verification |
+| UI4_LanguageTest | ui, regression | Language selection |
+| UI5_VoiceRegistrationTest | ui, regression | Voice registration screen |
+| UI6_HomePageTest | ui, regression | Home screen elements, one mocked voice query |
+| UI7_BalanceInquiryTest | ui, regression, botverification | 43 real voice balance queries via fake-mic WAV, incl. account disambiguation with retry |
+
+**UI/voice total: 7 test classes, 43 data-driven balance queries in UI7 alone**
+
+---
+
 ## Project Structure
 
 ```
 voicebanking/
 ├── src/test/java/com/voicebanking/
 │   ├── DataText/
-│   │   ├── Constants.java          # Test data (IDs, expected values)
-│   │   └── Endpoints.java          # API endpoint paths + base URLs
+│   │   ├── Constants.java          # API test data (IDs, expected values)
+│   │   ├── Endpoints.java          # API endpoint paths + base URLs + UI base URL
+│   │   ├── VoiceQueries.java       # Spoken query text for voice tests
+│   │   └── BotResponsePatterns.java # Regex patterns for bot responses
 │   ├── utils/
-│   │   └── APIClient.java          # Playwright HTTP wrapper
+│   │   ├── APIClient.java          # Playwright HTTP wrapper
+│   │   └── TtsUtil.java            # Generates/deletes WAV files for fake-mic voice input
 │   ├── pages/
-│   │   └── BaseApiPage.java        # @BeforeMethod setUp() — creates APIClient
-│   └── tests/api/
-│       ├── API1_GetAccountListTest.java
-│       ├── API2_GetCustomerInfoTest.java
-│       ├── API3_GetAccountBalanceTest.java
-│       ├── API4_GetBeneficiariesListTest.java
-│       ├── API5_GetTransactionsListTest.java
-│       ├── API6_TransferMoneyTest.java
-│       ├── API8_GetLoanStatementTest.java
-│       ├── API9_GetLoanOverdueDetailsTest.java
-│       └── API10_GetLoanSummaryListTest.java
-├── testng.xml                      # Suite definition (all 9 classes)
+│   │   ├── BaseApiPage.java        # @BeforeMethod setUp() — creates APIClient
+│   │   ├── BasePage.java           # Shared Playwright browser setup for non-voice UI tests
+│   │   └── HomePage.java, WelcomePage.java, OtpPage.java, LanguagePage.java, VoiceRegistrationPage.java
+│   ├── tests/api/
+│   │   ├── API1_GetAccountListTest.java
+│   │   ├── API2_GetCustomerInfoTest.java
+│   │   ├── API3_GetAccountBalanceTest.java
+│   │   ├── API4_GetBeneficiariesListTest.java
+│   │   ├── API5_GetTransactionsListTest.java
+│   │   ├── API6_TransferMoneyTest.java
+│   │   ├── API8_GetLoanStatementTest.java
+│   │   ├── API9_GetLoanOverdueDetailsTest.java
+│   │   └── API10_GetLoanSummaryListTest.java
+│   └── tests/ui/
+│       ├── base/BaseVoiceTest.java # Chromium + fake-mic lifecycle, shared runVoiceQuery() flow
+│       ├── UI1_WelcomePageTest.java ... UI6_HomePageTest.java
+│       └── UI7_BalanceInquiryTest.java   # 43-query voice balance-inquiry regression suite
+├── testng.xml                      # Suite definition (all API + UI classes)
 ├── Jenkinsfile                     # CI pipeline (ENV + SUITE params)
 ├── pom.xml                         # Maven config (Java 21, TestNG, Playwright)
-├── skills.md                       # AI skills — tool-agnostic test generation rules
-├── TEST_PLAN.md                    # Full test plan + roadmap
+├── skills.md                       # AI skills — rules for both API and UI/voice test generation
+├── TEST_PLAN.md                    # Full test plan + roadmap (API + UI)
 ├── TEST_CASES.xlsx                 # Test case register (automated + manual)
 ├── QUICK_REFERENCE.md              # This file
 ├── README.md                       # Getting started
-├── MICROPHONE_TESTING_GUIDE.md    # Future voice/microphone reference
-└── BDD_FRAMEWORKS_GUIDE.md        # Future BDD options reference
+├── MICROPHONE_TESTING_GUIDE.md     # Voice/microphone reference
+└── BDD_FRAMEWORKS_GUIDE.md         # BDD options reference (API + UI)
 ```
 
 ---
@@ -214,6 +254,9 @@ None required — URLs are managed in `Endpoints.java`.
 | `No test report files found` | Tests did not run (compile or setup error) | Fix the prior error; surefire XML only appears on successful run |
 | `invalid target release: 21` | VS Code terminal has old JAVA_HOME | Set `$env:JAVA_HOME` to JDK 21 path or restart VS Code |
 | `No tests found` | Test class doesn't end with "Test" | Rename: `API1Test.java` ✅, `API1.java` ❌ |
+| UI test opens a real browser on CI | `headless` system property not set, or hardcoded `setHeadless(false)` | `BaseVoiceTest`/`BasePage` default `headless` to `true` — pass `-Dheadless=false` only when running locally |
+| Disambiguation follow-up ("savings"/"current") not recognized, bot re-asks | Fake-audio-capture loops the previously loaded WAV in memory; overwritten file isn't always picked up in time | `BaseVoiceTest` retries the follow-up up to 3 times with increasing pre-wait — this is expected occasionally, not a product bug |
+| Bot response phrasing not detected as a disambiguation prompt | `isAccountDisambiguation()` doesn't match a new bot phrasing | Add the new phrasing to `isAccountDisambiguation()` in `BaseVoiceTest.java` |
 
 ---
 
@@ -231,3 +274,24 @@ None required — URLs are managed in `Endpoints.java`.
    <class name="com.voicebanking.tests.api.APIxx_DescriptionTest"/>
    ```
 5. Run: `mvn test -Dtest=APIxx_DescriptionTest`
+
+---
+
+## Adding a New Voice Query (e.g. to UI7_BalanceInquiryTest)
+
+1. Add the phrase to `VoiceQueries.java`.
+2. Add a 5-tuple row to the `@DataProvider`:
+   ```java
+   {"Query Name", VoiceQueries.English.YOUR_QUERY,
+           new String[]{"keyword1", "keyword2"}, BotResponsePatterns.Balance.ANY, "savings"}
+   ```
+   `disambiguationAccount` (5th field) is `"savings"`/`"current"` for ambiguous queries, `null` when the query already names an account. Alternate `"savings"`/`"current"` across new ambiguous rows for balanced coverage.
+3. Run: `mvn test -Dtest=UI7_BalanceInquiryTest -Dheadless=false` to watch it locally first.
+
+## Adding a New Non-Voice UI Test
+
+1. Create `src/test/java/com/voicebanking/tests/ui/UIxx_DescriptionTest.java`
+2. Extend `BasePage` (not `BaseVoiceTest` — that's for voice-driven flows only)
+3. Add test methods with `groups = {"ui", "regression"}`
+4. Add the class to `testng.xml`
+5. Run: `mvn test -Dtest=UIxx_DescriptionTest`
