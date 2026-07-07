@@ -17,6 +17,8 @@ import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
 import com.voicebanking.utils.TtsUtil;
 
+import java.util.regex.Pattern;
+
 public class UI6_HomePageTest extends BasePage {
 
     private String generatedWavPath;
@@ -119,15 +121,36 @@ public class UI6_HomePageTest extends BasePage {
     }
 
     @Test(groups = {"ui", "regression"},
-            description = "Should send voice query 'What is my account balance' and receive a response")
+            description = "Should send voice query 'What is my account balance' and receive a valid balance response")
     public void testVoiceBalanceQuery() {
+        String expectedQuery = VoiceQueries.English.ACCOUNT_BALANCE;
+
+        // Web Speech API is unavailable in headless Chromium — inject mock before any navigation
+        page.addInitScript(speechMockScript(expectedQuery));
+
         HomePage homePage = navigateToHomePage();
 
-        homePage.holdToSpeak(5000);
+        homePage.holdToSpeakWithRetry(1000, 3, 10000);
         homePage.waitForVoiceResponse(15000);
 
-        Assert.assertTrue(
-                homePage.isPageVisible(),
+        String transcribed = homePage.getLastTranscribedText();
+        String botResponse = homePage.getLastBotResponse();
+
+        System.out.println("[Account Balance] Expected    : " + expectedQuery);
+        System.out.println("[Account Balance] Transcribed : " + transcribed);
+        System.out.println("[Account Balance] Bot response: " + botResponse);
+
+        Assert.assertTrue(homePage.isPageVisible(),
                 "Home page should remain visible after voice query");
+
+        // Account type (e.g. SAVINGS), account number (e.g. ACC202602260029),
+        // and amount (e.g. 67000.0) are all dynamic — only the sentence structure is asserted.
+        Pattern balancePattern = Pattern.compile(
+                "The balance in your [A-Z]+ \\([A-Z0-9]+\\) account is [\\d,]+(?:\\.\\d+)?\\.");
+        Assert.assertTrue(
+                balancePattern.matcher(botResponse).find(),
+                "[Account Balance] Bot response did not match expected pattern.\n" +
+                "  Pattern : The balance in your <TYPE> (<ID>) account is <AMOUNT>.\n" +
+                "  Got     : " + botResponse);
     }
 }

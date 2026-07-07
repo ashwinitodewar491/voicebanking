@@ -14,13 +14,17 @@ public final class Endpoints {
     public static final String UI_BASE_URL_STAGE
             = "https://voicebank-stage.joshsoftware.com";
 
+    public static final String UI_BASE_URL_PROD
+            = "https://voicebank.joshsoftware.com";
+
     public static String getBaseUrl() {
         String env = System.getProperty("env", System.getenv("ENV") != null ? System.getenv("ENV") : "prod");
         return "stage".equalsIgnoreCase(env) ? BASE_URL_STAGE : BASE_URL_PROD;
     }
 
     public static String getUiBaseUrl() {
-        return UI_BASE_URL_STAGE;
+        String env = System.getProperty("env", System.getenv("ENV") != null ? System.getenv("ENV") : "prod");
+        return "stage".equalsIgnoreCase(env) ? UI_BASE_URL_STAGE : UI_BASE_URL_PROD;
     }
 
     public static final String ACCOUNT_LIST
