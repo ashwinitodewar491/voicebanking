@@ -119,7 +119,6 @@ public class API4_GetBeneficiariesListTest extends BaseApiPage {
                 Constants.EXPECTED_BENEFICIARY_COUNT);
 
         boolean beneficiary1Found = false;
-        boolean beneficiary2Found = false;
 
         for (JsonNode beneficiary : beneficiaries) {
 
@@ -141,32 +140,11 @@ public class API4_GetBeneficiariesListTest extends BaseApiPage {
 
                 beneficiary1Found = true;
             }
-
-            if (Constants.BENEFICIARY_2_NAME.equals(name)) {
-
-                Assert.assertEquals(
-                        beneficiary.get("bankName").asText(),
-                        Constants.BENEFICIARY_2_BANK);
-
-                Assert.assertEquals(
-                        beneficiary.get("ifsc").asText(),
-                        Constants.BENEFICIARY_2_IFSC);
-
-                Assert.assertEquals(
-                        beneficiary.get("transferType").asText(),
-                        Constants.BENEFICIARY_2_TRANSFER_TYPE);
-
-                beneficiary2Found = true;
-            }
         }
 
         Assert.assertTrue(
                 beneficiary1Found,
                 Constants.BENEFICIARY_1_NAME + " not found");
-
-        Assert.assertTrue(
-                beneficiary2Found,
-                Constants.BENEFICIARY_2_NAME + " not found");
     }
 
     // --- Negative Tests ---

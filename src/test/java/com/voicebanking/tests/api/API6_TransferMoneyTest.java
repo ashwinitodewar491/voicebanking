@@ -114,12 +114,17 @@ public class API6_TransferMoneyTest extends BaseApiPage {
                 0.01);
 
         // Cleanup
-        transferMoney(
+        JsonNode cleanupResponse = transferMoney(
                 Constants.RECEIVER_CUSTOMER_ID_1,
                 Constants.RECEIVER_ACCOUNT_ID_1,
                 Constants.SENDER_BENEFICIARY_ID_ORIGINAL,
                 amount,
                 "Cleanup Refund");
+
+        Assert.assertEquals(
+                cleanupResponse.get("status").asText(),
+                Constants.SUCCESS_STATUS,
+                "Cleanup refund failed — sender balance will not be restored: " + cleanupResponse);
 
         // Verify cleanup
         Assert.assertEquals(

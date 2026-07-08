@@ -16,7 +16,7 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
     private JsonNode getResponse() throws Exception {
 
         Map<String, String> requestBody = new HashMap<>();
-        requestBody.put("customerId", Constants.EXISTING_CUSTOMER_ID);
+        requestBody.put("customerId", Constants.LOAN_SUMMARY_CUSTOMER_ID);
 
         return apiClient.post(
                 Endpoints.LOAN_SUMMARY,
@@ -101,7 +101,7 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
             // Business validations
             Assert.assertEquals(
                     loan.get("customerNumber").asText(),
-                    Constants.EXISTING_CUSTOMER_ID);
+                    Constants.LOAN_SUMMARY_CUSTOMER_ID);
 
             Assert.assertEquals(
                     loan.get("customerName").asText(),
@@ -169,15 +169,15 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
 
         JsonNode loans = getLoanDetails();
 
-        boolean homeLoanFound = false;
+        boolean businessLoanFound = false;
         boolean personalLoanFound = false;
 
         for (JsonNode loan : loans) {
 
             String loanType = loan.get("loanType").asText();
 
-            if ("HOME_LOAN".equals(loanType)) {
-                homeLoanFound = true;
+            if ("BUSINESS_LOAN".equals(loanType)) {
+                businessLoanFound = true;
             }
 
             if ("PERSONAL_LOAN".equals(loanType)) {
@@ -186,8 +186,8 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
         }
 
         Assert.assertTrue(
-                homeLoanFound,
-                "HOME_LOAN not found");
+                businessLoanFound,
+                "BUSINESS_LOAN not found");
 
         Assert.assertTrue(
                 personalLoanFound,
