@@ -31,6 +31,7 @@
             <class name="com.voicebanking.tests.ui.UI5_VoiceRegistrationTest"/>
             <class name="com.voicebanking.tests.ui.UI6_HomePageTest"/>
             <class name="com.voicebanking.tests.ui.UI7_BalanceInquiryTest"/>
+            <class name="com.voicebanking.tests.ui.UI8_TransactionHistoryTest"/>
         </classes>
     </test>
 

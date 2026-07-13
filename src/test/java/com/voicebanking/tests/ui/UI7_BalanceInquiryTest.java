@@ -112,4 +112,30 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
                                 String assertionPattern, String disambiguationAccount) throws Exception {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
+
+    /** Customer A (Sneha Kulkarni, CIF202602260010, 9765432109) — dual account: savings + current.
+     * Customer B (CIF202602260007, 9723456789) — savings only. Account-to-customer mapping is known
+     * statically, so each row names its account explicitly (SAVINGS_BALANCE / CURRENT_BALANCE) and
+     * never triggers the disambiguation follow-up — no need to guess or loop over possibilities. */
+    @DataProvider(name = "knownAccountBalanceQueries")
+    public Object[][] knownAccountBalanceQueries() {
+        return new Object[][]{
+
+            // {queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber}
+            {"Customer A Savings Balance", VoiceQueries.English.SAVINGS_BALANCE,
+                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, "9765432109"},
+            {"Customer A Current Balance", VoiceQueries.English.CURRENT_BALANCE,
+                    new String[]{"balance", "current"}, BotResponsePatterns.Balance.CURRENT, null, "9765432109"},
+            {"Customer B Savings Balance", VoiceQueries.English.SAVINGS_BALANCE,
+                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, "9723456789"},
+        };
+    }
+
+    @Test(dataProvider = "knownAccountBalanceQueries", groups = {"ui", "regression", "botverification"},
+            description = "Should return the correct account balance for known seeded customers")
+    public void testKnownAccountBalance(String queryName, String query, String[] expectedKeywords,
+                                         String assertionPattern, String disambiguationAccount,
+                                         String phoneNumber) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber);
+    }
 }
