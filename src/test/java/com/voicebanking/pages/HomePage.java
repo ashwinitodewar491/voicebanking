@@ -284,9 +284,15 @@ public class HomePage {
         return items.count() > 0 ? items.last().textContent().trim() : "";
     }
 
+    /**
+     * Some bot replies (e.g. transaction lists) render as a structured card instead of a plain
+     * .whitespace-pre-line bubble. In that case no new BOT_BUBBLE element appears, so checking
+     * "any BOT_BUBBLE exists" would silently return a stale earlier bubble. Comparing against
+     * botBubblesBefore detects whether a genuinely new plain-text bubble was added before trusting it.
+     */
     public String getLastBotResponse() {
         Locator items = page.locator(BOT_BUBBLE);
-        if (items.count() > 0) return items.last().textContent().trim();
+        if (items.count() > botBubblesBefore) return items.last().textContent().trim();
         Locator wider = page.locator(BOT_CONTAINER);
         return wider.count() > 0 ? wider.last().textContent().trim() : "";
     }

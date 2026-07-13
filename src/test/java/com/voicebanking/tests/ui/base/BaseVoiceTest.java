@@ -102,14 +102,33 @@ public abstract class BaseVoiceTest {
         Thread.sleep(3000);
     }
 
+    /**
+     * Phone number used to log in before speaking the query. Defaults to a fresh random number
+     * (new-user registration flow, no seeded history). Override to log in as an existing seeded
+     * customer instead — e.g. when the query needs real transaction/loan history to assert against,
+     * since a brand-new account has none.
+     */
+    protected String getLoginPhoneNumber() {
+        return WelcomePage.generateRandomPhone();
+    }
+
     /** Navigates, logs in, speaks the query, retries on transcription mismatch, and asserts the bot response. */
     protected void runVoiceQuery(String queryName, String query, String[] expectedKeywords,
                                   String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, getLoginPhoneNumber());
+    }
+
+    /** Same as {@link #runVoiceQuery(String, String, String[], String, String)} but logs in as
+     * an explicit phone number instead of {@link #getLoginPhoneNumber()} — for data-provider rows
+     * that exercise a specific known seeded customer rather than the class-wide default. */
+    protected void runVoiceQuery(String queryName, String query, String[] expectedKeywords,
+                                  String assertionPattern, String disambiguationAccount,
+                                  String phoneNumber) throws Exception {
 
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();
         welcomePage.dismissPwaPopupIfPresent();
-        welcomePage.enterPhoneNumber(WelcomePage.generateRandomPhone());
+        welcomePage.enterPhoneNumber(phoneNumber);
         welcomePage.clickSendOtp();
 
         OtpPage otpPage = new OtpPage(page);
