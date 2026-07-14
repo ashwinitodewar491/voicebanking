@@ -109,6 +109,44 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
+    /** One representative happy-path query — "is the bot alive and answering transaction
+     * queries correctly at all." Run this tier for a fast build/deploy health check. */
+    @DataProvider(name = "smokeQueries")
+    public Object[][] smokeQueries() {
+        return new Object[][]{
+            {"Recent Transactions", VoiceQueries.English.RECENT_TRANSACTIONS,
+                    new String[]{"transaction", "recent"}, BotResponsePatterns.Transactions.ENTRY, "savings"},
+        };
+    }
+
+    @Test(dataProvider = "smokeQueries", groups = {"ui", "smoke", "botverification"},
+            description = "Smoke: should process a basic English transaction-history voice query")
+    public void testSmokeQuery(String queryName, String query, String[] expectedKeywords,
+                                String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
+    /** One query per major transaction-pattern category (generic recent, account-specific, and
+     * category-filtered) — broader than smoke, still fast. */
+    @DataProvider(name = "sanityQueries")
+    public Object[][] sanityQueries() {
+        return new Object[][]{
+            {"Recent Transactions",   VoiceQueries.English.RECENT_TRANSACTIONS,
+                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.ENTRY, "savings"},
+            {"Savings Transactions",  VoiceQueries.English.SAVINGS_TRANSACTIONS,
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null},
+            {"UPI Transactions",      VoiceQueries.English.UPI_TRANSACTIONS,
+                    new String[]{"transaction", "upi"},     BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "savings"},
+        };
+    }
+
+    @Test(dataProvider = "sanityQueries", groups = {"ui", "sanity", "botverification"},
+            description = "Sanity: should process one transaction voice query per major pattern category")
+    public void testSanityQuery(String queryName, String query, String[] expectedKeywords,
+                                 String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
     /** Customer A (Sneha Kulkarni, CIF202602260010, 9765432109) — dual account: savings + current.
      * Customer B (CIF202602260007, 9723456789) — savings only. Account-to-customer mapping is known
      * statically, so each row names its account explicitly (SAVINGS_TRANSACTIONS / CURRENT_TRANSACTIONS)

@@ -44,4 +44,29 @@ public class BotResponsePatterns {
         // empty result for a filter/date range this seed account has nothing in.
         public static final String ENTRY_OR_NO_RESULTS = "(?:" + ENTRY + ")|(?:" + NO_RESULTS + ")";
     }
+
+    public static class Loans {
+        // Confirmed for Customer A (9765432109): Home Loan (LN10014), Personal Loan (LN10015).
+        // "The outstanding amount on your Home Loan is Rs.800000.0"
+        public static final String OUTSTANDING =
+                "The outstanding amount on your (?:Home|Personal) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
+
+        // "The next EMI due date for your Personal Loan is N/A." — "N/A" is a legitimate value
+        // when no due date is scheduled, so the date portion is left loose on purpose.
+        public static final String NEXT_EMI_DUE =
+                "The next EMI due date for your (?:Home|Personal) Loan is .+";
+
+        // Fallback when the named loan type isn't recognised (e.g. "education loan", which this
+        // customer doesn't have), or no type was named and the customer has more than one loan —
+        // the bot lists what it actually has and asks the caller to pick. The exact wording is
+        // NOT stable — at least 7 lead-in variants have been observed for the same underlying
+        // prompt ("You have the following loan accounts: ...", "I found multiple loan accounts
+        // for you: ...", "I see you have multiple loan accounts. Which one are you referring
+        // to? ...", etc.), so this deliberately doesn't match a literal phrase. Instead it
+        // requires, anywhere in the response: the word "which", the word "loan", and at least
+        // two distinct loan account numbers (LN followed by digits) — a shape common to every
+        // variant seen so far without being tied to any one of them.
+        public static final String LOAN_OPTIONS_PROMPT =
+                "(?i)(?=.*\\bwhich\\b)(?=.*\\bloan\\b)(?=(?:.*?LN\\d+){2})";
+    }
 }
