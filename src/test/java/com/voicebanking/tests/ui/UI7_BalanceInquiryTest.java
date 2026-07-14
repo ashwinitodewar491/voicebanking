@@ -113,6 +113,44 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
+    /** One representative happy-path query — "is the bot alive and answering balance queries
+     * correctly at all." Run this tier for a fast build/deploy health check. */
+    @DataProvider(name = "smokeQueries")
+    public Object[][] smokeQueries() {
+        return new Object[][]{
+            {"Account Balance", VoiceQueries.English.ACCOUNT_BALANCE,
+                    new String[]{"balance", "account"}, BotResponsePatterns.Balance.ANY, "savings"},
+        };
+    }
+
+    @Test(dataProvider = "smokeQueries", groups = {"ui", "smoke", "botverification"},
+            description = "Smoke: should process a basic English balance voice query")
+    public void testSmokeQuery(String queryName, String query, String[] expectedKeywords,
+                                String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
+    /** One query per major balance-pattern category (savings-specific, current-specific, and
+     * generic/either-account) — broader than smoke, still fast. */
+    @DataProvider(name = "sanityQueries")
+    public Object[][] sanityQueries() {
+        return new Object[][]{
+            {"Savings Balance", VoiceQueries.English.SAVINGS_BALANCE,
+                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null},
+            {"Current Balance", VoiceQueries.English.CURRENT_BALANCE,
+                    new String[]{"balance", "current"}, BotResponsePatterns.Balance.CURRENT, null},
+            {"Balance Query",   VoiceQueries.English.BALANCE_QUERY,
+                    new String[]{"balance", "account"}, BotResponsePatterns.Balance.ANY, "current"},
+        };
+    }
+
+    @Test(dataProvider = "sanityQueries", groups = {"ui", "sanity", "botverification"},
+            description = "Sanity: should process one balance voice query per major pattern category")
+    public void testSanityQuery(String queryName, String query, String[] expectedKeywords,
+                                 String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
     /** Customer A (Sneha Kulkarni, CIF202602260010, 9765432109) — dual account: savings + current.
      * Customer B (CIF202602260007, 9723456789) — savings only. Account-to-customer mapping is known
      * statically, so each row names its account explicitly (SAVINGS_BALANCE / CURRENT_BALANCE) and

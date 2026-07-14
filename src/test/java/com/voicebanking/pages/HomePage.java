@@ -228,6 +228,30 @@ public class HomePage {
     }
 
     /**
+     * Stops every MediaStreamTrack handed out via getUserMedia so far (tracked by the init
+     * script installed in BaseVoiceTest.setUpBrowserWithAudio). If the app opens the mic once
+     * and reuses that same stream for every hold-to-speak press, overwriting the WAV file for a
+     * follow-up utterance has no effect — Chromium keeps replaying whatever the *original*
+     * stream buffered. Stopping the tracks here forces the app to request a fresh stream on the
+     * next press, which should make Chromium's fake audio device pick up the file as it
+     * currently is on disk. Safe to call even if the app never re-requests the mic — the ended
+     * track just means the button won't be able to record, which the following {@link
+     * #speakFollowUp} call will surface as a failure rather than silently misbehaving.
+     */
+    public void reacquireMicrophoneForFollowUp() {
+        try {
+            page.evaluate(
+                    "() => {" +
+                    "  if (!window.__micStreams) return;" +
+                    "  window.__micStreams.forEach(s => s.getTracks().forEach(t => t.stop()));" +
+                    "  window.__micStreams = [];" +
+                    "}");
+        } catch (Exception e) {
+            System.out.println("[Voice] Failed to reacquire microphone: " + e.getMessage());
+        }
+    }
+
+    /**
      * Speaks a disambiguation follow-up (e.g. "savings") after the bot has asked the user
      * to choose an account. Waits for the Chromium audio loop to cycle before pressing,
      * then applies the Speaking-state guard before sending.

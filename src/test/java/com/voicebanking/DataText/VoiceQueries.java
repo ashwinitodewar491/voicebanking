@@ -92,5 +92,97 @@ public class VoiceQueries {
         public static final String SPEND_THIS_MONTH              = "What did I spend money on this month";
         public static final String TRANSACTION_HISTORY           = "Show my transaction history";
         public static final String READ_OUT_RECENT_TRANSACTIONS  = "Read out my recent transactions";
+
+        // --- Loans — real loan types ---
+        // Confirmed for Customer A (Sneha Kulkarni, 9765432109): Home Loan (LN10014) and
+        // Personal Loan (LN10015). Used for the active trial rows in UI9_LoanInquiryTest.
+        public static final String LOAN_TYPE_DETAILS_HOME       = "Give me details of my home loan";
+        public static final String LOAN_TYPE_EMI_HOME           = "What is the EMI on my home loan";
+        public static final String LOAN_TYPE_INTEREST_HOME      = "What is the interest rate on my home loan";
+        public static final String LOAN_TYPE_OUTSTANDING_HOME   = "What is the outstanding amount on my home loan";
+        public static final String LOAN_TYPE_STATUS_HOME        = "What is the status of my home loan";
+
+        public static final String LOAN_TYPE_EMI_PERSONAL          = "What is the EMI on my personal loan";
+        public static final String LOAN_TYPE_INTEREST_PERSONAL     = "What is the interest rate on my personal loan";
+        public static final String LOAN_TYPE_OUTSTANDING_PERSONAL  = "What is the outstanding amount on my personal loan";
+        public static final String LOAN_TYPE_NEXT_EMI_DUE_PERSONAL = "When is my next EMI due on my personal loan";
+
+        // --- Loans — full phrasing bank ---
+        // {loan type} is replaced with "home loan" or "personal loan" (alternating, for coverage
+        // of both real loans) — except LOAN_TYPE_DETAILS and LOAN_TYPE_EMI_WHAT, deliberately left
+        // as "education loan" (a type this customer does NOT have) to exercise the bot's fallback
+        // (BotResponsePatterns.Loans.LOAN_OPTIONS_PROMPT) as a negative test. LOAN_TYPE_INTEREST_WHAT
+        // and LOAN_TYPE_OUTSTANDING_WHAT are left unused/orphaned — their phrasing is already covered
+        // verbatim by the dedicated _HOME/_PERSONAL constants above, so assigning them a loan type
+        // would just duplicate an existing row.
+        public static final String LOAN_DETAILS                    = "Give me my loan details";
+        public static final String LOAN_ACCOUNTS_TELL               = "Tell me about my loan accounts";
+        public static final String LOAN_ACCOUNTS_WHAT               = "What loan accounts do I have";
+        public static final String LOAN_ACCOUNTS_SHOW               = "Show me my loan accounts";
+        public static final String LOANS_WHAT                       = "What loans do I have";
+        public static final String ACTIVE_LOANS_ANY                 = "Do I have any active loans";
+        public static final String LOAN_TYPE_DETAILS                = "Give me details of my education loan";
+        public static final String LOAN_TYPE_TELL                   = "Tell me about my home loan";
+        public static final String LOAN_TYPE_WHAT_CAN_TELL          = "What can you tell me about my personal loan";
+        public static final String LOAN_TYPE_SHOW_DETAILS           = "Show details of my home loan";
+        public static final String LOAN_TYPE_EMI_WHAT               = "What is the EMI on my education loan";
+        public static final String LOAN_TYPE_EMI_TELL               = "Tell me the EMI for my personal loan";
+        public static final String LOAN_TYPE_EMI_WANT               = "I want to know the EMI of my home loan";
+        public static final String LOAN_TYPE_EMI_HOW_MUCH           = "How much EMI am I paying for my personal loan";
+        public static final String LOAN_TYPE_INTEREST_WHAT          = "What is the interest rate on my education loan";
+        public static final String LOAN_TYPE_INTEREST_TELL          = "Tell me the interest rate of my home loan";
+        public static final String LOAN_TYPE_INTEREST_WANT          = "I want to know the interest rate of my personal loan";
+        public static final String LOAN_TYPE_TENURE_WHAT            = "What is the tenure of my home loan";
+        public static final String LOAN_TYPE_TENURE_FOR             = "What is the tenure for my personal loan";
+        public static final String LOAN_TYPE_TENURE_WANT            = "I want to know the tenure of my home loan";
+        public static final String LOAN_TYPE_TENURE_REMAINING       = "Which is the remaining tenure on my personal loan";
+        public static final String LOAN_TYPE_EMIS_REMAINING         = "How many EMIs are remaining on my home loan";
+        public static final String LOAN_TYPE_OUTSTANDING_WHAT       = "What is the outstanding amount on my education loan";
+        public static final String LOAN_TYPE_OUTSTANDING_TELL       = "Tell me the outstanding amount on my personal loan";
+        public static final String LOAN_TYPE_LEFT_TO_PAY            = "How much is left to pay on my home loan";
+        public static final String LOAN_TYPE_REMAINING_BALANCE      = "What is the remaining balance on my personal loan";
+        public static final String LOAN_TYPE_SANCTIONED_HOW_MUCH    = "How much money was sanctioned for my home loan";
+        public static final String LOAN_TYPE_SANCTIONED_WHAT        = "What is the sanctioned amount for my personal loan";
+        public static final String LOAN_TYPE_TOTAL_AMOUNT           = "What is the total loan amount on my home loan";
+        public static final String LOAN_AMOUNT_WAS                  = "What was my loan amount";
+        public static final String LOAN_TYPE_NEXT_EMI_DUE           = "When is my next EMI due on my home loan";
+        public static final String NEXT_EMI_DUE_DATE                = "What is the due date for my next EMI";
+        public static final String NEXT_EMI_PAY_WHEN                = "When do I need to pay my next EMI";
+        public static final String LATEST_EMI_PAID                  = "Has my latest EMI been paid";
+        public static final String LOAN_TYPE_PAYMENT_STATUS         = "Show me the payment status of my personal loan";
+        public static final String LOAN_ACTIVE_IS                   = "Is my loan active";
+        public static final String LOAN_TYPE_STATUS                 = "What is the status of my personal loan";
+        public static final String LOANS_TELL_ABOUT                 = "Tell me about my loans";
+        public static final String ACTIVE_LOANS_SHOW                = "Show my active loans";
+        public static final String LOANS_RUNNING_WHICH              = "Which loans are running in my name";
+        public static final String LOANS_CURRENTLY_PAYING           = "What loans am I currently paying for";
+        public static final String EMI_HOW_MUCH                     = "How much is my EMI";
+        public static final String MONTHLY_INSTALLMENT_WHAT         = "What is my monthly installment";
+        public static final String LOAN_TYPE_PAY_EVERY_MONTH        = "How much do I pay every month for my home loan";
+        public static final String PAY_EVERY_MONTH_WHAT             = "What am I paying every month";
+        public static final String LOAN_TYPE_INTEREST_GENERIC       = "What is the interest on my personal loan";
+        public static final String INTEREST_HOW_MUCH                = "How much interest am I paying";
+        public static final String LOAN_INTEREST_RATE_MY            = "What is my loan interest rate";
+        public static final String STILL_OWE_HOW_MUCH               = "How much do I still owe";
+        public static final String LOAN_LEFT_HOW_MUCH               = "How much loan is left";
+        public static final String LOAN_TYPE_AMOUNT_PENDING         = "What amount is pending on my home loan";
+        public static final String REMAINING_LOAN_BALANCE_MY        = "What is my remaining loan balance";
+        public static final String EMIS_LEFT_HOW_MANY               = "How many EMIs are left";
+        public static final String INSTALLMENTS_REMAINING_HOW_MANY  = "How many installments are remaining";
+        public static final String MONTHS_LEFT_LOAN                 = "How many months are left on my loan";
+        public static final String LOAN_END_WHEN                    = "When will my loan end";
+        public static final String REMAINING_TENURE_LOAN            = "What is the remaining tenure on my loan";
+        public static final String STILL_HAVE_TO_PAY_HOW_LONG       = "How long do I still have to pay";
+        public static final String LOAN_TAKEN_HOW_MUCH              = "How much loan did I take";
+        public static final String SANCTIONED_AMOUNT_WAS            = "What was the sanctioned amount";
+        public static final String LOAN_TYPE_APPROVED_HOW_MUCH      = "How much was approved for my personal loan";
+        public static final String TOTAL_LOAN_AMOUNT_WHAT           = "What is the total loan amount";
+        public static final String NEXT_EMI_DUE_WHEN                = "When is my next EMI due";
+        public static final String NEXT_EMI_DATE_WHAT               = "What is my next EMI date";
+        public static final String PAYMENT_DUE_WHEN                 = "When is the payment due";
+        public static final String INSTALLMENT_DUE_WHEN             = "When is my installment due";
+        public static final String LOAN_STATUS_WHAT                 = "What is the status of my loan";
+        public static final String LOAN_STILL_RUNNING               = "Is my loan still running";
+        public static final String LOAN_CLOSED_HAS                  = "Has my loan been closed";
     }
 }
