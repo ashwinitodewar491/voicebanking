@@ -2,9 +2,15 @@ package com.voicebanking.tests.ui;
 
 import com.voicebanking.DataText.BotResponsePatterns;
 import com.voicebanking.DataText.VoiceQueries;
+import com.voicebanking.pages.HomePage;
 import com.voicebanking.tests.ui.base.BaseVoiceTest;
+import com.voicebanking.utils.TtsUtil;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Customer A (Sneha Kulkarni, 9765432109) actually has two loans — Home Loan (LN10014) and
@@ -250,5 +256,71 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
     public void testSanityQuery(String queryName, String query, String[] expectedKeywords,
                                  String assertionPattern, String disambiguationAccount) throws Exception {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
+    /** Also recognizes loan disambiguation, so the transcription-retry loop stops re-playing the
+     * original query's audio once the bot has already moved to "which loan?" — otherwise a
+     * retry risks being misheard as an answer to that question instead of the one intended. */
+    @Override
+    protected boolean shouldStopRetrying(String botResponse) {
+        return super.shouldStopRetrying(botResponse) || isLoanDisambiguation(botResponse);
+    }
+
+    /** Bot asked which loan (e.g. this customer has more than one, or the query named no type)
+     * and the row supplied a loan name to answer with — reusing disambiguationAccount's slot
+     * since it's the same "what to say if asked to disambiguate" concept. The final check in
+     * runVoiceQuery reuses the row's own assertionPattern / expectedKeywords rather than a
+     * hardcoded pattern, since the right answer depends on what was actually asked (EMI,
+     * interest, outstanding, ...). Rows that want to assert the disambiguation prompt itself
+     * (e.g. an invalid loan type) pass disambiguationAccount as null, which skips this block
+     * entirely and returns botResponse unchanged. */
+    @Override
+    protected String handleAdditionalFollowUp(String queryName, String botResponse,
+                                               String disambiguationAccount, HomePage homePage) throws Exception {
+        if (!isLoanDisambiguation(botResponse) || disambiguationAccount == null) {
+            return botResponse;
+        }
+
+        String followUpLoan = disambiguationAccount;
+        String followUpResponse = "";
+
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            System.out.println("[" + queryName + "] Bot asked to choose a loan — following up with '"
+                    + followUpLoan + "' (attempt " + attempt + ")...");
+
+            long oldAudioDurationMs = TtsUtil.getWavDurationMs(currentAudioPath);
+            String followUpPath = TtsUtil.generateWav(followUpLoan);
+            Files.copy(Path.of(followUpPath), Path.of(currentAudioPath), StandardCopyOption.REPLACE_EXISTING);
+            int followUpHoldMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
+            TtsUtil.deleteWav(followUpPath);
+
+            homePage.reacquireMicrophoneForFollowUp();
+
+            int preWaitMs = (int) oldAudioDurationMs + 2000 + ((attempt - 1) * 2000);
+            homePage.speakFollowUp(preWaitMs, followUpHoldMs, 8000);
+            homePage.waitForVoiceResponse(15000);
+
+            String followUpTranscribed = homePage.getLastTranscribedText();
+            followUpResponse = homePage.getLastBotResponse();
+            System.out.println("[" + queryName + "] Follow-up Transcribed : " + followUpTranscribed);
+            System.out.println("[" + queryName + "] Follow-up Bot response: " + followUpResponse);
+
+            boolean heardExpectedLoan = followUpTranscribed.toLowerCase().contains(followUpLoan.toLowerCase());
+            if (heardExpectedLoan && !isLoanDisambiguation(followUpResponse)) {
+                break;
+            }
+            System.out.println("[" + queryName + "] WARN — follow-up not recognised (attempt " + attempt
+                    + "): expected [" + followUpLoan + "] got transcribed [" + followUpTranscribed
+                    + "], bot [" + followUpResponse + "] — retrying...");
+        }
+
+        return followUpResponse;
+    }
+
+    /** Returns true when the bot response is asking the user to choose between loans. Deliberately
+     * loose — observed phrasings vary ("You have the following loans: ...", "I can see multiple
+     * loan accounts for you: ...") but all include "which loan". */
+    private boolean isLoanDisambiguation(String response) {
+        return response.toLowerCase().contains("which loan");
     }
 }

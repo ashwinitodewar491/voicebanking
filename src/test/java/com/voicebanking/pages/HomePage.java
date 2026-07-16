@@ -291,6 +291,7 @@ public class HomePage {
      * then holds the mouse down for {@code holdMs} ms and releases.
      */
     private void pressAndHold(int holdMs) {
+        recoverFromSessionEndedIfPresent();
         Locator btn = page.locator(HOLD_TO_SPEAK_BTN);
         btn.scrollIntoViewIfNeeded();
         var box = btn.boundingBox();
@@ -301,6 +302,113 @@ public class HomePage {
         page.mouse().down();
         page.waitForTimeout(holdMs);
         page.mouse().up();
+    }
+
+    /**
+     * The live bot occasionally ends the conversation session mid-flow (observed during
+     * multi-turn transfer follow-ups), replacing the chat screen with a "Session Ended" message
+     * and leaving the hold-to-speak button unusable — {@code scrollIntoViewIfNeeded()} then hangs
+     * for its full timeout waiting for a button that won't become interactive on its own. The
+     * documented recovery is a two-click sequence: click hold-to-speak once to trigger a
+     * reconnect (shows a "Connecting" indicator), wait for that to clear, then click hold-to-speak
+     * a second time before the normal press-and-hold gesture actually records the query.
+     */
+    private void recoverFromSessionEndedIfPresent() {
+        if (!isSessionEnded()) return;
+
+        System.out.println("[Voice] 'Session Ended' detected — clicking hold-to-speak to reconnect...");
+        if (!jsClickHoldToSpeakButton()) {
+            System.out.println("[Voice] Hold-to-speak button not found for reconnect — giving up.");
+            return;
+        }
+
+        waitThroughConnecting(15000);
+
+        System.out.println("[Voice] Reconnected — clicking hold-to-speak again before speaking...");
+        if (!jsClickHoldToSpeakButton()) {
+            System.out.println("[Voice] Hold-to-speak button not found for second reconnect click — giving up.");
+            return;
+        }
+        page.waitForTimeout(1000);
+    }
+
+    /** Clicks the hold-to-speak button by dispatching DOM events directly via
+     * {@code page.evaluate()} rather than going through a Playwright {@code Locator} — both
+     * {@code Locator.click()} and {@code boundingBox()} wait on Playwright's normal actionability
+     * resolution (attached/visible/stable/unobscured), and that wait was silently hanging for the
+     * full default timeout (~30 s) against the button while the "Session Ended" sheet's animated
+     * waveform overlay is up, even though the button is visibly rendered and DOM-queryable.
+     * {@code document.querySelector} plus a manual mousedown/mouseup/click dispatch resolves and
+     * fires synchronously, so it can't get stuck the same way. Returns false if no element with
+     * the hold-to-speak testid exists in the DOM at all. */
+    private boolean jsClickHoldToSpeakButton() {
+        try {
+            Boolean clicked = (Boolean) page.evaluate(
+                    "() => {" +
+                    "  const btn = document.querySelector('[data-testid=\"listening-hold-to-speak-btn\"]');" +
+                    "  if (!btn) return false;" +
+                    "  const opts = {bubbles: true, cancelable: true, view: window};" +
+                    "  btn.dispatchEvent(new MouseEvent('mousedown', opts));" +
+                    "  btn.dispatchEvent(new MouseEvent('mouseup', opts));" +
+                    "  btn.dispatchEvent(new MouseEvent('click', opts));" +
+                    "  return true;" +
+                    "}");
+            return Boolean.TRUE.equals(clicked);
+        } catch (Exception e) {
+            System.out.println("[Voice] JS click on hold-to-speak failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Returns true if the chat screen is showing a "Session Ended" message. */
+    private boolean isSessionEnded() {
+        try {
+            return (Boolean) page.evaluate(
+                    "() => {" +
+                    "  const els = document.querySelectorAll('span,p,div,label,h1,h2,h3');" +
+                    "  for (const el of els) {" +
+                    "    if (el.children.length > 0) continue;" +
+                    "    if (el.textContent.trim().toLowerCase().includes('session ended')) return true;" +
+                    "  }" +
+                    "  return false;" +
+                    "}");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Returns true if the UI is showing a "Connecting" state indicator. */
+    private boolean isConnecting() {
+        try {
+            return (Boolean) page.evaluate(
+                    "() => {" +
+                    "  const els = document.querySelectorAll('span,p,div,label');" +
+                    "  for (const el of els) {" +
+                    "    if (el.children.length > 0) continue;" +
+                    "    if (el.textContent.trim().toLowerCase().includes('connecting')) return true;" +
+                    "  }" +
+                    "  return false;" +
+                    "}");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Waits until a "Connecting" indicator has appeared and then cleared, or gives up after
+     * {@code maxWaitMs} — some reconnects may resolve too quickly for a 300 ms poll to ever
+     * observe the indicator at all, so a full timeout without ever seeing it is not an error. */
+    private void waitThroughConnecting(int maxWaitMs) {
+        long deadline = System.currentTimeMillis() + maxWaitMs;
+        boolean sawConnecting = false;
+        while (System.currentTimeMillis() < deadline) {
+            boolean connecting = isConnecting();
+            if (connecting) {
+                sawConnecting = true;
+            } else if (sawConnecting) {
+                return;
+            }
+            page.waitForTimeout(300);
+        }
     }
 
     public String getLastTranscribedText() {

@@ -6,7 +6,6 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
-import com.microsoft.playwright.options.WaitForSelectorState;
 import com.voicebanking.DataText.BotResponsePatterns;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.DataText.VoiceQueries;
@@ -193,7 +192,9 @@ public abstract class BaseVoiceTest {
         Assert.assertTrue(homePage.isPageVisible(),
                 "[" + queryName + "] Home page should remain visible after voice query");
 
-        for (int retryNum = 1; retryNum <= 2 && !transcriptionContainsExpectedWords(transcribed, query); retryNum++) {
+        for (int retryNum = 1; retryNum <= 2
+                && !transcriptionContainsExpectedWords(transcribed, query)
+                && !shouldStopRetrying(botResponse); retryNum++) {
             System.out.println("[" + queryName + "] WARN — transcription mismatch (retry " + retryNum + "):"
                     + " expected [" + query + "] got [" + transcribed + "] — retrying...");
             homePage.holdToSpeakWithRetry(holdMs, 3, 8000);
@@ -204,9 +205,17 @@ public abstract class BaseVoiceTest {
             System.out.println("[" + queryName + "] Retry " + retryNum + " Bot response: " + botResponse);
         }
 
-        Assert.assertTrue(transcriptionContainsExpectedWords(transcribed, query),
-                "[" + queryName + "] Transcription mismatch after retries:"
-                + " expected [" + query + "] got [" + transcribed + "]");
+        // If the bot's response already indicates a recognized in-flow state (account/loan
+        // disambiguation, transfer confirmation, ...), don't hard-fail just because this
+        // particular utterance's transcription didn't literally match the original query text —
+        // the conversation has moved on, and re-playing the same original-query audio again
+        // would risk it being misheard as an answer to a *different* question than the one
+        // actually being asked now, silently skipping past the follow-up handling below.
+        if (!shouldStopRetrying(botResponse)) {
+            Assert.assertTrue(transcriptionContainsExpectedWords(transcribed, query),
+                    "[" + queryName + "] Transcription mismatch after retries:"
+                    + " expected [" + query + "] got [" + transcribed + "]");
+        }
 
         if (isAccountDisambiguation(botResponse)) {
             String followUpAccount = disambiguationAccount != null ? disambiguationAccount : "savings";
@@ -261,50 +270,13 @@ public abstract class BaseVoiceTest {
             return;
         }
 
-        // Bot asked which loan (e.g. this customer has more than one, or the query named no
-        // type) and the row supplied a loan name to answer with — reusing disambiguationAccount's
-        // slot since it's the same "what to say if asked to disambiguate" concept. Unlike the
-        // account flow above, the final check below reuses the row's own assertionPattern /
-        // expectedKeywords rather than a hardcoded pattern, since the right answer depends on
-        // what was actually asked (EMI, interest, outstanding, ...). Rows that want to assert the
-        // disambiguation prompt itself (e.g. an invalid loan type) pass disambiguationAccount as
-        // null, which skips this block entirely and falls through with botResponse unchanged.
-        if (isLoanDisambiguation(botResponse) && disambiguationAccount != null) {
-            String followUpLoan = disambiguationAccount;
-            String followUpResponse = "";
-
-            for (int attempt = 1; attempt <= 3; attempt++) {
-                System.out.println("[" + queryName + "] Bot asked to choose a loan — following up with '"
-                        + followUpLoan + "' (attempt " + attempt + ")...");
-
-                long oldAudioDurationMs = TtsUtil.getWavDurationMs(currentAudioPath);
-                String followUpPath = TtsUtil.generateWav(followUpLoan);
-                Files.copy(Path.of(followUpPath), Path.of(currentAudioPath), StandardCopyOption.REPLACE_EXISTING);
-                int followUpHoldMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
-                TtsUtil.deleteWav(followUpPath);
-
-                homePage.reacquireMicrophoneForFollowUp();
-
-                int preWaitMs = (int) oldAudioDurationMs + 2000 + ((attempt - 1) * 2000);
-                homePage.speakFollowUp(preWaitMs, followUpHoldMs, 8000);
-                homePage.waitForVoiceResponse(15000);
-
-                String followUpTranscribed = homePage.getLastTranscribedText();
-                followUpResponse = homePage.getLastBotResponse();
-                System.out.println("[" + queryName + "] Follow-up Transcribed : " + followUpTranscribed);
-                System.out.println("[" + queryName + "] Follow-up Bot response: " + followUpResponse);
-
-                boolean heardExpectedLoan = followUpTranscribed.toLowerCase().contains(followUpLoan.toLowerCase());
-                if (heardExpectedLoan && !isLoanDisambiguation(followUpResponse)) {
-                    break;
-                }
-                System.out.println("[" + queryName + "] WARN — follow-up not recognised (attempt " + attempt
-                        + "): expected [" + followUpLoan + "] got transcribed [" + followUpTranscribed
-                        + "], bot [" + followUpResponse + "] — retrying...");
-            }
-
-            botResponse = followUpResponse;
-        }
+        // Extension point for test classes whose queries need follow-up handling beyond generic
+        // savings/current account disambiguation — e.g. loan-type disambiguation (UI9) or the
+        // transfer confirm/OTP/beneficiary flow (UI10). Default is a no-op; each owning test
+        // class overrides this itself rather than growing this shared base with logic only it
+        // uses, since string-matching heuristics for one feature can misfire on another's
+        // responses (this happened once already between account- and loan-disambiguation).
+        botResponse = handleAdditionalFollowUp(queryName, botResponse, disambiguationAccount, homePage);
 
         if (assertionPattern != null) {
             boolean matched = Pattern.compile(assertionPattern).matcher(botResponse).find();
@@ -322,14 +294,57 @@ public abstract class BaseVoiceTest {
         System.out.println("[" + queryName + "] PASS");
     }
 
-    /** Returns true when every word in {@code expected} appears in {@code transcribed} (case-insensitive). */
-    private boolean transcriptionContainsExpectedWords(String transcribed, String expected) {
-        String cleanTranscribed = transcribed.replaceAll("[^a-zA-Z0-9 ]", "").toLowerCase();
-        String[] expectedWords  = expected.replaceAll("[^a-zA-Z0-9 ]", "").toLowerCase().split("\\s+");
+    /** Returns true when {@code botResponse} already indicates a recognized in-flow state that
+     * the transcription-retry loop should stop trying to power through — see the call site in
+     * {@link #runVoiceQuery(String, String, String[], String, String, String)} for why replaying
+     * the original query's audio at that point is actively risky rather than merely wasteful.
+     * Default covers account disambiguation, since that's shared by UI7/UI8. A test class adding
+     * its own recognized states (loan disambiguation, transfer confirmation, ...) should call
+     * {@code super.shouldStopRetrying(botResponse)} too, not replace it. */
+    protected boolean shouldStopRetrying(String botResponse) {
+        return isAccountDisambiguation(botResponse);
+    }
+
+    /** Extension point — see call site in {@link #runVoiceQuery(String, String, String[], String,
+     * String, String)}. Override in a test class to handle a follow-up prompt specific to that
+     * class's feature; return {@code botResponse} unchanged when there's nothing to do. */
+    protected String handleAdditionalFollowUp(String queryName, String botResponse,
+                                               String disambiguationAccount, HomePage homePage) throws Exception {
+        return botResponse;
+    }
+
+    /** Returns true when every word in {@code expected} appears in {@code transcribed}
+     * (case-insensitive). Numbers are normalized to digits first — STT is inconsistent about
+     * rendering a spoken number as the word ("one") or the digit ("1"), sometimes doing either
+     * for the exact same audio, so comparing raw text made a perfectly correct transcription
+     * fail whenever it didn't happen to pick the same form as the expected text. */
+    protected boolean transcriptionContainsExpectedWords(String transcribed, String expected) {
+        String cleanTranscribed = normalizeNumberWords(transcribed.replaceAll("[^a-zA-Z0-9 ]", "").toLowerCase());
+        String[] expectedWords  = normalizeNumberWords(expected.replaceAll("[^a-zA-Z0-9 ]", "").toLowerCase())
+                .split("\\s+");
         for (String word : expectedWords) {
             if (!cleanTranscribed.contains(word)) return false;
         }
         return true;
+    }
+
+    private static final java.util.Map<String, String> NUMBER_WORDS = java.util.Map.ofEntries(
+            java.util.Map.entry("zero", "0"), java.util.Map.entry("one", "1"),
+            java.util.Map.entry("two", "2"), java.util.Map.entry("three", "3"),
+            java.util.Map.entry("four", "4"), java.util.Map.entry("five", "5"),
+            java.util.Map.entry("six", "6"), java.util.Map.entry("seven", "7"),
+            java.util.Map.entry("eight", "8"), java.util.Map.entry("nine", "9"),
+            java.util.Map.entry("ten", "10"));
+
+    /** Replaces spelled-out digits 0–10 with their numeral form, word by word, so "one" and "1"
+     * compare equal after normalization. */
+    private String normalizeNumberWords(String text) {
+        String[] words = text.split("\\s+");
+        StringBuilder normalized = new StringBuilder();
+        for (String word : words) {
+            normalized.append(NUMBER_WORDS.getOrDefault(word, word)).append(' ');
+        }
+        return normalized.toString().trim();
     }
 
     /** Returns true when the bot response is asking the user to choose between account types.
@@ -342,13 +357,6 @@ public abstract class BaseVoiceTest {
         boolean asksToChoose = (lower.contains("choose") || lower.contains("which")) && lower.contains("account");
         boolean listsBothAccounts = lower.contains("current") && lower.contains("savings") && lower.contains("account");
         return asksToChoose || listsBothAccounts;
-    }
-
-    /** Returns true when the bot response is asking the user to choose between loans. Deliberately
-     * loose — observed phrasings vary ("You have the following loans: ...", "I can see multiple
-     * loan accounts for you: ...") but all include "which loan". */
-    private boolean isLoanDisambiguation(String response) {
-        return response.toLowerCase().contains("which loan");
     }
 
     /** Returns true when at least one keyword appears in the bot response text. */
