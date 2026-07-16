@@ -33,6 +33,7 @@
             <class name="com.voicebanking.tests.ui.UI7_BalanceInquiryTest"/>
             <class name="com.voicebanking.tests.ui.UI8_TransactionHistoryTest"/>
             <class name="com.voicebanking.tests.ui.UI9_LoanInquiryTest"/>
+            <class name="com.voicebanking.tests.ui.UI10_TransferMoneyTest"/>
         </classes>
     </test>
 

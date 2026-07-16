@@ -184,5 +184,44 @@ public class VoiceQueries {
         public static final String LOAN_STATUS_WHAT                 = "What is the status of my loan";
         public static final String LOAN_STILL_RUNNING               = "Is my loan still running";
         public static final String LOAN_CLOSED_HAS                  = "Has my loan been closed";
+
+        // --- Transfer Money ---
+        // {amount} / {beneficiary name} replaced with "one rupee" / "Pooja Desai" — Pooja Desai is
+        // a real, confirmed beneficiary for this account (appears alongside Vikas Patil whenever
+        // the bot lists "available options"). ₹1 matches this account's own seeded transfer
+        // pattern (an existing ₹1 transaction to Vikas Patil), used here as a safe/small amount
+        // rather than an arbitrary new value. Spelled out as "one" rather than the digit "1" —
+        // TTS pronounces "1" as the word "one," so STT transcribes it back as "one" too; using
+        // the digit in the expected text made a perfectly correct transcription fail the
+        // word-match check every time, since "1" never literally appears in "...one rupee...".
+        public static final String CAN_TRANSFER_MONEY            = "Can I transfer money";
+        public static final String TRANSFER_MONEY_SHORT          = "Transfer money";
+        public static final String SEND_MONEY_FROM_SAVINGS       = "Send money from my savings account";
+        public static final String TRANSFER_AMOUNT_TO_BENEFICIARY = "Transfer one rupee to Pooja Desai";
+        public static final String SEND_AMOUNT_TO_BENEFICIARY     = "Send one rupee to Pooja Desai";
+        public static final String PAY_AMOUNT_TO_BENEFICIARY      = "Pay one rupee to Pooja Desai";
+        public static final String TRANSFER_USING_UPI             = "Send money using UPI";
+        public static final String MAKE_TRANSFER_TO_BENEFICIARY   = "Make a transfer to Pooja Desai";
+
+        // Follow-up utterance spoken after the bot asks to confirm a pending transfer. The bot
+        // requires an exact scripted phrase (confirmed live: it echoes back "To authorize this
+        // transfer, please speak the following phrase clearly: 'Yes. I confirm the transfer of
+        // 1.0 rupees to Pooja Desai from my account'."), so CONFIRM_THE_TRANSFER uses that
+        // wording verbatim.
+        public static final String CONFIRM_THE_TRANSFER = "Yes. I confirm the transfer of 1.0 rupees to Pooja Desai from my account";
+
+        // Spoken when the bot asks "how much money would you like to transfer?" after a
+        // beneficiary is resolved from a leftover/unnamed-amount state — matches the ₹1 amount
+        // used everywhere else in this section.
+        public static final String TRANSFER_AMOUNT_FOLLOWUP = "one rupee";
+
+        // The fixed test OTP (123456), spoken as individual digit words rather than the number
+        // itself — the bot asks for it "one number at a time," and TTS would otherwise read
+        // "123456" as one large number instead of six separate digits. Six distinct digits
+        // (rather than the same digit repeated six times) transcribe far more reliably: STT kept
+        // merging/splitting the identical repeated "one one one one one one" into 5 or 7 digits
+        // instead of exactly 6, causing the bot to reject it every attempt and auto-cancel the
+        // transfer via its own OTP-attempt limit.
+        public static final String TEST_OTP_SPOKEN = "one two three four five six";
     }
 }
