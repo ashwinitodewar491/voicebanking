@@ -1,5 +1,6 @@
 package com.voicebanking.utils;
 
+import com.voicebanking.utils.tts.EdgeTtsEngine;
 import com.voicebanking.utils.tts.TtsFactory;
 
 import java.io.File;
@@ -16,6 +17,14 @@ public class TtsUtil {
      */
     public static String generateWav(String text) throws Exception {
         String path = TtsFactory.create().generate(text);
+        appendSilenceToWav(path, 3000);
+        return path;
+    }
+
+    /** Same as {@link #generateWav(String)} but with an explicit edge-tts voice, for locales
+     * other than the default English (e.g. {@link EdgeTtsEngine#VOICE_HINDI}). */
+    public static String generateWav(String text, String voice) throws Exception {
+        String path = new EdgeTtsEngine().generate(text, voice);
         appendSilenceToWav(path, 3000);
         return path;
     }
