@@ -37,4 +37,10 @@
         </classes>
     </test>
 
+    <test name="Multilingual Voice Query Tests">
+        <classes>
+            <class name="com.voicebanking.tests.ui.UI12_MultilingualVoiceQueryTest"/>
+        </classes>
+    </test>
+
 </suite>

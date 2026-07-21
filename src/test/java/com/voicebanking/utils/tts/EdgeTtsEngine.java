@@ -12,6 +12,8 @@ import java.nio.file.Path;
 public class EdgeTtsEngine implements TtsEngine {
 
     private static final String VOICE = "en-US-AriaNeural";
+    public static final String VOICE_HINDI = "hi-IN-SwaraNeural";
+    public static final String VOICE_BENGALI = "bn-IN-TanishaaNeural";
 
     /** Silence prepended before speech starts, giving the fake-audio-capture pipeline time to
      * actually start capturing before any spoken audio appears — without it, words at the very
