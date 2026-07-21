@@ -9,6 +9,8 @@ public class LanguagePage {
     private final Page page;
 
     private static final String LANG_EN      = "[data-testid='language-select-btn-en']";
+    private static final String LANG_HI      = "[data-testid='language-select-btn-hi']";
+    private static final String LANG_BN      = "[data-testid='language-select-btn-bn']";
     private static final String CONTINUE_BTN = "[data-testid='language-continue-btn']";
     private static final String BACK_BTN     = "[data-testid='language-back-btn']";
 
@@ -32,12 +34,15 @@ public class LanguagePage {
     }
 
     public void selectEnglish() { page.locator(LANG_EN).click(); }
+    public void selectHindi() { page.locator(LANG_HI).click(); }
+    public void selectBengali() { page.locator(LANG_BN).click(); }
 
     public void selectByLocale(String locale) {
-        if ("en".equals(locale)) {
-            selectEnglish();
-        } else {
-            throw new IllegalArgumentException("Unsupported locale: " + locale);
+        switch (locale) {
+            case "en" -> selectEnglish();
+            case "hi" -> selectHindi();
+            case "bn" -> selectBengali();
+            default -> throw new IllegalArgumentException("Unsupported locale: " + locale);
         }
     }
 

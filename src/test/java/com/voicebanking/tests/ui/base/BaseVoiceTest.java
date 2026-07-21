@@ -14,6 +14,7 @@ import com.voicebanking.pages.LanguagePage;
 import com.voicebanking.pages.OtpPage;
 import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
+import com.voicebanking.utils.ScreenshotUtil;
 import com.voicebanking.utils.TtsUtil;
 import org.testng.Assert;
 import org.testng.ITestResult;
@@ -96,22 +97,7 @@ public abstract class BaseVoiceTest {
      */
     @AfterMethod(alwaysRun = true)
     public void tearDown(ITestResult result) throws InterruptedException {
-        if (result.getStatus() == ITestResult.FAILURE && page != null && !page.isClosed()) {
-            try {
-                java.io.File dir = new java.io.File("target/screenshots");
-                dir.mkdirs();
-                String label = result.getParameters().length > 0
-                        ? result.getParameters()[0].toString().replaceAll("[^a-zA-Z0-9_-]", "_")
-                        : result.getMethod().getMethodName();
-                String screenshotPath = "target/screenshots/"
-                        + result.getTestClass().getRealClass().getSimpleName()
-                        + "_" + label + "_" + System.currentTimeMillis() + ".png";
-                page.screenshot(new Page.ScreenshotOptions().setPath(Path.of(screenshotPath)));
-                System.out.println("[Screenshot] " + screenshotPath);
-            } catch (Exception e) {
-                System.out.println("[Screenshot] Failed to capture: " + e.getMessage());
-            }
-        }
+        ScreenshotUtil.captureOnFailure(page, result);
 
         if (page != null)       page.close();
         if (context != null)    context.close();

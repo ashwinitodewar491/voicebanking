@@ -5,6 +5,7 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.voicebanking.utils.ScreenshotUtil;
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -95,13 +96,7 @@ public class BasePage {
         Path videoPath = null;
 
         if (page != null) {
-            if (failed) {
-                try {
-                    Files.createDirectories(Paths.get("target/screenshots"));
-                    String name = result.getName() + "_" + System.currentTimeMillis() + ".png";
-                    Files.write(Paths.get("target/screenshots/" + name), page.screenshot());
-                } catch (IOException ignored) {}
-            }
+            ScreenshotUtil.captureOnFailure(page, result);
             try {
                 if (page.video() != null) {
                     videoPath = page.video().path();
