@@ -109,13 +109,24 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** One representative happy-path query — "is the bot alive and answering transaction
-     * queries correctly at all." Run this tier for a fast build/deploy health check. */
+    /** Five queries chosen to cover every distinct response-pattern this file asserts on: generic
+     * recency (ENTRY, disambiguates), an explicit account query (ENTRY, no disambiguation), a
+     * category filter that may return prose instead of cards (ENTRY_OR_SUMMARY), a time-range
+     * query whose seed data may legitimately have no matches (ENTRY_OR_NO_RESULTS — the lenient
+     * path), and a debit/credit filter query. Run this tier for a fast build/deploy health check. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
             {"Recent Transactions", VoiceQueries.English.RECENT_TRANSACTIONS,
                     new String[]{"transaction", "recent"}, BotResponsePatterns.Transactions.ENTRY, "savings"},
+            {"Savings Transactions", VoiceQueries.English.SAVINGS_TRANSACTIONS,
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null},
+            {"UPI Transactions", VoiceQueries.English.UPI_TRANSACTIONS,
+                    new String[]{"transaction", "upi"}, BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "savings"},
+            {"Todays Transactions", VoiceQueries.English.TODAYS_TRANSACTIONS,
+                    new String[]{"transaction", "today"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, "savings"},
+            {"All Debit Transactions", VoiceQueries.English.ALL_DEBIT_TRANSACTIONS,
+                    new String[]{"debit", "transaction"}, BotResponsePatterns.Transactions.ENTRY, "current"},
         };
     }
 

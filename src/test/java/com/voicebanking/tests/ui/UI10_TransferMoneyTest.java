@@ -69,6 +69,38 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
+    /** Five queries chosen to cover every distinct amount-of-detail-up-front combination this
+     * flow can start from: two vague phrasings that both need the full beneficiary → amount →
+     * confirm → OTP chain (one generic, one naming the account type instead of a beneficiary or
+     * amount), a query naming only the beneficiary (skips just the beneficiary prompt), and two
+     * queries naming both beneficiary and amount (skip straight to confirm) — kept as two rows
+     * rather than one so both verbs ("Transfer"/"Pay") get exercised, since STT phrasing
+     * robustness is exactly what varies between them. Every row still completes a real ₹1
+     * transfer — there's no way to smoke-test this bot's transfer flow without one. Run this
+     * tier for a fast build/deploy health check. */
+    @DataProvider(name = "smokeQueries")
+    public Object[][] smokeQueries() {
+        return new Object[][]{
+            {"Can I Transfer Money", VoiceQueries.English.CAN_TRANSFER_MONEY,
+                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+            {"Send Money From Savings", VoiceQueries.English.SEND_MONEY_FROM_SAVINGS,
+                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+            {"Make Transfer To Beneficiary", VoiceQueries.English.MAKE_TRANSFER_TO_BENEFICIARY,
+                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+            {"Transfer Amount To Beneficiary", VoiceQueries.English.TRANSFER_AMOUNT_TO_BENEFICIARY,
+                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+            {"Pay Amount To Beneficiary", VoiceQueries.English.PAY_AMOUNT_TO_BENEFICIARY,
+                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+        };
+    }
+
+    @Test(dataProvider = "smokeQueries", groups = {"ui", "smoke", "botverificationTransferMoney"},
+            description = "Smoke: should process a basic English transfer-money voice query")
+    public void testSmokeQuery(String queryName, String query, String[] expectedKeywords,
+            String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
     /**
      * Also recognizes transfer confirmation, the amount prompt, OTP requests,
      * and beneficiary disambiguation, so the transcription-retry loop stops

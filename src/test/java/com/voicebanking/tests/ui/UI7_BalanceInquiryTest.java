@@ -113,12 +113,24 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** One representative happy-path query — "is the bot alive and answering balance queries
-     * correctly at all." Run this tier for a fast build/deploy health check. */
+    /** Five queries chosen to cover every distinct code path in this file's assertion patterns
+     * rather than just one happy path: generic phrasing disambiguating to savings, generic
+     * phrasing disambiguating to current (the opposite direction), an explicit savings-only
+     * query (no disambiguation, SAVINGS pattern), an explicit current-only query (no
+     * disambiguation, CURRENT pattern), and a short imperative phrasing style distinct from the
+     * question-form rows above it. Run this tier for a fast build/deploy health check. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
             {"Account Balance", VoiceQueries.English.ACCOUNT_BALANCE,
+                    new String[]{"balance", "account"}, BotResponsePatterns.Balance.ANY, "savings"},
+            {"How Much Money", VoiceQueries.English.HOW_MUCH_MONEY,
+                    new String[]{"balance", "account"}, BotResponsePatterns.Balance.ANY, "current"},
+            {"Savings Balance", VoiceQueries.English.SAVINGS_BALANCE,
+                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null},
+            {"Current Balance", VoiceQueries.English.CURRENT_BALANCE,
+                    new String[]{"balance", "current"}, BotResponsePatterns.Balance.CURRENT, null},
+            {"Check Balance", VoiceQueries.English.CHECK_BALANCE,
                     new String[]{"balance", "account"}, BotResponsePatterns.Balance.ANY, "savings"},
         };
     }
