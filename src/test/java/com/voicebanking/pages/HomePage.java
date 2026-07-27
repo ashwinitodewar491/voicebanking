@@ -3,6 +3,7 @@ package com.voicebanking.pages;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.WaitForSelectorState;
+import com.voicebanking.utils.SessionEndedTracker;
 
 public class HomePage {
 
@@ -304,6 +305,8 @@ public class HomePage {
         page.mouse().up();
     }
 
+    private static final int SESSION_RECOVERY_ATTEMPTS = 3;
+
     /**
      * The live bot occasionally ends the conversation session mid-flow (observed during
      * multi-turn transfer follow-ups), replacing the chat screen with a "Session Ended" message
@@ -312,24 +315,57 @@ public class HomePage {
      * documented recovery is a two-click sequence: click hold-to-speak once to trigger a
      * reconnect (shows a "Connecting" indicator), wait for that to clear, then click hold-to-speak
      * a second time before the normal press-and-hold gesture actually records the query.
+     * <p>
+     * Every detected occurrence is recorded via {@link SessionEndedTracker}, regardless of
+     * whether recovery below succeeds — that count is a run-wide environment-stability signal
+     * (target/session-ended-count.txt, surfaced in the dashboard), independent of whether this
+     * particular test ultimately passes or fails.
      */
     private void recoverFromSessionEndedIfPresent() {
         if (!isSessionEnded()) return;
 
-        System.out.println("[Voice] 'Session Ended' detected — clicking hold-to-speak to reconnect...");
-        if (!jsClickHoldToSpeakButton()) {
-            System.out.println("[Voice] Hold-to-speak button not found for reconnect — giving up.");
-            return;
+        SessionEndedTracker.recordOccurrence();
+
+        for (int attempt = 1; attempt <= SESSION_RECOVERY_ATTEMPTS; attempt++) {
+            System.out.println("[Voice] 'Session Ended' detected — reconnect attempt " + attempt
+                    + " of " + SESSION_RECOVERY_ATTEMPTS + "...");
+
+            if (!clickHoldToSpeakWithRetry(3, 500)) {
+                System.out.println("[Voice] Hold-to-speak button not found for reconnect — retrying...");
+                page.waitForTimeout(1000);
+                continue;
+            }
+
+            waitThroughConnecting(15000);
+
+            System.out.println("[Voice] Reconnected — clicking hold-to-speak again before speaking...");
+            if (!clickHoldToSpeakWithRetry(3, 500)) {
+                System.out.println("[Voice] Hold-to-speak button not found for second reconnect click — retrying...");
+                page.waitForTimeout(1000);
+                continue;
+            }
+            page.waitForTimeout(1000);
+
+            if (!isSessionEnded()) {
+                System.out.println("[Voice] Session recovered on attempt " + attempt + ".");
+                return;
+            }
         }
 
-        waitThroughConnecting(15000);
+        System.out.println("[Voice] 'Session Ended' persisted after " + SESSION_RECOVERY_ATTEMPTS
+                + " reconnect attempts — giving up.");
+    }
 
-        System.out.println("[Voice] Reconnected — clicking hold-to-speak again before speaking...");
-        if (!jsClickHoldToSpeakButton()) {
-            System.out.println("[Voice] Hold-to-speak button not found for second reconnect click — giving up.");
-            return;
+    /** Retries {@link #jsClickHoldToSpeakButton()} a few times with a short wait between attempts
+     * — the button can be transiently absent from the DOM mid-re-render (e.g. while the
+     * "Session Ended" sheet is being torn down) rather than genuinely gone, so a single miss
+     * isn't reliable evidence that it never comes back. */
+    private boolean clickHoldToSpeakWithRetry(int maxAttempts, int waitMs) {
+        for (int i = 1; i <= maxAttempts; i++) {
+            if (jsClickHoldToSpeakButton()) return true;
+            page.waitForTimeout(waitMs);
         }
-        page.waitForTimeout(1000);
+        return false;
     }
 
     /** Clicks the hold-to-speak button by dispatching DOM events directly via

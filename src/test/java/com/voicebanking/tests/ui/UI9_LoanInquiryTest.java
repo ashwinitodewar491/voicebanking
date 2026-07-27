@@ -217,13 +217,26 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** One representative happy-path query — "is the bot alive and answering loan queries
-     * correctly at all." Run this tier for a fast build/deploy health check. */
+    /** Five queries chosen to cover every distinct loan-flow category and both real loans for
+     * this customer: a named-type keyword query (Home), a precise-pattern query confirmed via
+     * manual testing (Outstanding, Personal — different loan than the row above), the
+     * loan-agnostic disambiguation flow (no type named, resolves to Home), the nonexistent-type
+     * fallback (bot lists real loans instead of answering), and a second precise-pattern category
+     * (Next EMI Due, Personal) distinct from Outstanding. Run this tier for a fast build/deploy
+     * health check. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
             {"Loan Type EMI Home", VoiceQueries.English.LOAN_TYPE_EMI_HOME,
                     new String[]{"emi"}, null, null},
+            {"Loan Type Outstanding Personal", VoiceQueries.English.LOAN_TYPE_OUTSTANDING_PERSONAL,
+                    null, BotResponsePatterns.Loans.OUTSTANDING, null},
+            {"Loan Details", VoiceQueries.English.LOAN_DETAILS,
+                    new String[]{"loan"}, null, "home loan"},
+            {"Loan Type Details Education", VoiceQueries.English.LOAN_TYPE_DETAILS,
+                    null, BotResponsePatterns.Loans.LOAN_OPTIONS_PROMPT, null},
+            {"Next EMI Due Personal", VoiceQueries.English.LOAN_TYPE_NEXT_EMI_DUE_PERSONAL,
+                    null, BotResponsePatterns.Loans.NEXT_EMI_DUE, null},
         };
     }
 

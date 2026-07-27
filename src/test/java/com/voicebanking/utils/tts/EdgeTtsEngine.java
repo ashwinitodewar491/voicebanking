@@ -34,9 +34,15 @@ public class EdgeTtsEngine implements TtsEngine {
         Files.writeString(txtFile, text, StandardCharsets.UTF_8);
 
         try {
+            // Invoked as "python -m edge_tts" rather than the bare "edge-tts" stub — pip's
+            // auto-generated console-script .exe wrappers are unsigned, and Windows Smart App
+            // Control (once it graduates out of evaluation mode) blocks them outright with
+            // "did not meet the Enterprise signing level requirements." Going through the
+            // (signed/trusted) python.exe interpreter instead runs the identical package code
+            // without hitting that block.
             // Text is passed via a UTF-8 file (not --text) to avoid command-line encoding issues.
             runCommand(new String[]{
-                    "edge-tts", "--voice", voice,
+                    "python", "-m", "edge_tts", "--voice", voice,
                     "--file", txtFile.toAbsolutePath().toString(),
                     "--write-media", mp3File.toAbsolutePath().toString()
             }, "edge-tts synthesis failed for: " + text);

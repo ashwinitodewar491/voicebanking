@@ -3,27 +3,37 @@ package com.voicebanking.DataText;
 public class BotResponsePatterns {
 
     public static class Balance {
-        // "The balance in your SAVINGS (ACC...) account is 67000.0"
+        // "The balance in your SAVINGS (ACC...) account is 67000.0" — but the account-number
+        // segment isn't always there; stage has been observed replying "The balance in your
+        // SAVINGS account is 67000.0" with no parenthesised account number at all for the exact
+        // same query. Not under this suite's control, so the segment is optional rather than
+        // required.
         // Fixed: "The balance in your … account is"
-        // Dynamic: account type, account number, amount
+        // Dynamic: account type, optional account number, amount
         public static final String ANY =
-                "The balance in your [A-Z]+ \\([A-Z0-9]+\\) account is [\\d,]+(?:\\.\\d+)?";
+                "The balance in your [A-Z]+ (?:\\([A-Z0-9]+\\) )?account is [\\d,]+(?:\\.\\d+)?";
         public static final String SAVINGS =
-                "The balance in your SAVINGS \\([A-Z0-9]+\\) account is [\\d,]+(?:\\.\\d+)?";
+                "The balance in your SAVINGS (?:\\([A-Z0-9]+\\) )?account is [\\d,]+(?:\\.\\d+)?";
         public static final String CURRENT =
-                "The balance in your CURRENT \\([A-Z0-9]+\\) account is [\\d,]+(?:\\.\\d+)?";
+                "The balance in your CURRENT (?:\\([A-Z0-9]+\\) )?account is [\\d,]+(?:\\.\\d+)?";
     }
 
     public static class Transactions {
         // One transaction entry renders as a structured card (nested <div>s), not a plain text
         // bubble — Locator.textContent() concatenates nested block elements with NO separator
         // (no space, no newline). Raw text for one entry looks like:
-        //   "Mobile Phone EMI | UPIDEBIT • Feb 09, 2026, 07:55 AM₹1000.00"
-        // The description ("Mobile Phone EMI | UPI") is too free-form to anchor on, so this only
-        // matches the fixed part: "DEBIT|CREDIT • <Mon> <D>, <YYYY>, <hh>:<mm> AM|PM" immediately
-        // followed by "₹<amount>".
+        //   "Transfer to Pooja Desai-₹1.00DEBIT • 23 Jul 2026, 12:00 am"
+        //   "Refund | Swiggy | ref=REF20260210+₹350.00CREDIT • 10 Feb 2026, 12:00 am"
+        // The description ("Transfer to Pooja Desai") is too free-form to anchor on, so this only
+        // matches the fixed part: "+|-₹<amount>DEBIT|CREDIT • <D> <Mon> <YYYY>, <hh>:<mm> AM|PM".
+        // An earlier version of this pattern assumed the amount trailed the timestamp instead
+        // (amount-after-AM/PM, Month-Day date order) — that never actually matched any response
+        // observed live across many runs; sign+amount+type consistently comes immediately before
+        // the date, and the date order is Day-Month-Year, not Month-Day. AM/PM casing isn't
+        // consistent either (stage has replied with lowercase "am"/"pm" for the same query type),
+        // so that group is matched case-insensitively.
         public static final String ENTRY =
-                "(?:DEBIT|CREDIT) • [A-Za-z]{3} \\d{1,2}, \\d{4}, \\d{2}:\\d{2} (?:AM|PM)₹[\\d,]+(?:\\.\\d+)?";
+                "[+-]₹[\\d,]+(?:\\.\\d+)?(?:DEBIT|CREDIT) • \\d{1,2} [A-Za-z]{3} \\d{4}, \\d{2}:\\d{2} (?i:AM|PM)";
 
         // Category-filtered queries (UPI, card, all-credit, all-debit) sometimes answer with a
         // plain-sentence summary instead of the card format — same data, different shape:

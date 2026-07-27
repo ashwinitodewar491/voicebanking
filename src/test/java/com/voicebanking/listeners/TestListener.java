@@ -4,6 +4,7 @@ import com.aventstack.extentreports.ExtentReports;
 import com.aventstack.extentreports.ExtentTest;
 import com.aventstack.extentreports.reporter.ExtentSparkReporter;
 import com.aventstack.extentreports.reporter.configuration.Theme;
+import com.voicebanking.utils.SessionEndedTracker;
 import org.testng.ISuite;
 import org.testng.ISuiteListener;
 import org.testng.ITestListener;
@@ -39,6 +40,7 @@ public class TestListener implements ITestListener, ISuiteListener {
         if (extent != null) {
             extent.flush();
         }
+        SessionEndedTracker.writeToDisk();
     }
 
     @Override

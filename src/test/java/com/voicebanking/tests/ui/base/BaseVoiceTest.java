@@ -171,11 +171,11 @@ public abstract class BaseVoiceTest {
         System.out.println("[" + queryName + "] Transcribed : " + transcribed);
         System.out.println("[" + queryName + "] Bot response: " + botResponse);
 
-        Assert.assertFalse(transcribed.isEmpty(),
+        assertOrCapture(!transcribed.isEmpty(), queryName,
                 "[" + queryName + "] Voice not recognised — no user message appeared in chat");
-        Assert.assertFalse(botResponse.isEmpty(),
+        assertOrCapture(!botResponse.isEmpty(), queryName,
                 "[" + queryName + "] Bot did not respond after voice query");
-        Assert.assertTrue(homePage.isPageVisible(),
+        assertOrCapture(homePage.isPageVisible(), queryName,
                 "[" + queryName + "] Home page should remain visible after voice query");
 
         for (int retryNum = 1; retryNum <= 2
@@ -198,7 +198,7 @@ public abstract class BaseVoiceTest {
         // would risk it being misheard as an answer to a *different* question than the one
         // actually being asked now, silently skipping past the follow-up handling below.
         if (!shouldStopRetrying(botResponse)) {
-            Assert.assertTrue(transcriptionContainsExpectedWords(transcribed, query),
+            assertOrCapture(transcriptionContainsExpectedWords(transcribed, query), queryName,
                     "[" + queryName + "] Transcription mismatch after retries:"
                     + " expected [" + query + "] got [" + transcribed + "]");
         }
@@ -247,7 +247,7 @@ public abstract class BaseVoiceTest {
 
             boolean matched = Pattern.compile(expectedPattern)
                                      .matcher(followUpResponse).find();
-            Assert.assertTrue(matched,
+            assertOrCapture(matched, queryName,
                     "[" + queryName + "] After account selection, expected " + followUpAccount.toUpperCase()
                     + " balance.\n"
                     + "  Pattern : " + expectedPattern + "\n"
@@ -266,18 +266,31 @@ public abstract class BaseVoiceTest {
 
         if (assertionPattern != null) {
             boolean matched = Pattern.compile(assertionPattern).matcher(botResponse).find();
-            Assert.assertTrue(matched,
+            assertOrCapture(matched, queryName,
                     "[" + queryName + "] Bot response did not match expected pattern.\n"
                     + "  Pattern : " + assertionPattern + "\n"
                     + "  Got     : " + botResponse);
         } else {
-            Assert.assertTrue(containsAnyKeyword(botResponse, expectedKeywords),
+            assertOrCapture(containsAnyKeyword(botResponse, expectedKeywords), queryName,
                     "[" + queryName + "] Bot response not relevant.\n  Expected keywords: "
                     + String.join(", ", expectedKeywords)
                     + "\n  Actual response : " + botResponse);
         }
 
         System.out.println("[" + queryName + "] PASS");
+    }
+
+    /** Asserts {@code condition}, capturing a screenshot at this exact instant first if it's
+     * about to fail. Teardown's own captureOnFailure runs later — after the exception has
+     * propagated out of the test method and TestNG has invoked @AfterMethod — so by then a
+     * transient failure (e.g. a dropped-then-reconnected voice session) may have already
+     * self-recovered, making that screenshot show a healthy page even though the assertion
+     * genuinely failed moments earlier. This captures the state as it actually was. */
+    private void assertOrCapture(boolean condition, String queryName, String message) {
+        if (!condition) {
+            ScreenshotUtil.captureNow(page, getClass().getSimpleName(), queryName);
+        }
+        Assert.assertTrue(condition, message);
     }
 
     /** Returns true when {@code botResponse} already indicates a recognized in-flow state that

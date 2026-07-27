@@ -45,6 +45,21 @@ public class UI12_MultilingualVoiceQueryTest {
         };
     }
 
+    /** Five queries chosen to cover all five feature categories (balance, transactions, transfer,
+     * loan, EMI) while alternating Hindi/Bengali row by row, so this smoke tier still gets
+     * bilingual coverage instead of exercising only one language's TTS/STT/locale path. Run this
+     * tier for a fast build/deploy health check. */
+    @DataProvider(name = "smokeQueries")
+    public Object[][] smokeQueries() {
+        return new Object[][]{
+            {"Hindi Savings Balance",    MultilingualVoiceQueries.Hindi.LOCALE,   MultilingualVoiceQueries.Hindi.SAVINGS_BALANCE,            EdgeTtsEngine.VOICE_HINDI},
+            {"Bengali Transaction List", MultilingualVoiceQueries.Bengali.LOCALE, MultilingualVoiceQueries.Bengali.TRANSACTION_LIST_SAVINGS, EdgeTtsEngine.VOICE_BENGALI},
+            {"Hindi Transfer Money",     MultilingualVoiceQueries.Hindi.LOCALE,   MultilingualVoiceQueries.Hindi.TRANSFER_TO_BENEFICIARY,    EdgeTtsEngine.VOICE_HINDI},
+            {"Bengali Loan Account",     MultilingualVoiceQueries.Bengali.LOCALE, MultilingualVoiceQueries.Bengali.LOAN_ACCOUNT_SAVINGS,     EdgeTtsEngine.VOICE_BENGALI},
+            {"Hindi EMI Statement",      MultilingualVoiceQueries.Hindi.LOCALE,   MultilingualVoiceQueries.Hindi.EMI_STATEMENT_HOME_LOAN,    EdgeTtsEngine.VOICE_HINDI},
+        };
+    }
+
     @BeforeMethod(alwaysRun = true)
     public void setUp(Object[] params) throws Exception {
         String query = (String) params[2];
@@ -80,6 +95,16 @@ public class UI12_MultilingualVoiceQueryTest {
     @Test(dataProvider = "multilingualQueries", groups = {"ui", "multilingual"},
             description = "Should process a Hindi/Bengali voice query and log the bot's response for manual cross-verification")
     public void testMultilingualVoiceQuery(String queryName, String locale, String query, String voice) throws Exception {
+        runMultilingualQuery(queryName, locale, query, voice);
+    }
+
+    @Test(dataProvider = "smokeQueries", groups = {"ui", "smoke", "multilingual"},
+            description = "Smoke: should process a basic Hindi/Bengali voice query per feature category")
+    public void testSmokeQuery(String queryName, String locale, String query, String voice) throws Exception {
+        runMultilingualQuery(queryName, locale, query, voice);
+    }
+
+    private void runMultilingualQuery(String queryName, String locale, String query, String voice) throws Exception {
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();
         welcomePage.dismissPwaPopupIfPresent();
@@ -119,8 +144,18 @@ public class UI12_MultilingualVoiceQueryTest {
             Thread.sleep(reviewPauseMs);
         }
 
-        Assert.assertTrue(homePage.isPageVisible(), "[" + queryName + "] Home page should remain visible after voice query");
-        Assert.assertFalse(transcribed.isEmpty(), "[" + queryName + "] Voice not recognised — no user message appeared in chat");
-        Assert.assertFalse(botResponse.isEmpty(), "[" + queryName + "] Bot did not respond after voice query");
+        assertOrCapture(homePage.isPageVisible(), queryName, "[" + queryName + "] Home page should remain visible after voice query");
+        assertOrCapture(!transcribed.isEmpty(), queryName, "[" + queryName + "] Voice not recognised — no user message appeared in chat");
+        assertOrCapture(!botResponse.isEmpty(), queryName, "[" + queryName + "] Bot did not respond after voice query");
+    }
+
+    /** Asserts {@code condition}, capturing a screenshot at this exact instant first if it's
+     * about to fail — see BaseVoiceTest#assertOrCapture for why the teardown screenshot alone
+     * isn't reliable for a transient failure like a dropped-then-reconnected voice session. */
+    private void assertOrCapture(boolean condition, String queryName, String message) {
+        if (!condition) {
+            ScreenshotUtil.captureNow(page, getClass().getSimpleName(), queryName);
+        }
+        Assert.assertTrue(condition, message);
     }
 }
