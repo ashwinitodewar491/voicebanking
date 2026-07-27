@@ -67,10 +67,12 @@ flowchart TD
     N --> O[JSON Response]
     O --> P["TestNG Assertions\nstatus · statusCode · data fields\nbusiness rules"]
     P --> Q["target/surefire-reports/*.xml"]
+    Q --> Q2["DashboardGenerator\nexec-maven-plugin, bound to test phase\nruns even after failures (testFailureIgnore=true)"]
+    Q2 --> Q3["target/dashboard-report/index.html"]
     Q --> R["Jenkins JUnit Plugin\nPublish test results"]
     R --> S{Result}
     S -->|Pass| T[Build SUCCESS]
-    S -->|Fail| U[Build FAILURE + echo log]
+    S -->|Fail| U[Build UNSTABLE + echo log]
 ```
 
 ---
@@ -204,17 +206,24 @@ curl -X POST "http://JENKINS_URL/job/voicebanking-automation/buildWithParameters
 
 ## Test Results
 
-Results in `target/surefire-reports/` and `target/extent-report/index.html`.
+Results in `target/surefire-reports/`, `target/extent-report/index.html`, and `target/dashboard-report/index.html`.
 
 ```bash
-# Run tests — Extent report auto-generates
+# Run tests — Extent report and dashboard report both auto-generate
 mvn clean test -Denv=stage
 
 # Open Extent report (Windows)
 start target\extent-report\index.html
+
+# Open dashboard report (Windows)
+start target\dashboard-report\index.html
 ```
 
-Jenkins publishes the report as a downloadable artifact and a **"Test Report"** link on the build page (requires HTML Publisher plugin).
+The dashboard report (`DashboardGenerator`, bound to the Maven `test` phase via `exec-maven-plugin`) parses `target/surefire-reports`, matches each failed test to its `ScreenshotUtil` screenshot, and writes one self-contained `index.html` — module pass-rate breakdown, a searchable results table, and inlined failure screenshots, no `screenshots/` folder needed alongside it.
+
+Maven Surefire runs with `testFailureIgnore=true`, so `mvn clean test` always completes (exit 0) even when tests fail — this is what lets the dashboard step run after a failing suite instead of the build stopping at Surefire. Whether a run had failures is read from the report contents (or the `junit` step in Jenkins), not the Maven exit code.
+
+Jenkins publishes both reports as downloadable artifacts and as build-page links — **"Test Report"** (Extent) and **"Dashboard"** (dashboard report) — requires the HTML Publisher plugin.
 
 ---
 
