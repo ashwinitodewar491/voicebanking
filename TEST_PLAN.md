@@ -142,6 +142,15 @@ Jenkins publishes results via the JUnit plugin (which reads the standard XML for
 target/surefire-reports/*.xml
 ```
 
+Two additional self-contained HTML reports are produced per run and archived/published as Jenkins build artifacts + HTML Publisher links (see [README.md](README.md) → Test Results and [QUICK_REFERENCE.md](QUICK_REFERENCE.md) → Test Results & Reports for details):
+
+| Report | Source | Output |
+|---|---|---|
+| Extent Report | `TestListener` (in-JVM TestNG listener) | `target/extent-report/index.html` |
+| Dashboard Report | `DashboardGenerator` (`exec-maven-plugin`, `test` phase, reads `target/surefire-reports`) | `target/dashboard-report/index.html` |
+
+Maven Surefire runs with `testFailureIgnore=true` so the build reaches the dashboard-generation step even when tests fail; Jenkins build result is therefore driven by the `junit` step (UNSTABLE on failures), not the Maven exit code.
+
 ---
 
 ## 4. UI Automation — Current & Planned
