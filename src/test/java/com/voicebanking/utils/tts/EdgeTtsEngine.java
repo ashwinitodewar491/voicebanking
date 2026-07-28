@@ -11,9 +11,13 @@ import java.nio.file.Path;
  */
 public class EdgeTtsEngine implements TtsEngine {
 
-    private static final String VOICE = "en-US-AriaNeural";
+    public static final String VOICE = "en-US-AriaNeural";
     public static final String VOICE_HINDI = "hi-IN-SwaraNeural";
     public static final String VOICE_BENGALI = "bn-IN-TanishaaNeural";
+
+    /** A distinct English speaker from {@link #VOICE} — used to simulate a voice that does NOT
+     * match whatever was registered during voice-authentication enrollment (UI11). */
+    public static final String VOICE_EN_ALTERNATE = "en-US-GuyNeural";
 
     /** Silence prepended before speech starts, giving the fake-audio-capture pipeline time to
      * actually start capturing before any spoken audio appears — without it, words at the very

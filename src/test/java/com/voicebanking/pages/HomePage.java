@@ -14,6 +14,19 @@ public class HomePage {
     private static final String BALANCE_TOGGLE_BTN  = "[data-testid='home-balance-toggle-btn']";
     private static final String TRANSACTIONS_BTN    = "[data-testid='home-transactions-btn']";
     private static final String HOLD_TO_SPEAK_BTN   = "[data-testid='listening-hold-to-speak-btn']";
+    private static final String LISTENING_CLOSE_BTN     = "[data-testid='listening-close-btn']";
+    private static final String TRANSACTIONS_COLLAPSE_BTN
+            = "[data-testid='home-transactions-collapse-btn']";
+
+    // No data-testid is exposed on the balance figure or the transactions list itself —
+    // these fall back to the class combinations from the markup, scoped to avoid collision
+    // with the .mobile-scroll chat-bubble containers (BOT_BUBBLE/USER_BUBBLE below), which
+    // reuse the same "mobile-scroll" utility class for an unrelated scroll region.
+    private static final String BALANCE_VALUE       = "div.mt-1.flex.flex-col.gap-1 > div:first-child";
+    private static final String END_SESSION_CONFIRM_BTN = "button:has-text('End Session')";
+    private static final String TRANSACTIONS_LIST
+            = "div.max-h-52.space-y-2.overflow-y-auto.mobile-scroll";
+    private static final String TRANSACTION_ITEM    = TRANSACTIONS_LIST + " > div";
 
     private static final String USER_BUBBLE    = ".mobile-scroll div.justify-end .whitespace-pre-line";
     private static final String BOT_BUBBLE     = ".mobile-scroll div.justify-start .whitespace-pre-line";
@@ -48,6 +61,10 @@ public class HomePage {
         return page.locator(LANGUAGE_BTN).isVisible();
     }
 
+    public void clickLanguageButton() {
+        page.locator(LANGUAGE_BTN).click();
+    }
+
     public boolean isUserMenuButtonVisible() {
         return page.locator(USER_MENU_BTN).isVisible();
     }
@@ -58,6 +75,88 @@ public class HomePage {
 
     public void clickRecentTransactions() {
         page.locator(TRANSACTIONS_BTN).click();
+    }
+
+    public String getBalanceValueText() {
+        return page.locator(BALANCE_VALUE).textContent().trim();
+    }
+
+    private static final java.util.regex.Pattern CURRENCY_AMOUNT
+            = java.util.regex.Pattern.compile("^₹[\\d,]+(?:\\.\\d+)?$");
+
+    /**
+     * Checked as "does not look like a real amount" rather than for a specific mask glyph
+     * (e.g. bullet dots) — the app's masking character isn't guaranteed and this avoids
+     * hardcoding one.
+     */
+    public boolean isBalanceMasked() {
+        return !CURRENCY_AMOUNT.matcher(getBalanceValueText()).matches();
+    }
+
+    /** Revealing the balance briefly shows "Loading..." while the amount is fetched. */
+    public void waitForBalanceToSettle(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (!"Loading...".equalsIgnoreCase(getBalanceValueText())) return;
+            page.waitForTimeout(300);
+        }
+    }
+
+    public String getBalanceToggleAriaLabel() {
+        return page.locator(BALANCE_TOGGLE_BTN).getAttribute("aria-label");
+    }
+
+    /**
+     * Viewing Recent Transactions requires ending the active voice-listening session first:
+     * clicking the transactions button reveals a close ("X") icon, which opens an "End Session"
+     * confirmation — only after confirming does the transaction list actually render.
+     */
+    public void openRecentTransactions() {
+        clickRecentTransactions();
+
+        page.locator(LISTENING_CLOSE_BTN).waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(10000));
+        page.locator(LISTENING_CLOSE_BTN).click();
+
+        page.locator(END_SESSION_CONFIRM_BTN).waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(5000));
+        page.locator(END_SESSION_CONFIRM_BTN).click();
+
+        page.locator(TRANSACTIONS_LIST).waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(10000));
+    }
+
+    public boolean isTransactionsListVisible() {
+        return page.locator(TRANSACTIONS_LIST).isVisible();
+    }
+
+    public int getTransactionItemCount() {
+        return page.locator(TRANSACTION_ITEM).count();
+    }
+
+    public String getTransactionDescription(int index) {
+        return page.locator(TRANSACTION_ITEM).nth(index)
+                .locator("div.truncate").textContent().trim();
+    }
+
+    public String getTransactionMeta(int index) {
+        return page.locator(TRANSACTION_ITEM).nth(index)
+                .locator("div.min-w-0 > div").nth(1).textContent().trim();
+    }
+
+    public String getTransactionAmount(int index) {
+        return page.locator(TRANSACTION_ITEM).nth(index)
+                .locator("div.shrink-0").textContent().trim();
+    }
+
+    public void collapseRecentTransactions() {
+        page.locator(TRANSACTIONS_COLLAPSE_BTN).click();
     }
 
     public void holdToSpeak(int durationMs) {

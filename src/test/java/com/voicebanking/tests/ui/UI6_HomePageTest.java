@@ -95,29 +95,85 @@ public class UI6_HomePageTest extends BasePage {
     }
 
     @Test(groups = {"ui", "regression"},
-            description = "Should toggle balance visibility when clicking the eye icon")
+            description = "Should reveal and re-mask the account balance when clicking the eye icon")
     public void testBalanceToggle() {
         HomePage homePage = navigateToHomePage();
 
+        Assert.assertTrue(homePage.isBalanceMasked(),
+                "Balance should be masked on initial page load, got: " + homePage.getBalanceValueText());
+        Assert.assertEquals(homePage.getBalanceToggleAriaLabel(), "Show balance",
+                "Toggle button should offer to show the balance while masked");
+
+        homePage.clickBalanceToggle();
+        homePage.waitForBalanceToSettle(10000);
+
+        Assert.assertFalse(homePage.isBalanceMasked(),
+                "Balance should be revealed after clicking the eye icon, got: " + homePage.getBalanceValueText());
+        Assert.assertTrue(homePage.getBalanceValueText().matches("₹[\\d,]+(?:\\.\\d+)?"),
+                "Revealed balance should be a currency amount, got: " + homePage.getBalanceValueText());
+
         homePage.clickBalanceToggle();
 
-        Assert.assertTrue(
-                homePage.isBalanceToggleVisible(),
-                "Balance toggle button should remain visible after clicking");
+        Assert.assertTrue(homePage.isBalanceMasked(),
+                "Balance should be re-masked after clicking the eye icon again, got: " + homePage.getBalanceValueText());
     }
 
     @Test(groups = {"ui", "regression"},
-            description = "Should open transactions panel when clicking Recent Transactions")
+            description = "Should end the active voice session and show the 5 most recent transactions when opening Recent Transactions")
     public void testRecentTransactionsClick() {
         HomePage homePage = navigateToHomePage();
 
-        homePage.clickRecentTransactions();
+        homePage.openRecentTransactions();
 
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
 
-        Assert.assertTrue(
-                homePage.isPageVisible(),
-                "Home page should remain visible after clicking Recent Transactions (panel opens in-page)");
+        Assert.assertTrue(homePage.isTransactionsListVisible(),
+                "Transaction list should be visible after ending the session to view Recent Transactions");
+
+        int count = homePage.getTransactionItemCount();
+        Assert.assertEquals(count, 5, "Recent Transactions should list exactly 5 entries");
+
+        for (int i = 0; i < count; i++) {
+            Assert.assertFalse(homePage.getTransactionDescription(i).isBlank(),
+                    "Transaction " + i + " description should not be blank");
+            Assert.assertTrue(homePage.getTransactionMeta(i).matches("(?:DEBIT|CREDIT) • .+"),
+                    "Transaction " + i + " meta should show DEBIT/CREDIT and a date, got: "
+                            + homePage.getTransactionMeta(i));
+            Assert.assertTrue(homePage.getTransactionAmount(i).matches("₹[\\d,]+(?:\\.\\d+)?"),
+                    "Transaction " + i + " amount should be a currency figure, got: "
+                            + homePage.getTransactionAmount(i));
+        }
+
+        homePage.collapseRecentTransactions();
+
+        Assert.assertFalse(homePage.isTransactionsListVisible(),
+                "Transaction list should be hidden after clicking the collapse control");
+    }
+
+    @Test(groups = {"ui", "regression"},
+            description = "Should open the language settings page from the home globe icon and return to home after selecting a language")
+    public void testLanguageButtonOpensLanguagePage() {
+        HomePage homePage = navigateToHomePage();
+
+        homePage.clickLanguageButton();
+
+        LanguagePage languagePage = new LanguagePage(page);
+        languagePage.waitForPageLoad();
+
+        Assert.assertTrue(languagePage.isPageVisible(),
+                "Language settings page should open after clicking the home globe icon");
+
+        // Re-select English (rather than switching away) so the session stays in the locale
+        // the rest of this class's voice assertions expect.
+        languagePage.selectEnglish();
+        languagePage.clickContinue();
+
+        // Confirming a language re-establishes the voice session ("Connecting..."), so the
+        // hold-to-speak button isn't immediately present — wait it out rather than checking instantly.
+        homePage.waitForPageLoad();
+
+        Assert.assertTrue(homePage.isPageVisible(),
+                "Should return to the home dashboard after confirming a language on the settings page");
     }
 
     @Test(groups = {"ui", "regression"},
