@@ -55,6 +55,16 @@ public class BotResponsePatterns {
         public static final String ENTRY_OR_NO_RESULTS = "(?:" + ENTRY + ")|(?:" + NO_RESULTS + ")";
     }
 
+    public static class Authorization {
+        // Confirmed live (UI11): a balance query spoken in a voice other than the one registered
+        // gets the exact response "Not authorized". The other phrasings are kept as fallback
+        // coverage in case wording varies by scenario/build, but "not authoriz" is the one
+        // observed in practice.
+        public static final String VOICE_NOT_RECOGNIZED =
+                "(?i)(not authoriz|could not verify|couldn't verify|voice (does not|doesn't) match|"
+                + "voice not recogni[sz]ed|unable to authenticate|access denied|verification failed)";
+    }
+
     public static class Loans {
         // Confirmed for Customer A (9765432109): Home Loan (LN10014), Personal Loan (LN10015).
         // "The outstanding amount on your Home Loan is Rs.800000.0"

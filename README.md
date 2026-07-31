@@ -81,7 +81,7 @@ flowchart TD
 
 | Group | Tests | Purpose |
 |---|---|---|
-| `smoke` | 7 methods (API1, API2, API3, API6) | Quick sanity after any deploy |
+| `smoke` | 9 methods (API1, API2, API3, API6, UI11) | Quick sanity after any deploy |
 | `regression` | 21 API methods + all UI classes | Full regression |
 | `api` | 21 methods (all 9 APIs) | Run all API tests |
 | `ui` | UI1–UI7 | Run all UI tests |

@@ -223,5 +223,19 @@ public class VoiceQueries {
         // instead of exactly 6, causing the bot to reject it every attempt and auto-cancel the
         // transfer via its own OTP-attempt limit.
         public static final String TEST_OTP_SPOKEN = "one two three four five six";
+
+        // --- Voice Registration / Enrollment ---
+        // Spoken during voice-registration enrollment (UI11); the app builds the speaker's
+        // voiceprint from these recordings and later checks whether a query's voice matches it
+        // before treating the caller as authorized. The enrollment screen records for a fixed
+        // ~15s window regardless of how long the spoken audio actually is — a short phrase (a
+        // few seconds of speech, padded out with silence) left most of that window silent and
+        // the app's quality check rejected it consistently. This is deliberately long enough to
+        // speak continuously for close to the full 15s window instead of relying on silence padding.
+        public static final String VOICE_ENROLLMENT_PHRASE =
+                "My voice is my password, please verify me. I am registering my voice with this "
+                + "banking application so that I can securely access my account, check my "
+                + "balances, and complete transactions using natural spoken commands whenever I "
+                + "need to bank on the go";
     }
 }

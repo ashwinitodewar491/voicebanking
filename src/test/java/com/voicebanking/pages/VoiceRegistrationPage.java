@@ -2,6 +2,7 @@ package com.voicebanking.pages;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.WaitForSelectorState;
 
 public class VoiceRegistrationPage {
@@ -11,6 +12,19 @@ public class VoiceRegistrationPage {
     private static final String CONSENT_CHECKBOX  = "[data-testid='voice-registration-consent-checkbox']";
     private static final String START_BTN         = "[data-testid='voice-registration-start-btn']";
     private static final String SKIP_BTN          = "[data-testid='voice-registration-skip-btn']";
+    private static final String MIC_BTN           = "[data-testid='voice-registration-mic-btn']";
+    private static final String SUBMIT_BTN        = "[data-testid='voice-registration-submit-btn']";
+    private static final String START_BANKING_BTN = "[data-testid='voice-registration-start-banking-btn']";
+
+    // No data-testid on the recording-progress readout itself ("Recording...66%") — matched by
+    // its leading text instead.
+    private static final String RECORDING_PROGRESS = "p:has-text('Recording')";
+
+    // No data-testid on the quality-check rejection dialog either. It only appears when a take
+    // genuinely fails ("Recording not accepted" / "The audio did not pass the required checks.
+    // Kindly re-record and try again.") — the normal Re-record/Submit bar underneath is always
+    // present regardless of take quality, so that pair alone can't be used to detect rejection.
+    private static final String NOT_ACCEPTED_HEADING = "Recording not accepted";
 
     public VoiceRegistrationPage(Page page) {
         this.page = page;
@@ -49,5 +63,98 @@ public class VoiceRegistrationPage {
 
     public void clickSkipForNow() {
         page.locator(SKIP_BTN).click();
+    }
+
+    /**
+     * One recording take: tap the mic once (no hold), wait for the "Recording...N%" readout to
+     * appear (covers the app's ~3s get-ready delay before it actually starts capturing), then
+     * wait for it to run its fixed ~15s course. Does not decide whether the take was accepted —
+     * see {@link #waitForRecordingAccepted(int)} — since retrying a rejected take requires
+     * swapping in freshly generated audio first, which this page object has no TTS access to do.
+     */
+    public void tapMicAndRecord() {
+        page.locator(MIC_BTN).waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(30000));
+        page.locator(MIC_BTN).click();
+
+        page.locator(RECORDING_PROGRESS).waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(8000));
+
+        waitForRecordingToComplete(20000);
+    }
+
+    /** Polls until the "Recording...N%" readout disappears or reports 100%. */
+    private void waitForRecordingToComplete(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            Locator progress = page.locator(RECORDING_PROGRESS);
+            if (progress.count() == 0) return;
+            String text = progress.first().textContent();
+            if (text != null && text.contains("100%")) return;
+            page.waitForTimeout(300);
+        }
+    }
+
+    /**
+     * The app validates the recording asynchronously after the progress bar completes — polls
+     * for the "Recording not accepted" dialog heading. Returns false if it appears within
+     * {@code timeoutMs}, true (accepted) otherwise.
+     */
+    public boolean waitForRecordingAccepted(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (page.getByText(NOT_ACCEPTED_HEADING).isVisible()) return false;
+            page.waitForTimeout(300);
+        }
+        return true;
+    }
+
+    /**
+     * Clicks the rejection dialog's own Re-record button — scoped to the container holding the
+     * "Recording not accepted" heading rather than any bare "Re-record" match, since the normal
+     * bottom action bar has its own Re-record button present at the same time.
+     */
+    public void clickRerecord() {
+        Locator dialogRerecord = page.locator("div")
+                .filter(new Locator.FilterOptions().setHasText(NOT_ACCEPTED_HEADING))
+                .getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Re-record"))
+                .last();
+        dialogRerecord.click();
+        page.getByText(NOT_ACCEPTED_HEADING).waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.HIDDEN)
+                        .setTimeout(20000));
+    }
+
+    /**
+     * Clicks Submit, then waits for the Submit button itself to disappear before returning —
+     * confirming the current screen has actually torn down rather than just clicking and moving
+     * on. Without this, the next step's wait for the mic button (or Start Banking) could resolve
+     * against a stale, about-to-be-replaced element still momentarily present in the DOM during
+     * the transition, matching the transient-element behavior this app shows elsewhere (see
+     * HomePage's Session-Ended recovery comments for the same class of issue).
+     */
+    public void clickSubmit() {
+        page.locator(SUBMIT_BTN).click();
+        page.locator(SUBMIT_BTN).waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.HIDDEN)
+                        .setTimeout(20000));
+    }
+
+    public boolean isStartBankingVisible() {
+        return page.locator(START_BANKING_BTN).isVisible();
+    }
+
+    public void clickStartBanking() {
+        page.locator(START_BANKING_BTN).waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(30000));
+        page.locator(START_BANKING_BTN).click();
     }
 }
