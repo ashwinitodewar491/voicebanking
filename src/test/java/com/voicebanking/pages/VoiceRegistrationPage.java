@@ -2,6 +2,7 @@ package com.voicebanking.pages;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.WaitForSelectorState;
 
 public class VoiceRegistrationPage {
@@ -19,8 +20,11 @@ public class VoiceRegistrationPage {
     // its leading text instead.
     private static final String RECORDING_PROGRESS = "p:has-text('Recording')";
 
-    // No data-testid on the "Recording not accepted" quality-check dialog's retry button either.
-    private static final String RERECORD_BTN = "button:has-text('Re-record')";
+    // No data-testid on the quality-check rejection dialog either. It only appears when a take
+    // genuinely fails ("Recording not accepted" / "The audio did not pass the required checks.
+    // Kindly re-record and try again.") — the normal Re-record/Submit bar underneath is always
+    // present regardless of take quality, so that pair alone can't be used to detect rejection.
+    private static final String NOT_ACCEPTED_HEADING = "Recording not accepted";
 
     public VoiceRegistrationPage(Page page) {
         this.page = page;
@@ -95,21 +99,32 @@ public class VoiceRegistrationPage {
         }
     }
 
-    /** The app validates the recording asynchronously after the progress bar completes — polls
-     * briefly for the "Recording not accepted" dialog. Returns false if it appears within
-     * {@code timeoutMs}, true (accepted) otherwise. */
+    /**
+     * The app validates the recording asynchronously after the progress bar completes — polls
+     * for the "Recording not accepted" dialog heading. Returns false if it appears within
+     * {@code timeoutMs}, true (accepted) otherwise.
+     */
     public boolean waitForRecordingAccepted(int timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
-            if (page.locator(RERECORD_BTN).isVisible()) return false;
+            if (page.getByText(NOT_ACCEPTED_HEADING).isVisible()) return false;
             page.waitForTimeout(300);
         }
         return true;
     }
 
+    /**
+     * Clicks the rejection dialog's own Re-record button — scoped to the container holding the
+     * "Recording not accepted" heading rather than any bare "Re-record" match, since the normal
+     * bottom action bar has its own Re-record button present at the same time.
+     */
     public void clickRerecord() {
-        page.locator(RERECORD_BTN).click();
-        page.locator(RERECORD_BTN).waitFor(
+        Locator dialogRerecord = page.locator("div")
+                .filter(new Locator.FilterOptions().setHasText(NOT_ACCEPTED_HEADING))
+                .getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Re-record"))
+                .last();
+        dialogRerecord.click();
+        page.getByText(NOT_ACCEPTED_HEADING).waitFor(
                 new Locator.WaitForOptions()
                         .setState(WaitForSelectorState.HIDDEN)
                         .setTimeout(20000));
