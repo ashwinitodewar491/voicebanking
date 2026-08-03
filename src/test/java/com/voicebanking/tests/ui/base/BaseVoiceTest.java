@@ -18,6 +18,7 @@ import com.voicebanking.utils.ScreenshotUtil;
 import com.voicebanking.utils.TtsUtil;
 import org.testng.Assert;
 import org.testng.ITestResult;
+import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 
@@ -37,23 +38,69 @@ public abstract class BaseVoiceTest {
     protected Page page;
     protected String currentAudioPath;
 
+    /** The audio file path the running browser was launched with, in {@link #useSharedSession()}
+     * mode. Fixed for the lifetime of the browser — each query's WAV is copied onto this path
+     * rather than the browser being relaunched against a new one. */
+    private String sessionAudioPath;
+    private boolean sessionInitialized = false;
+
+    /** Phone number currently logged into, in {@link #useSharedSession()} mode. Null until the
+     * first login. */
+    private String loggedInPhoneNumber;
+
+    /** Cached random phone number so every default-identity call within one shared session logs
+     * into the same account instead of a fresh one each time. Unused outside shared-session mode. */
+    private String cachedRandomPhone;
+
     /**
-     * Generates a WAV file for the test query, then launches a Chromium browser with
-     * {@code --use-file-for-fake-audio-capture} pointing at that file so the browser
-     * treats it as microphone input.
+     * Opt-in for test classes whose data-provider rows can safely share one browser/login session
+     * across the whole class instead of each row paying for its own browser launch and full login
+     * (phone → OTP → language → skip voice-reg). Safe for classes where every row is an
+     * independent conversational turn against the same account (e.g. balance inquiry phrasings) —
+     * not for rows that need a guaranteed-clean, unused account. Default false preserves the
+     * original per-method isolation for every other subclass.
+     */
+    protected boolean useSharedSession() {
+        return false;
+    }
+
+    /**
+     * Generates a WAV file for the test query, then either launches a fresh Chromium browser with
+     * {@code --use-file-for-fake-audio-capture} pointing at that file (default, one per test
+     * method), or — in {@link #useSharedSession()} mode — copies the new query's audio onto the
+     * already-running session's fixed audio path and forces the app to re-acquire the microphone,
+     * reusing the same browser and login across every row in the class.
      */
     @BeforeMethod(alwaysRun = true)
     public void setUpBrowserWithAudio(Object[] params) throws Exception {
         String query = (String) params[1];
-        currentAudioPath = TtsUtil.generateWav(query);
+        String freshWavPath = TtsUtil.generateWav(query);
 
+        if (useSharedSession() && sessionInitialized) {
+            Files.copy(Path.of(freshWavPath), Path.of(sessionAudioPath), StandardCopyOption.REPLACE_EXISTING);
+            TtsUtil.deleteWav(freshWavPath);
+            currentAudioPath = sessionAudioPath;
+            new HomePage(page).reacquireMicrophoneForFollowUp();
+            return;
+        }
+
+        currentAudioPath = freshWavPath;
+        launchBrowser(currentAudioPath);
+
+        if (useSharedSession()) {
+            sessionAudioPath = currentAudioPath;
+            sessionInitialized = true;
+        }
+    }
+
+    private void launchBrowser(String audioPath) {
         boolean headless = Boolean.parseBoolean(System.getProperty("headless", "true"));
 
         List<String> chromiumArgs = new ArrayList<>();
         chromiumArgs.add("--disable-gpu");               // required on Windows CI — without this Chromium hangs on GPU init when there is no display
         chromiumArgs.add("--use-fake-device-for-media-stream");
         chromiumArgs.add("--use-fake-ui-for-media-stream");
-        chromiumArgs.add("--use-file-for-fake-audio-capture=" + currentAudioPath);
+        chromiumArgs.add("--use-file-for-fake-audio-capture=" + audioPath);
 
         playwright = Playwright.create();
         browser = playwright.chromium().launch(
@@ -92,12 +139,19 @@ public abstract class BaseVoiceTest {
     }
 
     /**
-     * Captures a screenshot on test failure, then closes all browser resources and
-     * deletes the temporary WAV file. A short sleep paces consecutive test runs.
+     * Captures a screenshot on test failure. In {@link #useSharedSession()} mode the browser stays
+     * open for the next row (torn down once in {@link #tearDownSharedSession()} instead); otherwise
+     * closes all browser resources, deletes the temporary WAV file, and paces consecutive launches
+     * with a short sleep.
      */
     @AfterMethod(alwaysRun = true)
     public void tearDown(ITestResult result) throws InterruptedException {
         ScreenshotUtil.captureOnFailure(page, result);
+
+        if (useSharedSession()) {
+            if (page != null && !page.isClosed()) page.waitForTimeout(1000);
+            return;
+        }
 
         if (page != null)       page.close();
         if (context != null)    context.close();
@@ -108,14 +162,36 @@ public abstract class BaseVoiceTest {
         Thread.sleep(3000);
     }
 
+    /** Closes the shared browser/session once, after the last test method in a
+     * {@link #useSharedSession()} class has run. No-op otherwise. */
+    @AfterClass(alwaysRun = true)
+    public void tearDownSharedSession() {
+        if (!useSharedSession() || !sessionInitialized) return;
+
+        if (page != null)       page.close();
+        if (context != null)    context.close();
+        if (browser != null)    browser.close();
+        if (playwright != null) playwright.close();
+
+        TtsUtil.deleteWav(sessionAudioPath);
+    }
+
     /**
      * Phone number used to log in before speaking the query. Defaults to a fresh random number
-     * (new-user registration flow, no seeded history). Override to log in as an existing seeded
-     * customer instead — e.g. when the query needs real transaction/loan history to assert against,
-     * since a brand-new account has none.
+     * (new-user registration flow, no seeded history) — in {@link #useSharedSession()} mode that
+     * random number is generated once and cached, so every default-identity row in the class logs
+     * into the same account instead of a fresh one each time. Override to log in as an existing
+     * seeded customer instead — e.g. when the query needs real transaction/loan history to assert
+     * against, since a brand-new account has none.
      */
     protected String getLoginPhoneNumber() {
-        return WelcomePage.generateRandomPhone();
+        if (!useSharedSession()) {
+            return WelcomePage.generateRandomPhone();
+        }
+        if (cachedRandomPhone == null) {
+            cachedRandomPhone = WelcomePage.generateRandomPhone();
+        }
+        return cachedRandomPhone;
     }
 
     /** Navigates, logs in, speaks the query, retries on transcription mismatch, and asserts the bot response. */
@@ -124,12 +200,39 @@ public abstract class BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, getLoginPhoneNumber());
     }
 
-    /** Same as {@link #runVoiceQuery(String, String, String[], String, String)} but logs in as
-     * an explicit phone number instead of {@link #getLoginPhoneNumber()} — for data-provider rows
-     * that exercise a specific known seeded customer rather than the class-wide default. */
-    protected void runVoiceQuery(String queryName, String query, String[] expectedKeywords,
-                                  String assertionPattern, String disambiguationAccount,
-                                  String phoneNumber) throws Exception {
+    /**
+     * Logs in as {@code phoneNumber} and returns the resulting home page. In
+     * {@link #useSharedSession()} mode, a call for the same phone number already logged into the
+     * running session is a no-op that just hands back a fresh {@link HomePage} wrapper over the
+     * existing page — only the very first call, or a call naming a different identity than the one
+     * currently logged in (e.g. switching to a known seeded customer), goes through the full
+     * navigate → OTP → language → skip-voice-reg flow.
+     */
+    private HomePage ensureLoggedIn(String phoneNumber) throws Exception {
+        if (useSharedSession() && phoneNumber.equals(loggedInPhoneNumber)) {
+            return new HomePage(page);
+        }
+        return login(phoneNumber);
+    }
+
+    /**
+     * Runs the full navigate → OTP → language → skip-voice-reg login flow for {@code phoneNumber}.
+     * Called by {@link #ensureLoggedIn(String)} the first time a session logs in, or whenever it
+     * switches to a different identity than the one currently logged in.
+     */
+    private HomePage login(String phoneNumber) throws Exception {
+        // A prior login in this same browser context (shared-session mode, or simply a repeat call)
+        // leaves an auth cookie/localStorage session behind. Navigating to /welcome while still
+        // authenticated skips straight past the phone screen to Home instead of prompting again,
+        // which left the phone-input locator below waiting the full 30 s for an element that was
+        // never going to appear. Clearing storage first guarantees a genuinely logged-out /welcome.
+        context.clearCookies();
+        try {
+            page.evaluate("() => { try { localStorage.clear(); } catch (e) {} "
+                    + "try { sessionStorage.clear(); } catch (e) {} }");
+        } catch (PlaywrightException ignored) {
+            // nothing to clear yet on the very first login of the session
+        }
 
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();
@@ -157,6 +260,19 @@ public abstract class BaseVoiceTest {
 
         HomePage homePage = new HomePage(page);
         homePage.waitForPageLoad();
+
+        loggedInPhoneNumber = phoneNumber;
+        return homePage;
+    }
+
+    /** Same as {@link #runVoiceQuery(String, String, String[], String, String)} but logs in as
+     * an explicit phone number instead of {@link #getLoginPhoneNumber()} — for data-provider rows
+     * that exercise a specific known seeded customer rather than the class-wide default. */
+    protected void runVoiceQuery(String queryName, String query, String[] expectedKeywords,
+                                  String assertionPattern, String disambiguationAccount,
+                                  String phoneNumber) throws Exception {
+
+        HomePage homePage = ensureLoggedIn(phoneNumber);
 
         int holdMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
         System.out.println("[" + queryName + "] WAV duration : " + holdMs + " ms (speech + 3 s silence)");
@@ -237,12 +353,13 @@ public abstract class BaseVoiceTest {
 
                 boolean heardExpectedAccount =
                         followUpTranscribed.toLowerCase().contains(followUpAccount.toLowerCase());
-                if (heardExpectedAccount && !isAccountDisambiguation(followUpResponse)) {
+                boolean gotRealResponse = !followUpResponse.isBlank();
+                if (heardExpectedAccount && gotRealResponse && !isAccountDisambiguation(followUpResponse)) {
                     break;
                 }
                 System.out.println("[" + queryName + "] WARN — follow-up not recognised (attempt " + attempt
                         + "): expected [" + followUpAccount + "] got transcribed [" + followUpTranscribed
-                        + "], bot [" + followUpResponse + "] — retrying...");
+                        + "], bot [" + (gotRealResponse ? followUpResponse : "<empty>") + "] — retrying...");
             }
 
             boolean matched = Pattern.compile(expectedPattern)

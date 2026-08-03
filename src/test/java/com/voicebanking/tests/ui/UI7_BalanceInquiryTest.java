@@ -8,6 +8,42 @@ import org.testng.annotations.Test;
 
 public class UI7_BalanceInquiryTest extends BaseVoiceTest {
 
+    /** Default identity for the generic voiceQueries/smokeQueries/sanityQueries rows — a known
+     * dual-account (savings + current) customer confirmed to resolve explicit CURRENT-balance
+     * queries correctly. Customer A (9765432109) also has both account types but its CURRENT
+     * balance query was reproducibly answered with the SAVINGS figure even under a fully isolated,
+     * freshly-logged-in conversation — a bot/backend account-resolution issue specific to that
+     * customer, unrelated to session sharing. Scoped to this class only: UI8/UI9/UI10 keep using
+     * Customer A deliberately for their own seeded transaction/loan/beneficiary history. */
+    private static final String BALANCE_INQUIRY_CUSTOMER_PHONE = "9898989898";
+
+    /** Customer A (Sneha Kulkarni, CIF202602260010) — dual account: savings + current. Used here
+     * only by knownAccountBalanceQueries, which specifically targets this named customer. */
+    private static final String CUSTOMER_A_PHONE = "9765432109";
+    /** Customer B (CIF202602260007) — savings only. */
+    private static final String CUSTOMER_B_PHONE = "9723456789";
+
+    /** All balance-inquiry rows are independent conversational turns against the same account —
+     * safe to run in one continuous session instead of a fresh browser/login per row. Cuts this
+     * class from ~55 logins (one per data-provider row) down to ~3: one shared login covering every
+     * voiceQueries/smokeQueries/sanityQueries row, one switch to Customer A for
+     * knownAccountBalanceQueries' two Customer-A rows, and one switch to Customer B for its one
+     * Customer-B row. */
+    @Override
+    protected boolean useSharedSession() {
+        return true;
+    }
+
+    /** Overrides the shared base's random-new-user default: uses a known seeded customer with BOTH
+     * a savings and a current account instead of a freshly registered random customer. A random new
+     * registration may be provisioned with only a savings account, which would fail every
+     * CURRENT-balance assertion in this class regardless of session mode, since there'd be no
+     * current account for the bot to report. */
+    @Override
+    protected String getLoginPhoneNumber() {
+        return BALANCE_INQUIRY_CUSTOMER_PHONE;
+    }
+
     @DataProvider(name = "voiceQueries")
     public Object[][] voiceQueries() {
         return new Object[][]{
@@ -163,21 +199,20 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Customer A (Sneha Kulkarni, CIF202602260010, 9765432109) — dual account: savings + current.
-     * Customer B (CIF202602260007, 9723456789) — savings only. Account-to-customer mapping is known
-     * statically, so each row names its account explicitly (SAVINGS_BALANCE / CURRENT_BALANCE) and
-     * never triggers the disambiguation follow-up — no need to guess or loop over possibilities. */
+    /** Account-to-customer mapping is known statically, so each row names its account explicitly
+     * (SAVINGS_BALANCE / CURRENT_BALANCE) and never triggers the disambiguation follow-up — no
+     * need to guess or loop over possibilities. */
     @DataProvider(name = "knownAccountBalanceQueries")
     public Object[][] knownAccountBalanceQueries() {
         return new Object[][]{
 
             // {queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber}
             {"Customer A Savings Balance", VoiceQueries.English.SAVINGS_BALANCE,
-                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, "9765432109"},
+                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, CUSTOMER_A_PHONE},
             {"Customer A Current Balance", VoiceQueries.English.CURRENT_BALANCE,
-                    new String[]{"balance", "current"}, BotResponsePatterns.Balance.CURRENT, null, "9765432109"},
+                    new String[]{"balance", "current"}, BotResponsePatterns.Balance.CURRENT, null, CUSTOMER_A_PHONE},
             {"Customer B Savings Balance", VoiceQueries.English.SAVINGS_BALANCE,
-                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, "9723456789"},
+                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, CUSTOMER_B_PHONE},
         };
     }
 
