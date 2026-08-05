@@ -33,6 +33,7 @@ public class HomePage {
     private static final String BOT_CONTAINER  = ".mobile-scroll div.justify-start";
 
     private int botBubblesBefore = 0;
+    private int containersBefore = 0;
 
     public HomePage(Page page) {
         this.page = page;
@@ -167,8 +168,21 @@ public class HomePage {
      * Waits for the bot's welcome bubble, then holds the mic button for {@code maxHoldMs} ms
      * and polls for a user-bubble after release. Retries up to {@code maxAttempts} times,
      * skipping any attempt where the bot is still in "Speaking" state after a 3-second wait.
+     * <p>
+     * Recovers from a "Session Ended" state, if one is already present, before doing anything
+     * else — {@link #pressAndHold} also does this recovery, but only later in this method's own
+     * flow, after {@code botBubblesBefore}/{@code containersBefore}/{@code bubblesBefore} would
+     * already have been snapshotted below. A recovery can reset the chat area to a fresh
+     * conversation, so a snapshot taken before it reflects a state that no longer exists —
+     * {@link #waitForVoiceResponse} would then be comparing against the wrong baseline,
+     * either never seeing the count rise past a now-irrelevant pre-recovery number (missing a
+     * genuine reply entirely) or crediting this turn with content left over from the reconnect
+     * itself. Recovering first means the snapshot below is always taken against whatever
+     * conversation state this turn will actually run in.
      */
     public void holdToSpeakWithRetry(int maxHoldMs, int maxAttempts, int sttPollMs) {
+        recoverFromSessionEndedIfPresent();
+
         page.locator(BOT_BUBBLE).first().waitFor(
                 new Locator.WaitForOptions()
                         .setState(WaitForSelectorState.VISIBLE)
@@ -177,6 +191,7 @@ public class HomePage {
         waitForButtonReady(10000, 6000);
 
         botBubblesBefore = page.locator(BOT_BUBBLE).count();
+        containersBefore = page.locator(BOT_CONTAINER).count();
         int bubblesBefore = page.locator(USER_BUBBLE).count();
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -312,19 +327,49 @@ public class HomePage {
         }
     }
 
-    /** Waits for the bot response bubble for this specific query to appear. */
+    /**
+     * Waits for a new bot response — plain-text bubble or structured card — to appear after this
+     * turn's query <em>and actually have content</em>, by polling until either {@link #BOT_BUBBLE}'s
+     * or {@link #BOT_CONTAINER}'s count exceeds its pre-turn snapshot ({@code botBubblesBefore} /
+     * {@code containersBefore}) AND {@link #getLastBotResponse()} returns non-blank text.
+     * <p>
+     * An earlier version indexed a specific element via {@code Locator.nth(count).waitFor(...)}.
+     * That turned out to be unreliable: a single structured-card reply (e.g. a transaction list)
+     * can itself contain nested {@code div}s that also match the {@code BOT_CONTAINER} selector
+     * (each transaction line's own flex wrapper, for instance), so the count doesn't necessarily
+     * advance by exactly one per turn. {@code nth(containersBefore)} could then point past where
+     * the genuinely new reply actually landed, timing out even though the reply had rendered
+     * correctly and was visible on screen. Polling for "did the count increase at all" fixed that,
+     * but on its own was still too eager: the app appears to insert an empty reply container as
+     * soon as it starts responding and stream the actual text into it afterward, so a
+     * count-only check could return the instant that empty placeholder appears — moments before
+     * its text streams in — leaving {@link #getLastBotResponse()} to read blank. That looked like
+     * "no response" in the test even though the response was genuinely on screen a second later
+     * (visible in the failure screenshot, taken immediately after). Requiring non-blank content
+     * before returning closes that gap.
+     * <p>
+     * A short settle pause ({@link #RESPONSE_SETTLE_MS}) runs after non-blank content is first
+     * detected, before this method returns control to the caller. Non-blank isn't necessarily
+     * final — a streamed reply can still be mid-stream at that instant — and without a pause the
+     * very next query could start (and its own response get captured) while this turn's text is
+     * still being appended to, letting one query's response bleed into the next one's read.
+     */
+    private static final int RESPONSE_SETTLE_MS = 1200;
+
     public void waitForVoiceResponse(int timeoutMs) {
-        try {
-            page.locator(BOT_BUBBLE).nth(botBubblesBefore)
-                    .waitFor(new Locator.WaitForOptions()
-                            .setState(WaitForSelectorState.VISIBLE)
-                            .setTimeout(timeoutMs));
-        } catch (Exception e) {
-            page.locator(BOT_CONTAINER).nth(botBubblesBefore)
-                    .waitFor(new Locator.WaitForOptions()
-                            .setState(WaitForSelectorState.VISIBLE)
-                            .setTimeout(5000));
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            boolean newReplyStarted = page.locator(BOT_BUBBLE).count() > botBubblesBefore
+                    || page.locator(BOT_CONTAINER).count() > containersBefore;
+            if (newReplyStarted && !getLastBotResponse().isBlank()) {
+                page.waitForTimeout(RESPONSE_SETTLE_MS);
+                return;
+            }
+            page.waitForTimeout(300);
         }
+        // Timing out here isn't itself treated as fatal — the caller's own assertions (bot
+        // response non-empty, pattern match) will surface a genuine failure. A response that
+        // finishes rendering moments after this deadline shouldn't be double-penalized here too.
     }
 
     /**
@@ -355,9 +400,17 @@ public class HomePage {
      * Speaks a disambiguation follow-up (e.g. "savings") after the bot has asked the user
      * to choose an account. Waits for the Chromium audio loop to cycle before pressing,
      * then applies the Speaking-state guard before sending.
+     * <p>
+     * Recovers from a "Session Ended" state first, before snapshotting counts — see {@link
+     * #holdToSpeakWithRetry}'s javadoc for why taking the snapshot before a recovery (which
+     * {@link #pressAndHold} would otherwise only run later in this method's own flow) leaves it
+     * comparing against a baseline that no longer reflects the actual conversation.
      */
     public void speakFollowUp(int preWaitMs, int holdMs, int sttPollMs) {
+        recoverFromSessionEndedIfPresent();
+
         botBubblesBefore = page.locator(BOT_BUBBLE).count();
+        containersBefore = page.locator(BOT_CONTAINER).count();
         int bubblesBefore = page.locator(USER_BUBBLE).count();
 
         if (preWaitMs > 0) page.waitForTimeout(preWaitMs);
@@ -455,42 +508,63 @@ public class HomePage {
                 + " reconnect attempts — giving up.");
     }
 
-    /** Retries {@link #jsClickHoldToSpeakButton()} a few times with a short wait between attempts
-     * — the button can be transiently absent from the DOM mid-re-render (e.g. while the
+    /** Retries {@link #trustedClickHoldToSpeakButton()} a few times with a short wait between
+     * attempts — the button can be transiently absent from the DOM mid-re-render (e.g. while the
      * "Session Ended" sheet is being torn down) rather than genuinely gone, so a single miss
      * isn't reliable evidence that it never comes back. */
     private boolean clickHoldToSpeakWithRetry(int maxAttempts, int waitMs) {
         for (int i = 1; i <= maxAttempts; i++) {
-            if (jsClickHoldToSpeakButton()) return true;
+            if (trustedClickHoldToSpeakButton()) return true;
             page.waitForTimeout(waitMs);
         }
         return false;
     }
 
-    /** Clicks the hold-to-speak button by dispatching DOM events directly via
-     * {@code page.evaluate()} rather than going through a Playwright {@code Locator} — both
-     * {@code Locator.click()} and {@code boundingBox()} wait on Playwright's normal actionability
-     * resolution (attached/visible/stable/unobscured), and that wait was silently hanging for the
-     * full default timeout (~30 s) against the button while the "Session Ended" sheet's animated
-     * waveform overlay is up, even though the button is visibly rendered and DOM-queryable.
-     * {@code document.querySelector} plus a manual mousedown/mouseup/click dispatch resolves and
-     * fires synchronously, so it can't get stuck the same way. Returns false if no element with
-     * the hold-to-speak testid exists in the DOM at all. */
-    private boolean jsClickHoldToSpeakButton() {
+    /**
+     * Clicks the hold-to-speak button via a real, OS-trusted mouse click at its on-screen
+     * coordinates, obtained through a raw (non-blocking) {@code getBoundingClientRect()} call
+     * rather than Playwright's {@code Locator.click()}/{@code boundingBox()} — both of those wait
+     * on Playwright's normal actionability resolution (attached/visible/stable/unobscured), and
+     * that wait was silently hanging for the full default timeout (~30 s) against this button
+     * while the "Session Ended" sheet's animated waveform overlay is up, even though the button is
+     * visibly rendered and DOM-queryable.
+     * <p>
+     * An earlier version dispatched a synthetic {@code MouseEvent} via {@code page.evaluate()} to
+     * sidestep that hang. That resolved instantly, but a script-dispatched DOM event has {@code
+     * isTrusted: false} — Chromium's WebRTC/microphone reinitialization on reconnect needs a
+     * trusted user gesture to actually take effect, so the click could visually register (button
+     * state changes, a "Connecting" indicator appears) without the audio pipeline actually coming
+     * back, leaving the run stuck in a state that looked recovered but wasn't — matching a case
+     * where automation hung mid-session and only a real manual click on the button un-stuck it.
+     * {@link Page#mouse()} dispatches genuine trusted input through the browser's DevTools
+     * protocol, the same as real user input, without going through {@code Locator}'s actionability
+     * checks — avoiding both the hang and the trust problem.
+     * <p>
+     * Returns false if the button isn't in the DOM, or has zero size, at the moment checked.
+     */
+    private boolean trustedClickHoldToSpeakButton() {
         try {
-            Boolean clicked = (Boolean) page.evaluate(
+            Object point = page.evaluate(
                     "() => {" +
                     "  const btn = document.querySelector('[data-testid=\"listening-hold-to-speak-btn\"]');" +
-                    "  if (!btn) return false;" +
-                    "  const opts = {bubbles: true, cancelable: true, view: window};" +
-                    "  btn.dispatchEvent(new MouseEvent('mousedown', opts));" +
-                    "  btn.dispatchEvent(new MouseEvent('mouseup', opts));" +
-                    "  btn.dispatchEvent(new MouseEvent('click', opts));" +
-                    "  return true;" +
+                    "  if (!btn) return null;" +
+                    "  const r = btn.getBoundingClientRect();" +
+                    "  if (r.width === 0 || r.height === 0) return null;" +
+                    "  return {x: r.x + r.width / 2, y: r.y + r.height / 2};" +
                     "}");
-            return Boolean.TRUE.equals(clicked);
+            if (point == null) return false;
+
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> center = (java.util.Map<String, Object>) point;
+            double x = ((Number) center.get("x")).doubleValue();
+            double y = ((Number) center.get("y")).doubleValue();
+
+            page.mouse().move(x, y);
+            page.mouse().down();
+            page.mouse().up();
+            return true;
         } catch (Exception e) {
-            System.out.println("[Voice] JS click on hold-to-speak failed: " + e.getMessage());
+            System.out.println("[Voice] Trusted click on hold-to-speak failed: " + e.getMessage());
             return false;
         }
     }
