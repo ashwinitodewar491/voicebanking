@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Abstract base for all voice-based UI tests. Handles browser lifecycle and the core voice query flow. */
@@ -206,7 +207,9 @@ public abstract class BaseVoiceTest {
      * running session is a no-op that just hands back a fresh {@link HomePage} wrapper over the
      * existing page — only the very first call, or a call naming a different identity than the one
      * currently logged in (e.g. switching to a known seeded customer), goes through the full
-     * navigate → OTP → language → skip-voice-reg flow.
+     * navigate → OTP → language → skip-voice-reg flow. The session is never ended proactively here
+     * — only {@link HomePage}'s own reactive recovery (triggered when the live bot itself reports
+     * "Session Ended") ends and reconnects a session, never a deliberate reset between queries.
      */
     private HomePage ensureLoggedIn(String phoneNumber) throws Exception {
         if (useSharedSession() && phoneNumber.equals(loggedInPhoneNumber)) {
@@ -433,15 +436,25 @@ public abstract class BaseVoiceTest {
      * (case-insensitive). Numbers are normalized to digits first — STT is inconsistent about
      * rendering a spoken number as the word ("one") or the digit ("1"), sometimes doing either
      * for the exact same audio, so comparing raw text made a perfectly correct transcription
-     * fail whenever it didn't happen to pick the same form as the expected text. */
+     * fail whenever it didn't happen to pick the same form as the expected text. Currency amounts
+     * are normalized the same way: STT sometimes renders "10000 rupees" as "₹10,000" — correct,
+     * just a different notation for the same amount — so a leading ₹/Rs./INR marker is treated as
+     * the word "rupees" before comparison, rather than requiring both forms to literally match. */
     protected boolean transcriptionContainsExpectedWords(String transcribed, String expected) {
-        String cleanTranscribed = normalizeNumberWords(transcribed.replaceAll("[^a-zA-Z0-9 ]", "").toLowerCase());
-        String[] expectedWords  = normalizeNumberWords(expected.replaceAll("[^a-zA-Z0-9 ]", "").toLowerCase())
+        String cleanTranscribed = normalizeNumberWords(normalizeCurrency(transcribed).toLowerCase());
+        String[] expectedWords  = normalizeNumberWords(normalizeCurrency(expected).toLowerCase())
                 .split("\\s+");
         for (String word : expectedWords) {
             if (!cleanTranscribed.contains(word)) return false;
         }
         return true;
+    }
+
+    /** Replaces a ₹/Rs./INR currency marker with the word "rupees" so "₹10,000" and "10000 rupees"
+     * normalize to the same words, then strips everything but letters, digits, and spaces. */
+    private String normalizeCurrency(String text) {
+        return text.replaceAll("(?i)₹|\\bRs\\.?\\b|\\bINR\\b", " rupees ")
+                .replaceAll("[^a-zA-Z0-9 ]", "");
     }
 
     private static final java.util.Map<String, String> NUMBER_WORDS = java.util.Map.ofEntries(
@@ -482,5 +495,48 @@ public abstract class BaseVoiceTest {
             if (kw.length() > 1 && lower.contains(kw.toLowerCase())) return true;
         }
         return false;
+    }
+
+    /** Matches one transaction-entry's sign and amount — the same shape as {@link
+     * BotResponsePatterns.Transactions#ENTRY}, but with the amount captured so callers can count
+     * entries or sum their amounts, rather than just confirming at least one exists. */
+    private static final Pattern TRANSACTION_ENTRY_AMOUNT =
+            Pattern.compile("[+-]₹([\\d,]+(?:\\.\\d+)?)(?:DEBIT|CREDIT)");
+
+    /** Matches a "Total spent₹<amount>" summary line, capturing the amount. Card responses run
+     * their nested elements together with no separating whitespace (see {@link
+     * BotResponsePatterns.Transactions#ENTRY}'s own comment on this), so there is deliberately no
+     * space between "spent" and the currency symbol here. */
+    private static final Pattern TOTAL_SPENT = Pattern.compile("Total spent₹([\\d,]+(?:\\.\\d+)?)");
+
+    /** Counts how many transaction entries appear in a card-format bot response — e.g. to confirm
+     * "recent transactions" returned exactly the number of entries the app is known to page at. */
+    protected int countTransactionEntries(String botResponse) {
+        Matcher matcher = TRANSACTION_ENTRY_AMOUNT.matcher(botResponse);
+        int count = 0;
+        while (matcher.find()) count++;
+        return count;
+    }
+
+    /** When a response includes a "Total spent₹X" summary line, verifies X equals the sum of every
+     * listed entry's amount — a content-correctness check that doesn't require knowing the seed
+     * data's true values in advance, only that the bot's own total is internally consistent with
+     * the entries it displayed alongside it. Returns true (nothing to check) when no total line is
+     * present, e.g. plain entry-list or prose-summary responses. */
+    protected boolean totalMatchesSumOfEntries(String botResponse) {
+        Matcher totalMatcher = TOTAL_SPENT.matcher(botResponse);
+        if (!totalMatcher.find()) return true;
+        double total = parseAmount(totalMatcher.group(1));
+
+        double sum = 0;
+        Matcher entryMatcher = TRANSACTION_ENTRY_AMOUNT.matcher(botResponse);
+        while (entryMatcher.find()) {
+            sum += parseAmount(entryMatcher.group(1));
+        }
+        return Math.abs(total - sum) < 0.01;
+    }
+
+    private double parseAmount(String rawAmount) {
+        return Double.parseDouble(rawAmount.replace(",", ""));
     }
 }

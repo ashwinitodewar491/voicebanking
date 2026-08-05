@@ -44,8 +44,15 @@ public class BotResponsePatterns {
         // A legitimate "nothing matched" response — e.g. no ATM transactions in the account's
         // history, or no transactions dated today/yesterday in the seed data. Not a failure on
         // its own; only meaningful when the query genuinely has no matching data to return.
+        // Multiple phrasings observed live for the same underlying "nothing found" case: the
+        // account-ID segment before "in the selected period" / "matching your request" is
+        // sometimes present ("...for ACC... in the selected period") and sometimes just missing
+        // ("...for in the selected period") — so it's optional, not required. A third phrasing
+        // echoes the resolved date range instead ("...for from 2026-08-03 to 2026-08-03.").
         public static final String NO_RESULTS =
-                "I couldn't find any [\\w\\s]*transactions? for [A-Z0-9]+ (?:in the selected period|matching your request)";
+                "I couldn't find any [\\w\\s]*transactions? for "
+                + "(?:(?:[A-Z0-9]+ )?(?:in the selected period|matching your request)"
+                + "|from \\d{4}-\\d{2}-\\d{2} to \\d{4}-\\d{2}-\\d{2})";
 
         // UPI / card / all-credit: accept either the structured card or the prose summary.
         public static final String ENTRY_OR_SUMMARY = "(?:" + ENTRY + ")|(?:" + SUMMARY + ")";
