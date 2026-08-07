@@ -5,12 +5,14 @@ import com.voicebanking.DataText.VoiceQueries;
 import com.voicebanking.pages.HomePage;
 import com.voicebanking.tests.ui.base.BaseVoiceTest;
 import com.voicebanking.utils.TtsUtil;
+import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.regex.Pattern;
 
 /**
  * Customer A (Sneha Kulkarni, 9765432109) actually has two loans — Home Loan (LN10014) and
@@ -24,6 +26,25 @@ import java.nio.file.StandardCopyOption;
  * outstanding, and next-EMI-due (upgraded to a precise pattern); everything else is exploratory.
  */
 public class UI9_LoanInquiryTest extends BaseVoiceTest {
+
+    /** All loan-inquiry rows are independent conversational turns against the same customer's two
+     * loans — safe to run in one continuous session instead of a fresh browser/login per row, the
+     * same reasoning UI7 (balance) already uses. Cuts a 76-row regression run from ~76 logins down
+     * to effectively one.
+     * <p>
+     * Unlike UI7's balance queries, though, this class's follow-up flows are themselves
+     * stateful — "which loan?" and "what would you like to know?" disambiguation, and {@link
+     * #walkLoanDetailCategories} walking all 7 detail categories in one conversation. UI8
+     * (transaction history) hit a real cross-row contamination bug from shared sessions once
+     * before (a category filter from one query stuck around and silently answered several later,
+     * unrelated queries) and stayed on fresh-login-per-row specifically because of it. If loan
+     * regression runs start seeing responses that look like they're answering a *previous* row's
+     * question instead of the current one, that's the first thing to suspect — revert this
+     * override before investigating further. */
+    @Override
+    protected boolean useSharedSession() {
+        return true;
+    }
 
     @Override
     protected String getLoginPhoneNumber() {
@@ -271,30 +292,51 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Also recognizes loan disambiguation, so the transcription-retry loop stops re-playing the
-     * original query's audio once the bot has already moved to "which loan?" — otherwise a
-     * retry risks being misheard as an answer to that question instead of the one intended. */
+    /** Also recognizes loan disambiguation and the loan-detail-category prompt, so the
+     * transcription-retry loop stops re-playing the original query's audio once the bot has
+     * already moved to "which loan?" or "what would you like to know?" — otherwise a retry
+     * risks being misheard as an answer to that question instead of the one intended. */
     @Override
     protected boolean shouldStopRetrying(String botResponse) {
-        return super.shouldStopRetrying(botResponse) || isLoanDisambiguation(botResponse);
+        return super.shouldStopRetrying(botResponse)
+                || isLoanDisambiguation(botResponse)
+                || isLoanDetailPrompt(botResponse);
     }
 
-    /** Bot asked which loan (e.g. this customer has more than one, or the query named no type)
-     * and the row supplied a loan name to answer with — reusing disambiguationAccount's slot
-     * since it's the same "what to say if asked to disambiguate" concept. The final check in
-     * runVoiceQuery reuses the row's own assertionPattern / expectedKeywords rather than a
-     * hardcoded pattern, since the right answer depends on what was actually asked (EMI,
-     * interest, outstanding, ...). Rows that want to assert the disambiguation prompt itself
-     * (e.g. an invalid loan type) pass disambiguationAccount as null, which skips this block
-     * entirely and returns botResponse unchanged. */
+    /** A generic "give me loan details" query can land in one of several places depending on
+     * how many loans this customer actually has and how much the bot needs to ask to narrow
+     * down the answer — so each stage below only engages when its own prompt is actually seen,
+     * never assumed, and a single-loan customer who gets a direct answer straight away simply
+     * skips both stages untouched:
+     * <p>
+     * Stage 1 — "which loan?" (only when the query named no type AND the customer has more
+     * than one loan; reuses disambiguationAccount's slot as "what to say if asked"). Rows that
+     * want to assert this prompt itself (e.g. an invalid loan type) pass disambiguationAccount
+     * as null, which skips this stage entirely.
+     * <p>
+     * Stage 2 — "what would you like to know about your X loan?" (asked once the loan itself
+     * is known, either named directly by the query or just resolved by stage 1) — walks every
+     * detail category the bot claims to support in {@link BotResponsePatterns.Loans#LOAN_DETAIL_OPTIONS_PROMPT},
+     * asserting each in turn.
+     * <p>
+     * The final check in runVoiceQuery reuses the row's own assertionPattern / expectedKeywords
+     * rather than a hardcoded pattern, since the right answer depends on what was actually
+     * asked (EMI, interest, outstanding, ...). */
     @Override
     protected String handleAdditionalFollowUp(String queryName, String botResponse,
                                                String disambiguationAccount, HomePage homePage) throws Exception {
-        if (!isLoanDisambiguation(botResponse) || disambiguationAccount == null) {
-            return botResponse;
+        if (isLoanDisambiguation(botResponse) && disambiguationAccount != null) {
+            botResponse = answerWhichLoan(queryName, homePage, disambiguationAccount);
         }
 
-        String followUpLoan = disambiguationAccount;
+        if (isLoanDetailPrompt(botResponse)) {
+            botResponse = walkLoanDetailCategories(queryName, homePage);
+        }
+
+        return botResponse;
+    }
+
+    private String answerWhichLoan(String queryName, HomePage homePage, String followUpLoan) throws Exception {
         String followUpResponse = "";
 
         for (int attempt = 1; attempt <= 3; attempt++) {
@@ -330,10 +372,117 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         return followUpResponse;
     }
 
+    /** Every detail category the "what would you like to know about your X loan?" prompt
+     * claims to support, in the order confirmed live. "Loan amount" is last since, unlike the
+     * other six, its response pattern ({@link BotResponsePatterns.Loans#LOAN_AMOUNT}) is an
+     * inferred guess rather than a confirmed live response — if this one fails, that pattern is
+     * the first place to check. */
+    private static final String[] LOAN_DETAIL_CATEGORIES = {
+            "EMI", "Tenure", "Pending tenure", "Interest rate", "Outstanding amount",
+            "Next EMI due date", "Loan amount"
+    };
+
+    /** Walks every category in {@link #LOAN_DETAIL_CATEGORIES} in the same conversation, one at
+     * a time, asserting each response against the exact format confirmed live for that category
+     * (see BotResponsePatterns.Loans) — only the amount/rate/date/month value itself varies per
+     * account. Every category gets asserted internally regardless, but the response returned to
+     * the caller (whose own final assertion checks it again, against the row's own pattern) is
+     * whichever category the row's query actually named — not simply whichever was walked last.
+     * That matters for a row like "Next EMI Due Personal", which expects its own final check
+     * (NEXT_EMI_DUE) to pass: a live STT mishearing can turn that query into something the bot
+     * doesn't recognize as naming a specific detail, landing here via the generic prompt even
+     * though the row itself is not generic — confirmed live. Falls back to the last category
+     * walked for rows that genuinely are generic (e.g. "Loan Details", which names no category
+     * and only expects a loose keyword match, so it doesn't matter which one comes back). */
+    private String walkLoanDetailCategories(String queryName, HomePage homePage) throws Exception {
+        java.util.Map<String, String> responsesByCategory = new java.util.LinkedHashMap<>();
+
+        for (String category : LOAN_DETAIL_CATEGORIES) {
+            String expectedPattern = loanDetailPatternFor(category);
+            String response = "";
+
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                System.out.println("[" + queryName + "] Loan-detail follow-up: asking '" + category
+                        + "' (attempt " + attempt + ")...");
+
+                long oldAudioDurationMs = TtsUtil.getWavDurationMs(currentAudioPath);
+                String followUpPath = TtsUtil.generateWav(category);
+                Files.copy(Path.of(followUpPath), Path.of(currentAudioPath), StandardCopyOption.REPLACE_EXISTING);
+                int followUpHoldMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
+                TtsUtil.deleteWav(followUpPath);
+
+                homePage.reacquireMicrophoneForFollowUp();
+
+                int preWaitMs = (int) oldAudioDurationMs + 2000 + ((attempt - 1) * 2000);
+                homePage.speakFollowUp(preWaitMs, followUpHoldMs, 8000);
+                homePage.waitForVoiceResponse(15000);
+
+                String transcribed = homePage.getLastTranscribedText();
+                response = homePage.getLastBotResponse();
+                System.out.println("[" + queryName + "] '" + category + "' Transcribed : " + transcribed);
+                System.out.println("[" + queryName + "] '" + category + "' Bot response: " + response);
+
+                if (!response.isBlank() && Pattern.compile(expectedPattern).matcher(response).find()) {
+                    break;
+                }
+                System.out.println("[" + queryName + "] WARN — '" + category
+                        + "' response didn't match the expected pattern yet (attempt " + attempt + ") — retrying...");
+            }
+
+            Assert.assertTrue(Pattern.compile(expectedPattern).matcher(response).find(),
+                    "[" + queryName + "] '" + category + "' response did not match expected pattern.\n"
+                    + "  Pattern : " + expectedPattern + "\n"
+                    + "  Got     : " + response);
+            responsesByCategory.put(category, response);
+        }
+
+        return responseMatchingQuery(queryName, responsesByCategory);
+    }
+
+    /** Picks the response for whichever category the row's queryName actually names, checked in
+     * order from most to least specific (e.g. "pending"/"remaining" before the bare "tenure"
+     * they're both a kind of, "next emi due" before the bare "emi" it contains) so a name like
+     * "Next EMI Due Personal" resolves to "Next EMI due date" rather than accidentally matching
+     * "EMI" first. Falls back to the last category walked when nothing in the name points at a
+     * specific one — true generic-query rows land here, and any of the (already individually
+     * asserted) responses satisfies their own loose keyword check. */
+    private String responseMatchingQuery(String queryName, java.util.Map<String, String> responsesByCategory) {
+        String q = queryName.toLowerCase();
+
+        if (q.contains("next") && q.contains("emi") && q.contains("due")) return responsesByCategory.get("Next EMI due date");
+        if (q.contains("pending") || q.contains("remaining")) return responsesByCategory.get("Pending tenure");
+        if (q.contains("tenure")) return responsesByCategory.get("Tenure");
+        if (q.contains("interest")) return responsesByCategory.get("Interest rate");
+        if (q.contains("outstanding")) return responsesByCategory.get("Outstanding amount");
+        if (q.contains("emi")) return responsesByCategory.get("EMI");
+        if (q.contains("sanctioned") || q.contains("amount") || q.contains("taken")) return responsesByCategory.get("Loan amount");
+
+        return responsesByCategory.values().stream().reduce((first, last) -> last).orElse("");
+    }
+
+    private String loanDetailPatternFor(String category) {
+        return switch (category) {
+            case "EMI" -> BotResponsePatterns.Loans.EMI_AMOUNT;
+            case "Tenure" -> BotResponsePatterns.Loans.TENURE;
+            case "Pending tenure" -> BotResponsePatterns.Loans.PENDING_TENURE;
+            case "Interest rate" -> BotResponsePatterns.Loans.INTEREST_RATE;
+            case "Outstanding amount" -> BotResponsePatterns.Loans.OUTSTANDING;
+            case "Next EMI due date" -> BotResponsePatterns.Loans.NEXT_EMI_DUE;
+            case "Loan amount" -> BotResponsePatterns.Loans.LOAN_AMOUNT;
+            default -> throw new IllegalStateException("Unknown loan-detail category: " + category);
+        };
+    }
+
     /** Returns true when the bot response is asking the user to choose between loans. Deliberately
      * loose — observed phrasings vary ("You have the following loans: ...", "I can see multiple
      * loan accounts for you: ...") but all include "which loan". */
     private boolean isLoanDisambiguation(String response) {
         return response.toLowerCase().contains("which loan");
+    }
+
+    /** Returns true when the bot is asking which detail category the caller wants about an
+     * already-known loan (e.g. "What would you like to know about your Home Loan?..."). */
+    private boolean isLoanDetailPrompt(String response) {
+        return Pattern.compile(BotResponsePatterns.Loans.LOAN_DETAIL_OPTIONS_PROMPT).matcher(response).find();
     }
 }

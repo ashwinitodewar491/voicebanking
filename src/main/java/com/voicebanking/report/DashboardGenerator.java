@@ -20,6 +20,8 @@ public class DashboardGenerator {
         File outputDir = new File(projectDir, "target/dashboard-report");
         File sessionEndedFile = new File(projectDir, "target/session-ended-count.txt");
         File sessionEndedDetailsFile = new File(projectDir, "target/session-ended-details.txt");
+        File noResponseFile = new File(projectDir, "target/no-response-count.txt");
+        File noResponseDetailsFile = new File(projectDir, "target/no-response-details.txt");
 
         if (!surefireDir.isDirectory()) {
             System.out.println("[Dashboard] No surefire-reports found at " + surefireDir + " — run tests first.");
@@ -33,10 +35,13 @@ public class DashboardGenerator {
         results.sort(Comparator.comparing((TestResult r) -> r.className).thenComparing(r -> r.fullName));
 
         matchScreenshots(results, screenshotsDir);
-        int sessionEndedCount = readSessionEndedCount(sessionEndedFile);
-        List<String> sessionEndedDetails = readSessionEndedDetails(sessionEndedDetailsFile);
+        int sessionEndedCount = readCount(sessionEndedFile);
+        List<String> sessionEndedDetails = readDetails(sessionEndedDetailsFile);
+        int noResponseCount = readCount(noResponseFile);
+        List<String> noResponseDetails = readDetails(noResponseDetailsFile);
 
-        String html = new HtmlRenderer().render(results, sessionEndedCount, sessionEndedDetails);
+        String html = new HtmlRenderer().render(results, sessionEndedCount, sessionEndedDetails,
+                noResponseCount, noResponseDetails);
         Files.writeString(new File(outputDir, "index.html").toPath(), html);
 
         long total = results.size();
@@ -81,11 +86,10 @@ public class DashboardGenerator {
         }
     }
 
-    /** Reads the count HomePage/SessionEndedTracker wrote out at suite end (test-side; not
-     * importable here since src/main can't depend on src/test) — a plain text file with just the
-     * integer. Returns 0 if it doesn't exist (e.g. no test run happened, or none hit a session
-     * drop). */
-    private static int readSessionEndedCount(File file) {
+    /** Reads the count SessionEndedTracker/NoResponseTracker wrote out at suite end (test-side;
+     * not importable here since src/main can't depend on src/test) — a plain text file with just
+     * the integer. Returns 0 if it doesn't exist (e.g. no test run happened, or none occurred). */
+    private static int readCount(File file) {
         try {
             return Integer.parseInt(Files.readString(file.toPath()).trim());
         } catch (Exception e) {
@@ -93,10 +97,10 @@ public class DashboardGenerator {
         }
     }
 
-    /** Reads the per-occurrence "Session Ended" detail lines SessionEndedTracker wrote out
+    /** Reads the per-occurrence detail lines SessionEndedTracker/NoResponseTracker wrote out
      * (timestamp — query name), one per line. Returns an empty list if the file doesn't exist
-     * (no test run yet) or is empty (no drops this run). */
-    private static List<String> readSessionEndedDetails(File file) {
+     * (no test run yet) or is empty (none this run). */
+    private static List<String> readDetails(File file) {
         try {
             return Files.readAllLines(file.toPath());
         } catch (Exception e) {
