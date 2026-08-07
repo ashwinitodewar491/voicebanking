@@ -100,6 +100,41 @@ public class BotResponsePatterns {
         public static final String NEXT_EMI_DUE =
                 "The next EMI due date for your (?:Home|Personal) Loan is .+";
 
+        // Precise per-category patterns confirmed live for the "Give me details of my home loan"
+        // flow (see LOAN_DETAIL_OPTIONS_PROMPT below) — each answers a single-word/short-phrase
+        // follow-up ("EMI", "Tenure", "Pending tenure", "Interest rate") asked after that prompt.
+        // Only the numeric value itself varies per account; the wording is fixed.
+        // "Your EMI for Home Loan is Rs.18000."
+        public static final String EMI_AMOUNT =
+                "Your EMI for (?:Home|Personal) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
+        // "Your Home Loan has a tenure of 240 months."
+        public static final String TENURE =
+                "Your (?:Home|Personal) Loan has a tenure of \\d+ months?";
+        // "The remaining tenure for your Home Loan is 5 months."
+        public static final String PENDING_TENURE =
+                "The remaining tenure for your (?:Home|Personal) Loan is \\d+ months?";
+        // "The interest rate on your Home Loan is 7.8%."
+        public static final String INTEREST_RATE =
+                "The interest rate on your (?:Home|Personal) Loan is [\\d.]+%";
+        // "The sanctioned amount for your Home Loan is Rs.900000.0." — confirmed live. The
+        // follow-up category is spoken as "Loan amount", but the bot answers with "sanctioned
+        // amount" wording instead — an earlier guess assumed it would echo "loan amount" back
+        // (matching OUTSTANDING's "outstanding amount" self-echo pattern), which was wrong.
+        public static final String LOAN_AMOUNT =
+                "The sanctioned amount for your (?:Home|Personal) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
+
+        // Asked when the loan type is already known (e.g. "Give me details of my home loan") but
+        // no specific detail was named — lists every category the bot can answer about that loan
+        // and waits for a follow-up naming one. Confirmed live, exact phrasing observed:
+        // "What would you like to know about your Home Loan?I can tell you the EMI, tenure.pending
+        // tenure, interest rate, outstanding amount, loan amount.or next EMI due date." — the odd
+        // "tenure.pending"/"amount.or" joins are the app's own card-style rendering running
+        // adjacent sentences together with no space (same phenomenon as the transaction-card text
+        // concatenation elsewhere in this file), not something to anchor on, so this only checks
+        // the fixed lead-in.
+        public static final String LOAN_DETAIL_OPTIONS_PROMPT =
+                "(?i)What would you like to know about your (?:Home|Personal) Loan";
+
         // Fallback when the named loan type isn't recognised (e.g. "education loan", which this
         // customer doesn't have), or no type was named and the customer has more than one loan —
         // the bot lists what it actually has and asks the caller to pick. The exact wording is
@@ -107,10 +142,14 @@ public class BotResponsePatterns {
         // prompt ("You have the following loan accounts: ...", "I found multiple loan accounts
         // for you: ...", "I see you have multiple loan accounts. Which one are you referring
         // to? ...", etc.), so this deliberately doesn't match a literal phrase. Instead it
-        // requires, anywhere in the response: the word "which", the word "loan", and at least
-        // two distinct loan account numbers (LN followed by digits) — a shape common to every
-        // variant seen so far without being tied to any one of them.
+        // requires, anywhere in the response: the word "which", the word "loan", and at least two
+        // distinct loan references — either an account number (LN followed by digits) or a named
+        // loan type ("Home Loan"/"Personal Loan"). Originally required two LN-codes specifically,
+        // but a live response instead listed loans by type name with no LN-code at all: "You have
+        // the following loans: 1. (Home Loan), 2. (Personal Loan). Which loan would you like to
+        // check?" — the bot isn't consistent about which identifier style it lists loans by, so
+        // both count.
         public static final String LOAN_OPTIONS_PROMPT =
-                "(?i)(?=.*\\bwhich\\b)(?=.*\\bloan\\b)(?=(?:.*?LN\\d+){2})";
+                "(?i)(?=.*\\bwhich\\b)(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Personal) Loan)){2})";
     }
 }

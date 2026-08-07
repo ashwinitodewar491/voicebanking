@@ -15,6 +15,7 @@ import com.voicebanking.pages.OtpPage;
 import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
 import com.voicebanking.listeners.TestListener;
+import com.voicebanking.utils.NoResponseTracker;
 import com.voicebanking.utils.ScreenshotUtil;
 import com.voicebanking.utils.TtsUtil;
 import org.testng.Assert;
@@ -120,9 +121,16 @@ public abstract class BaseVoiceTest {
                 new BrowserType.LaunchOptions()
                         .setHeadless(headless)
                         .setArgs(chromiumArgs));
+        // Video is recorded for the lifetime of this context — in useSharedSession() mode that's
+        // the whole class's run (one context spans every row, closed once in
+        // tearDownSharedSession()), so this yields one continuous video covering the entire
+        // regression run rather than one clip per row. The file is only finalized on context
+        // close, so it only appears in target/videos/ once the run (or class) finishes. Local-only
+        // — target/ is gitignored, nothing here gets pushed.
         context = browser.newContext(
                 new Browser.NewContextOptions()
-                        .setPermissions(List.of("microphone")));
+                        .setPermissions(List.of("microphone"))
+                        .setRecordVideoDir(Path.of("target/videos")));
         page = context.newPage();
 
         // --use-file-for-fake-audio-capture is read once per audio capture stream, not once per
@@ -330,6 +338,12 @@ public abstract class BaseVoiceTest {
         for (int reaskNum = 1;
              reaskNum <= MAX_REASK_ATTEMPTS && (isGenericGreeting(botResponse) || botResponse.isBlank());
              reaskNum++) {
+            if (botResponse.isBlank()) {
+                // Recorded here — not only if every retry below eventually fails — so a
+                // no-response that self-heals on a later re-ask still shows up in the stability
+                // signal, the same way SessionEndedTracker counts a recovered session drop.
+                NoResponseTracker.recordOccurrence(queryName);
+            }
             System.out.println("[" + queryName + "] WARN — got a generic greeting/empty response instead of"
                     + " an answer (stuck Processing, or post-reconnect) — re-asking (" + reaskNum + " of "
                     + MAX_REASK_ATTEMPTS + ")...");
