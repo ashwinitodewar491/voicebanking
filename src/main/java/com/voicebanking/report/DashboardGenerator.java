@@ -19,6 +19,7 @@ public class DashboardGenerator {
         File screenshotsDir = new File(projectDir, "target/screenshots");
         File outputDir = new File(projectDir, "target/dashboard-report");
         File sessionEndedFile = new File(projectDir, "target/session-ended-count.txt");
+        File sessionEndedDetailsFile = new File(projectDir, "target/session-ended-details.txt");
 
         if (!surefireDir.isDirectory()) {
             System.out.println("[Dashboard] No surefire-reports found at " + surefireDir + " — run tests first.");
@@ -33,8 +34,9 @@ public class DashboardGenerator {
 
         matchScreenshots(results, screenshotsDir);
         int sessionEndedCount = readSessionEndedCount(sessionEndedFile);
+        List<String> sessionEndedDetails = readSessionEndedDetails(sessionEndedDetailsFile);
 
-        String html = new HtmlRenderer().render(results, sessionEndedCount);
+        String html = new HtmlRenderer().render(results, sessionEndedCount, sessionEndedDetails);
         Files.writeString(new File(outputDir, "index.html").toPath(), html);
 
         long total = results.size();
@@ -88,6 +90,17 @@ public class DashboardGenerator {
             return Integer.parseInt(Files.readString(file.toPath()).trim());
         } catch (Exception e) {
             return 0;
+        }
+    }
+
+    /** Reads the per-occurrence "Session Ended" detail lines SessionEndedTracker wrote out
+     * (timestamp — query name), one per line. Returns an empty list if the file doesn't exist
+     * (no test run yet) or is empty (no drops this run). */
+    private static List<String> readSessionEndedDetails(File file) {
+        try {
+            return Files.readAllLines(file.toPath());
+        } catch (Exception e) {
+            return List.of();
         }
     }
 

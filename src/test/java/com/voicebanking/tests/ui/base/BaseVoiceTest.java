@@ -14,6 +14,7 @@ import com.voicebanking.pages.LanguagePage;
 import com.voicebanking.pages.OtpPage;
 import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
+import com.voicebanking.listeners.TestListener;
 import com.voicebanking.utils.ScreenshotUtil;
 import com.voicebanking.utils.TtsUtil;
 import org.testng.Assert;
@@ -21,6 +22,7 @@ import org.testng.ITestResult;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Listeners;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,7 +32,17 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Abstract base for all voice-based UI tests. Handles browser lifecycle and the core voice query flow. */
+/** Abstract base for all voice-based UI tests. Handles browser lifecycle and the core voice query flow.
+ * <p>
+ * {@code @Listeners} registers {@link TestListener} directly on the class, not just via
+ * testng.xml's suite-level {@code <listener>} tag — that tag is silently skipped by Maven
+ * Surefire whenever a run is scoped with {@code -Dtest=SomeClass} (which every run in this
+ * project's day-to-day use has been), since that flag makes Surefire build its own ad-hoc suite
+ * instead of using testng.xml at all. Without this, {@link TestListener#onFinish} — and so
+ * {@link com.voicebanking.utils.SessionEndedTracker#writeToDisk()} and the ExtentReports HTML —
+ * never ran for any {@code -Dtest=} invocation; confirmed live by target/session-ended-count.txt
+ * and target/extent-report/ both being absent after a full run that did hit a session drop. */
+@Listeners(TestListener.class)
 public abstract class BaseVoiceTest {
 
     protected Playwright playwright;
@@ -276,12 +288,13 @@ public abstract class BaseVoiceTest {
                                   String phoneNumber) throws Exception {
 
         HomePage homePage = ensureLoggedIn(phoneNumber);
+        homePage.setCurrentQueryName(queryName);
 
         int holdMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
         System.out.println("[" + queryName + "] WAV duration : " + holdMs + " ms (speech + 3 s silence)");
 
         homePage.holdToSpeakWithRetry(holdMs, 3, 8000);
-        homePage.waitForVoiceResponse(15000);
+        homePage.waitForVoiceResponse(BOT_RESPONSE_TIMEOUT_MS);
 
         String transcribed = homePage.getLastTranscribedText();
         String botResponse = homePage.getLastBotResponse();
@@ -292,10 +305,45 @@ public abstract class BaseVoiceTest {
 
         assertOrCapture(!transcribed.isEmpty(), queryName,
                 "[" + queryName + "] Voice not recognised — no user message appeared in chat");
-        assertOrCapture(!botResponse.isEmpty(), queryName,
-                "[" + queryName + "] Bot did not respond after voice query");
+
+        // A "Session Ended" state can appear during or right after this turn's answer — before
+        // the next query ever tries to speak (the only place recovery ran previously). Recovering
+        // here too means the page-visible check below sees the reconnected hold-to-speak button
+        // rather than failing hard on a session-ended screen recovery never got a chance to fix.
+        homePage.recoverFromSessionEndedIfPresent();
         assertOrCapture(homePage.isPageVisible(), queryName,
                 "[" + queryName + "] Home page should remain visible after voice query");
+
+        // A blank botResponse here means one of two things: the bot is still genuinely stuck on
+        // "Processing…" past BOT_RESPONSE_TIMEOUT_MS, or a reconnect (see
+        // recoverFromSessionEndedIfPresent() above) re-established the session but the query
+        // spoken right after got swallowed by the bot's own session-start greeting instead of
+        // being answered — confirmed live: correct transcription, yet the response was "Good
+        // afternoon, Welcome <name> ... How can I help you today?" instead of the actual
+        // transaction data. Either way, the fix is the same: press hold-to-speak again with the
+        // same query audio. holdToSpeakWithRetry() below recovers from a session-ended state
+        // again itself before it (re-)speaks (including a second drop landing right on the heels
+        // of the first), so this loop self-heals through repeated drops, not just a single one.
+        // Only once every attempt here is exhausted does the caller's own "bot never responded"
+        // check further down get to fail the test — deliberately not failing on the very first
+        // blank response, since that pre-empted every one of these retries.
+        for (int reaskNum = 1;
+             reaskNum <= MAX_REASK_ATTEMPTS && (isGenericGreeting(botResponse) || botResponse.isBlank());
+             reaskNum++) {
+            System.out.println("[" + queryName + "] WARN — got a generic greeting/empty response instead of"
+                    + " an answer (stuck Processing, or post-reconnect) — re-asking (" + reaskNum + " of "
+                    + MAX_REASK_ATTEMPTS + ")...");
+            homePage.holdToSpeakWithRetry(holdMs, 3, 8000);
+            homePage.waitForVoiceResponse(BOT_RESPONSE_TIMEOUT_MS);
+            transcribed = homePage.getLastTranscribedText();
+            botResponse = homePage.getLastBotResponse();
+            System.out.println("[" + queryName + "] Re-ask " + reaskNum + " Transcribed : " + transcribed);
+            System.out.println("[" + queryName + "] Re-ask " + reaskNum + " Bot response: " + botResponse);
+        }
+
+        assertOrCapture(!botResponse.isEmpty(), queryName,
+                "[" + queryName + "] Bot did not respond after voice query, even after "
+                + MAX_REASK_ATTEMPTS + " re-ask attempts");
 
         for (int retryNum = 1; retryNum <= 2
                 && !transcriptionContainsExpectedWords(transcribed, query)
@@ -324,9 +372,7 @@ public abstract class BaseVoiceTest {
 
         if (isAccountDisambiguation(botResponse)) {
             String followUpAccount = disambiguationAccount != null ? disambiguationAccount : "savings";
-            String expectedPattern = "current".equalsIgnoreCase(followUpAccount)
-                    ? BotResponsePatterns.Balance.CURRENT
-                    : BotResponsePatterns.Balance.SAVINGS;
+            String expectedPattern = getDisambiguationExpectedPattern(followUpAccount);
 
             String followUpTranscribed = "";
             String followUpResponse = "";
@@ -424,12 +470,48 @@ public abstract class BaseVoiceTest {
         return isAccountDisambiguation(botResponse);
     }
 
+    /** Matches the bot's generic session-start greeting, e.g. "Good afternoon, Welcome Karan
+     * Malhotra, I can help you review your recent transactions or check your account
+     * balances.How can I help you today?" — observed replacing the real answer specifically as
+     * the first response right after a mid-query reconnect. "How can I help you today" is the
+     * fixed closer across every greeting observed regardless of time-of-day/name, so that's the
+     * anchor, not the dynamic name/time-of-day portion. */
+    private static final Pattern GENERIC_GREETING = Pattern.compile("Welcome.*How can I help you today");
+
+    protected boolean isGenericGreeting(String botResponse) {
+        return GENERIC_GREETING.matcher(botResponse).find();
+    }
+
+    /** Cap on re-asking the same query after a post-reconnect greeting/empty response — see the
+     * re-ask loop in {@link #runVoiceQuery(String, String, String[], String, String, String)}. */
+    private static final int MAX_REASK_ATTEMPTS = 3;
+
+    /** How long to wait for the bot's reply before treating it as stuck — raised from an earlier
+     * 15 s after live runs showed genuine (non-stuck) replies still arriving past that mark,
+     * particularly for date-range and filtered transaction queries. */
+    private static final int BOT_RESPONSE_TIMEOUT_MS = 30000;
+
     /** Extension point — see call site in {@link #runVoiceQuery(String, String, String[], String,
      * String, String)}. Override in a test class to handle a follow-up prompt specific to that
      * class's feature; return {@code botResponse} unchanged when there's nothing to do. */
     protected String handleAdditionalFollowUp(String queryName, String botResponse,
                                                String disambiguationAccount, HomePage homePage) throws Exception {
         return botResponse;
+    }
+
+    /**
+     * Returns the pattern the bot's response should match after the user picks {@code
+     * followUpAccount} in response to an account-disambiguation prompt. Defaults to the
+     * SAVINGS/CURRENT balance patterns, since that's what UI7's balance queries expect — a balance
+     * response explicitly names which account it's for ("The balance in your SAVINGS account
+     * is..."). Not every feature works that way: a transaction-history response is just a list of
+     * entries with no per-account wording to distinguish, so UI8 overrides this to check the
+     * generic transaction-entry shape instead, regardless of which account was picked.
+     */
+    protected String getDisambiguationExpectedPattern(String followUpAccount) {
+        return "current".equalsIgnoreCase(followUpAccount)
+                ? BotResponsePatterns.Balance.CURRENT
+                : BotResponsePatterns.Balance.SAVINGS;
     }
 
     /** Returns true when every word in {@code expected} appears in {@code transcribed}
