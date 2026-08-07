@@ -14,6 +14,7 @@ public class HomePage {
     private static final String BALANCE_TOGGLE_BTN  = "[data-testid='home-balance-toggle-btn']";
     private static final String TRANSACTIONS_BTN    = "[data-testid='home-transactions-btn']";
     private static final String HOLD_TO_SPEAK_BTN   = "[data-testid='listening-hold-to-speak-btn']";
+    private static final String HOLD_TO_RECONNECT_BTN = "[data-testid='listening-reconnect-btn']";
     private static final String LISTENING_CLOSE_BTN     = "[data-testid='listening-close-btn']";
     private static final String TRANSACTIONS_COLLAPSE_BTN
             = "[data-testid='home-transactions-collapse-btn']";
@@ -35,8 +36,17 @@ public class HomePage {
     private int botBubblesBefore = 0;
     private int containersBefore = 0;
 
+    /** Which voice query is currently in flight — set by the test layer (see {@link
+     * #setCurrentQueryName}) purely so a "Session Ended" occurrence can be logged against the
+     * query that was running when it happened, for {@link SessionEndedTracker}'s detail log. */
+    private String currentQueryName = "unknown";
+
     public HomePage(Page page) {
         this.page = page;
+    }
+
+    public void setCurrentQueryName(String queryName) {
+        this.currentQueryName = queryName;
     }
 
     public void waitForPageLoad() {
@@ -472,18 +482,25 @@ public class HomePage {
      * whether recovery below succeeds — that count is a run-wide environment-stability signal
      * (target/session-ended-count.txt, surfaced in the dashboard), independent of whether this
      * particular test ultimately passes or fails.
+     * <p>
+     * Public (not just used internally by {@link #pressAndHold}) so callers can also recover
+     * right after reading a response, not only right before speaking the next query. A session can
+     * end during or immediately after the current turn's answer — by the time the caller checks
+     * {@link #isPageVisible()}, the ordinary hold-to-speak button may already be gone, replaced by
+     * this screen's own "Hold to reconnect" control. {@code pressAndHold}'s recovery only runs when
+     * the *next* query tries to speak, too late to save that check.
      */
-    private void recoverFromSessionEndedIfPresent() {
+    public void recoverFromSessionEndedIfPresent() {
         if (!isSessionEnded()) return;
 
-        SessionEndedTracker.recordOccurrence();
+        SessionEndedTracker.recordOccurrence(currentQueryName);
 
         for (int attempt = 1; attempt <= SESSION_RECOVERY_ATTEMPTS; attempt++) {
             System.out.println("[Voice] 'Session Ended' detected — reconnect attempt " + attempt
                     + " of " + SESSION_RECOVERY_ATTEMPTS + "...");
 
-            if (!clickHoldToSpeakWithRetry(3, 500)) {
-                System.out.println("[Voice] Hold-to-speak button not found for reconnect — retrying...");
+            if (!clickButtonWithRetry(HOLD_TO_RECONNECT_BTN, 3, 500)) {
+                System.out.println("[Voice] Reconnect button not found — retrying...");
                 page.waitForTimeout(1000);
                 continue;
             }
@@ -491,7 +508,7 @@ public class HomePage {
             waitThroughConnecting(15000);
 
             System.out.println("[Voice] Reconnected — clicking hold-to-speak again before speaking...");
-            if (!clickHoldToSpeakWithRetry(3, 500)) {
+            if (!clickButtonWithRetry(HOLD_TO_SPEAK_BTN, 3, 500)) {
                 System.out.println("[Voice] Hold-to-speak button not found for second reconnect click — retrying...");
                 page.waitForTimeout(1000);
                 continue;
@@ -508,13 +525,13 @@ public class HomePage {
                 + " reconnect attempts — giving up.");
     }
 
-    /** Retries {@link #trustedClickHoldToSpeakButton()} a few times with a short wait between
+    /** Retries {@link #trustedClickButton(String)} a few times with a short wait between
      * attempts — the button can be transiently absent from the DOM mid-re-render (e.g. while the
      * "Session Ended" sheet is being torn down) rather than genuinely gone, so a single miss
      * isn't reliable evidence that it never comes back. */
-    private boolean clickHoldToSpeakWithRetry(int maxAttempts, int waitMs) {
+    private boolean clickButtonWithRetry(String testIdSelector, int maxAttempts, int waitMs) {
         for (int i = 1; i <= maxAttempts; i++) {
-            if (trustedClickHoldToSpeakButton()) return true;
+            if (trustedClickButton(testIdSelector)) return true;
             page.waitForTimeout(waitMs);
         }
         return false;
@@ -541,17 +558,24 @@ public class HomePage {
      * checks — avoiding both the hang and the trust problem.
      * <p>
      * Returns false if the button isn't in the DOM, or has zero size, at the moment checked.
+     * <p>
+     * Takes a CSS selector rather than being hardcoded to one button — the "Session Ended" screen's
+     * reconnect control is a genuinely different element ({@code data-testid="listening-reconnect-btn"},
+     * text "Hold to reconnect") from the ordinary hold-to-speak button
+     * ({@code data-testid="listening-hold-to-speak-btn"}), confirmed against the live DOM. It only
+     * relabels back to "Hold to speak" — same testid as the ordinary button — once actually
+     * reconnected, so the recovery sequence must click the reconnect-specific selector first.
      */
-    private boolean trustedClickHoldToSpeakButton() {
+    private boolean trustedClickButton(String selector) {
         try {
             Object point = page.evaluate(
-                    "() => {" +
-                    "  const btn = document.querySelector('[data-testid=\"listening-hold-to-speak-btn\"]');" +
+                    "(sel) => {" +
+                    "  const btn = document.querySelector(sel);" +
                     "  if (!btn) return null;" +
                     "  const r = btn.getBoundingClientRect();" +
                     "  if (r.width === 0 || r.height === 0) return null;" +
                     "  return {x: r.x + r.width / 2, y: r.y + r.height / 2};" +
-                    "}");
+                    "}", selector);
             if (point == null) return false;
 
             @SuppressWarnings("unchecked")
@@ -564,23 +588,25 @@ public class HomePage {
             page.mouse().up();
             return true;
         } catch (Exception e) {
-            System.out.println("[Voice] Trusted click on hold-to-speak failed: " + e.getMessage());
+            System.out.println("[Voice] Trusted click on '" + selector + "' failed: " + e.getMessage());
             return false;
         }
     }
 
-    /** Returns true if the chat screen is showing a "Session Ended" message. */
+    /**
+     * Returns true if the chat screen is showing a "Session Ended" message.
+     * <p>
+     * Checks {@code document.body.innerText} (the page's rendered, visible text) for the phrase,
+     * rather than requiring a single leaf element's own text to contain it in full. The latter
+     * missed a real occurrence live — the heading's text was apparently split across sibling
+     * elements (e.g. separate spans), so no individual leaf's {@code textContent} contained
+     * "session ended" as one contiguous substring even though it read that way on screen,
+     * silently skipping recovery for an actual "Session Ended" state.
+     */
     private boolean isSessionEnded() {
         try {
             return (Boolean) page.evaluate(
-                    "() => {" +
-                    "  const els = document.querySelectorAll('span,p,div,label,h1,h2,h3');" +
-                    "  for (const el of els) {" +
-                    "    if (el.children.length > 0) continue;" +
-                    "    if (el.textContent.trim().toLowerCase().includes('session ended')) return true;" +
-                    "  }" +
-                    "  return false;" +
-                    "}");
+                    "() => document.body.innerText.toLowerCase().includes('session ended')");
         } catch (Exception e) {
             return false;
         }

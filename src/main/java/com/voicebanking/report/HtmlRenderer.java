@@ -14,6 +14,10 @@ import java.util.Map;
 public class HtmlRenderer {
 
     public String render(List<TestResult> results, int sessionEndedCount) {
+        return render(results, sessionEndedCount, List.of());
+    }
+
+    public String render(List<TestResult> results, int sessionEndedCount, List<String> sessionEndedDetails) {
         long total = results.size();
         long passed = countStatus(results, TestResult.Status.PASSED);
         long failed = countStatus(results, TestResult.Status.FAILED);
@@ -28,6 +32,7 @@ public class HtmlRenderer {
 
         html.append(renderHeader(passRate));
         html.append(renderSummary(total, passed, failed, skipped, durationSeconds, sessionEndedCount));
+        html.append(renderSessionDropDetails(sessionEndedDetails));
         html.append(renderDonut(total, passed, failed, skipped));
         html.append(renderModuleBreakdown(results));
         html.append(renderFailureReasons(results));
@@ -63,6 +68,20 @@ public class HtmlRenderer {
         sb.append(statCard("Session Drops", String.valueOf(sessionEndedCount),
                 sessionEndedCount > 0 ? "warn" : "neutral"));
         sb.append("</section>");
+        return sb.toString();
+    }
+
+    /** Lists each "Session Ended" occurrence (time + query) below the summary cards, so a run
+     * with a non-zero "Session Drops" count can be traced back to exactly where the drops
+     * happened rather than just how many. Renders nothing when the list is empty. */
+    private String renderSessionDropDetails(List<String> sessionEndedDetails) {
+        if (sessionEndedDetails.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("<section class=\"session-drops\">");
+        sb.append("<h2>Session Drop Details (").append(sessionEndedDetails.size()).append(")</h2><ul>");
+        for (String detail : sessionEndedDetails) {
+            sb.append("<li>").append(esc(detail)).append("</li>");
+        }
+        sb.append("</ul></section>");
         return sb.toString();
     }
 
@@ -262,6 +281,11 @@ public class HtmlRenderer {
             .legend li { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
             .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
             .dot.pass { background: var(--pass); } .dot.fail { background: var(--fail); } .dot.skip { background: var(--skip); }
+            .session-drops { padding: 8px 32px 24px; }
+            .session-drops h2 { font-size: 13px; margin: 0 0 12px; color: var(--warn); text-transform: uppercase; letter-spacing: .04em; }
+            .session-drops ul { list-style: none; margin: 0; padding: 0; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; }
+            .session-drops li { padding: 8px 16px; font-size: 13px; border-bottom: 1px solid var(--border); }
+            .session-drops li:last-child { border-bottom: none; }
             .module-section { padding: 8px 32px 24px; }
             .module-section h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
             .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }

@@ -35,6 +35,23 @@ public class BotResponsePatterns {
         public static final String ENTRY =
                 "[+-]₹[\\d,]+(?:\\.\\d+)?(?:DEBIT|CREDIT) • \\d{1,2} [A-Za-z]{3} \\d{4}, \\d{2}:\\d{2} (?i:AM|PM)";
 
+        // "Recent transactions" phrasings render a "Recent Transactions" header div before the
+        // entry list — confirmed live, e.g.:
+        //   "Recent TransactionsMobile Phone EMI | UPI-₹1,000.00DEBIT • 09 Feb 2026, 07:55 am..."
+        // Requiring the header (not just a bare ENTRY match) confirms the bot actually answered a
+        // recency query rather than returning some other transaction card that happens to match
+        // ENTRY's shape — plain ENTRY is too generic on its own for these rows.
+        public static final String RECENT_ENTRY =
+                "Recent Transactions.*?" + ENTRY;
+
+        // "Latest transaction" queries render a "Latest Transaction" header div (singular) before
+        // the single entry — confirmed live, e.g.:
+        //   "Latest TransactionMobile Phone EMI | UPI-₹1,000.00DEBIT • 09 Feb 2026, 07:55 am..."
+        // Same rationale as RECENT_ENTRY: anchors on the header so a bare ENTRY-shaped card
+        // returned for the wrong reason doesn't pass.
+        public static final String LATEST_ENTRY =
+                "Latest Transaction.*?" + ENTRY;
+
         // Category-filtered queries (UPI, card, all-credit, all-debit) sometimes answer with a
         // plain-sentence summary instead of the card format — same data, different shape:
         //   "Here are your upi transactions for ACC..., 6 transactions found: 1010 on 2026-02-12 via ..."
