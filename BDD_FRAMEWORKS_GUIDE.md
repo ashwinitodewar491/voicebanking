@@ -2,7 +2,7 @@
 
 > Note: this project actually runs **TestNG**, not JUnit 5 as shown in the examples below — the code samples here are illustrative of the three approaches, not drop-in for this codebase. See [skills.md](skills.md) for the real TestNG/DataProvider patterns already in use.
 >
-> The project's real UI/voice suite (`UI7_BalanceInquiryTest` + `BaseVoiceTest`) already reads like BDD without any extra framework: TestNG's `@DataProvider` rows are effectively "Given a query, When spoken, Then assert bot response" scenarios, and `runVoiceQuery(...)` is the shared Given/When/Then implementation. See "Applying This to UI/Voice Tests" below for how these options would extend to that suite.
+> The project's real UI/voice suites (`UI7_BalanceInquiryTest`, `UI8_TransactionHistoryTest`, `UI9_LoanInquiryTest`, `UI10_TransferMoneyTest` + `BaseVoiceTest`) already read like BDD without any extra framework: TestNG's `@DataProvider` rows are effectively "Given a query, When spoken, Then assert bot response" scenarios, and `runVoiceQuery(...)` is the shared Given/When/Then implementation. See "Applying This to UI/Voice Tests" below for how these options would extend to that suite.
 
 ## Overview
 
@@ -509,9 +509,9 @@ This gives you flexibility without breaking changes.
 
 ## Applying This to UI/Voice Tests
 
-The same three options extend naturally to the voice-query suite (`UI7_BalanceInquiryTest`):
+The same three options extend naturally to the voice-query suites (`UI7_BalanceInquiryTest` and friends — `UI8_TransactionHistoryTest`, `UI9_LoanInquiryTest`, `UI10_TransferMoneyTest`):
 
-- **Option 1 (JBehave/Gherkin)**: a story would read `Given the query "What is my balance"`, `When I speak it`, `Then the bot asks me to choose an account`, `And I answer "savings"`, `Then the bot reports my SAVINGS balance` — mirroring the disambiguation flow `BaseVoiceTest.runVoiceQuery()` already implements in code.
+- **Option 1 (JBehave/Gherkin)**: a story would read `Given the query "What is my balance"`, `When I speak it`, `Then the bot asks me to choose an account`, `And I answer "savings"`, `Then the bot reports my SAVINGS balance` — mirroring the disambiguation flow `BaseVoiceTest.runVoiceQuery()` already implements in code. UI9's loans add a *second* disambiguation stage on top of this ("which loan?", then "what would you like to know about it?"), which would read as two chained `And`/`Then` steps.
 - **Option 2 (JUnit 5 `@Nested` BDD style)**: would map to `@Nested class AmbiguousBalanceQuery` / `@Nested class ExplicitCurrentBalanceQuery`, each with `given/when/then`-named test methods — conceptually identical to the current DataProvider rows (`{queryName, query, expectedKeywords, assertionPattern, disambiguationAccount}`), just spelled out as separate methods instead of data rows.
 - **Option 3 (Custom context)**: a `VoiceBDDContext` would wrap `givenQuery(...)`, `whenSpoken()`, `thenBotAsksToChooseAccount()`, `andIAnswer("savings")`, `thenBalanceMatches(SAVINGS_PATTERN)` — effectively renaming the existing `BaseVoiceTest` methods to Given/When/Then verbs.
 
