@@ -22,12 +22,16 @@
 
 **In Scope — Current (UI/Voice Automation)**
 - Welcome, Login/OTP, Language, Voice Registration, Home screens (UI1–UI6)
-- Voice Balance Inquiry — 43-query regression suite with account disambiguation handling (UI7, `botverification` group)
+- Voice Balance Inquiry — 44-query regression suite with account disambiguation handling (UI7, `botverification` group)
+- Voice Transaction History (UI8, `botverification` group)
+- Voice Loan Inquiry — 76-query regression suite with which-loan and detail-category disambiguation (UI9, `botverification` group)
+- Voice Money Transfer (UI10, `botverificationTransferMoney` group)
+- Voice-auth: registered vs. mismatched voice (UI11)
+- Multilingual voice queries (UI12, `multilingual` group)
 - Playwright Chromium with `--use-file-for-fake-audio-capture` for mic simulation
 
 **In Scope — Future (UI Automation)**
-- Transaction, Transfer, Loan UI flows beyond balance inquiry
-- Voice commands for transfers and beneficiaries
+- Beneficiary add / edit UI flow
 - Cross-browser UI runs
 
 **Out of Scope**
@@ -163,7 +167,7 @@ Maven Surefire runs with `testFailureIgnore=true` so the build reaches the dashb
 | Microphone permission for voice banking | `context.grantPermissions(["microphone"])` |
 | Fake mic input for voice queries | Chromium `--use-file-for-fake-audio-capture=<wav>` |
 | Java / Maven | Full support |
-| Video recording | Built-in |
+| Video recording | Built-in — wired up in `BaseVoiceTest.launchBrowser()` (`setRecordVideoDir`), local-only output under `target/videos/` |
 | CI/CD headless mode | `headless` system property, defaults to `true` |
 
 ### 4.2 UI Test Coverage — Current
@@ -176,35 +180,41 @@ Maven Surefire runs with `testFailureIgnore=true` so the build reaches the dashb
 | `UI4_LanguageTest` | Language selection | `ui`, `regression` |
 | `UI5_VoiceRegistrationTest` | Voice registration screen | `ui`, `regression` |
 | `UI6_HomePageTest` | Home screen elements, one mocked voice balance query | `ui`, `regression` |
-| `UI7_BalanceInquiryTest` | 43 real voice balance queries (fake-mic WAV → STT → bot response), incl. account disambiguation follow-up (savings/current) with retry | `ui`, `regression`, `botverification` |
+| `UI7_BalanceInquiryTest` | 44 real voice balance queries (fake-mic WAV → STT → bot response), incl. account disambiguation follow-up (savings/current) with retry; shared browser session across all rows | `ui`, `regression`, `botverification` |
+| `UI8_TransactionHistoryTest` | Voice transaction-history queries, incl. recency/date-range/category filters; some queries known not working live and marked `SkipException`-skipped (see class); fresh login per row deliberately | `ui`, `regression`, `botverification` |
+| `UI9_LoanInquiryTest` | 76 real voice loan-inquiry queries across two loans (Home/Personal); which-loan disambiguation, plus a "what would you like to know" detail-category follow-up (EMI, tenure, pending tenure, interest rate, outstanding amount, next-EMI-due, loan amount) walked in one conversation; shared browser session across all rows | `ui`, `regression`, `botverification` |
+| `UI10_TransferMoneyTest` | Voice money-transfer queries | `ui`, `regression`, `botverificationTransferMoney` |
+| `UI11_VoiceRegistrationAuthTest` | Balance query spoken in the registered voice (authorized) vs. a different voice (rejected) | `ui`, `regression`, `smoke` |
+| `UI12_MultilingualVoiceQueryTest` | Non-English voice queries | `ui`, `multilingual` (not `regression` — run explicitly) |
 
-`BaseVoiceTest` (used by UI7) owns the Chromium+fake-audio lifecycle and the shared `runVoiceQuery(...)` flow: navigate → login → speak query → assert bot response, with automatic retry on transcription mismatch and on account-disambiguation follow-up.
+`BaseVoiceTest` (used by UI7–UI10) owns the Chromium+fake-audio lifecycle and the shared `runVoiceQuery(...)` flow: navigate → login → speak query → assert bot response, with automatic retry on transcription mismatch, on account/loan disambiguation follow-up, and on a "Session Ended" mid-query drop (`recoverFromSessionEndedIfPresent`, up to `MAX_REASK_ATTEMPTS` re-asks if the bot answers with a generic greeting or stays blank past `BOT_RESPONSE_TIMEOUT_MS`). Two environment-stability signals — session drops and blank/stuck bot responses — are tracked and timestamped by `SessionEndedTracker`/`NoResponseTracker` regardless of whether the retry recovered, surfaced on the dashboard report rather than as test failures.
 
-Run just the voice-verification suite:
+`useSharedSession()` lets a class share one browser/login across every data-provider row instead of a fresh one per row (UI7, UI9 use this — cuts a ~76-row regression run roughly in half). UI8 deliberately stays on fresh-login-per-row: a shared session there once let a category filter from one query leak into several later, unrelated queries in the same conversation.
+
+Run just the voice-verification suites:
 ```bash
 mvn clean test -DtestGroups=botverification
+mvn clean test -DtestGroups=botverificationTransferMoney
+mvn clean test -DtestGroups=multilingual
 ```
 
 ### 4.3 Planned — Not Yet Automated
 
 **Transactions & Transfers**
-- Transfer money end-to-end UI flow
 - Beneficiary add / edit
-- Transfer success / error messages
-
-**Voice Features Beyond Balance**
-- Voice command simulation for transfers, beneficiaries
-- Multi-locale voice queries
+- Transfer success / error messages beyond the voice flow already covered by UI10
 
 **Quality & Coverage**
 - Cross-browser runs (Chrome, Firefox)
 - Accessibility checks
-- Session timeout handling
+- Session timeout handling (distinct from the live-bot "Session Ended" mid-conversation drop UI7–UI10 already recover from)
 - Error state UI validation
 
-### 4.4 Known Limitation — Fake Audio Follow-ups
+### 4.4 Known Limitations — Fake Audio & Live-Bot Timing
 
-`--use-file-for-fake-audio-capture` loads the WAV file into memory and loops it; overwriting the file on disk for a disambiguation follow-up ("savings"/"current") doesn't always get picked up before the next hold-to-speak window closes. `BaseVoiceTest` mitigates this with up to 3 retries (increasing pre-wait each attempt) rather than asserting on the first attempt. This is a framework-level workaround, not a product bug — keep it in mind if new voice flows need a second spoken input.
+`--use-file-for-fake-audio-capture` loads the WAV file into memory and loops it; overwriting the file on disk for a disambiguation follow-up ("savings"/"current", "which loan", a loan-detail category) doesn't always get picked up before the next hold-to-speak window closes. `BaseVoiceTest` mitigates this with up to 3 retries (increasing pre-wait each attempt) rather than asserting on the first attempt. This is a framework-level workaround, not a product bug — keep it in mind if new voice flows need a second spoken input.
+
+Separately, the live bot itself is sometimes slow or drops the session mid-query — confirmed live via `[Browser] error: ... 502 Bad Gateway` / `SmallWebRTC Connect error` on the stage environment. `BaseVoiceTest.runVoiceQuery` tolerates this: it waits `BOT_RESPONSE_TIMEOUT_MS` (30s) for a reply, reconnects and re-asks the same query up to `MAX_REASK_ATTEMPTS` times if the bot answers with its generic session-start greeting or stays blank, and only fails the test once every attempt is exhausted — not on the first blank response. This is an environment-stability characteristic to expect, not something a new voice-query test needs to work around itself.
 
 ---
 
@@ -240,6 +250,6 @@ mvn clean test -DtestGroups=botverification
 | Phase 2: API Tests | ✅ Done | All 9 APIs automated (21 test methods) |
 | Phase 3: Jenkins CI/CD | ✅ Done | Jenkinsfile with ENV/SUITE params, group filtering |
 | Phase 4: UI Test Framework | ✅ Done | `BaseVoiceTest`, `BasePage`, page objects, headless-by-default browser setup |
-| Phase 5: UI Tests | 🔄 In Progress | Welcome/Login/OTP/Language/VoiceRegistration/Home done (UI1–UI6); Transfer/Loan UI flows planned |
-| Phase 6: Voice/Microphone | 🔄 In Progress | Fake-audio-capture + account disambiguation (with retry) working for Balance Inquiry (UI7, `botverification` group); transfer/beneficiary voice commands planned |
-| Phase 7: Allure Reporting | 🔜 Planned | Rich HTML reports with screenshots |
+| Phase 5: UI Tests | 🔄 In Progress | Welcome/Login/OTP/Language/VoiceRegistration/Home done (UI1–UI6); Beneficiary UI flow still planned |
+| Phase 6: Voice/Microphone | 🔄 In Progress | Fake-audio-capture + disambiguation (with retry) working for Balance (UI7), Transaction History (UI8), Loan Inquiry (UI9), Transfer (UI10), voice-auth (UI11), and Multilingual (UI12); session-drop reconnect + generic-greeting re-ask handling shared across all of them via `BaseVoiceTest` |
+| Phase 7: HTML Reporting | ✅ Done | Extent Report (`TestListener`) + custom `DashboardGenerator` (module breakdown, inlined failure screenshots, session-drop/no-response detail lists, video recording) |

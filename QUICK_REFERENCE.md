@@ -28,11 +28,17 @@ mvn clean test -DtestGroups=regression
 # All API tests
 mvn clean test -DtestGroups=api
 
-# All UI tests (UI1-UI7)
+# All UI tests (UI1-UI12) — note: -Dtest=SomeClass below bypasses testng.xml/groups entirely
 mvn clean test -DtestGroups=ui
 
-# Voice balance-inquiry bot-response regression suite only (43 queries, UI7)
+# Voice balance/transaction-history/loan-inquiry bot-response regression suites (UI7, UI8, UI9)
 mvn clean test -DtestGroups=botverification
+
+# Voice transfer-money bot-response regression suite (UI10)
+mvn clean test -DtestGroups=botverificationTransferMoney
+
+# Multilingual voice queries (UI12) — NOT included in -DtestGroups=regression, run explicitly
+mvn clean test -DtestGroups=multilingual
 ```
 
 ### Run a UI test headed (visible browser)
@@ -55,7 +61,16 @@ mvn clean test -DtestGroups=smoke -Denv=prod
 mvn test -Dtest=API1_GetAccountListTest
 mvn test -Dtest=API6_TransferMoneyTest
 mvn test -Dtest=UI7_BalanceInquiryTest
+mvn test -Dtest=UI9_LoanInquiryTest -Dheadless=false -Denv=stage -DtestGroups=smoke
 ```
+
+> Note: `-Dtest=SomeClass` makes Surefire build its own ad-hoc suite instead of reading
+> `testng.xml` — so `TestListener` (registered there via a suite-level `<listener>` tag) would
+> silently never run for any `-Dtest=` invocation, and with it `SessionEndedTracker`/
+> `NoResponseTracker`/the Extent report. `BaseVoiceTest` now also carries `@Listeners(TestListener.class)`
+> directly on the class specifically to make `-Dtest=` runs work correctly too — if a similar gap
+> ever resurfaces (e.g. target/extent-report/ missing after a `-Dtest=` run), check for a listener
+> that's only declared in testng.xml.
 
 ### Skip tests during build
 ```bash
@@ -76,12 +91,14 @@ mvn clean install -DskipTests
 
 | ENV | SUITE | What runs |
 |---|---|---|
-| stage | smoke | API1, API2, API3, API6 — quick sanity |
-| stage | regression | All 9 APIs + all UI classes (UI1–UI7) |
-| prod | smoke | API1, API2, API3, API6 — prod sanity |
-| prod | regression | All 9 APIs + all UI classes (UI1–UI7) |
+| stage | smoke | API1, API2, API3, API6 + fast UI subsets (UI7–UI11) — quick sanity |
+| stage | regression | All 9 APIs + all UI classes except UI12 (see note below) |
+| prod | smoke | API1, API2, API3, API6 + fast UI subsets (UI7–UI11) — prod sanity |
+| prod | regression | All 9 APIs + all UI classes except UI12 (see note below) |
 
-Jenkins `SUITE` currently offers `smoke`/`regression` only. To run just `botverification` or `ui` via CI, trigger manually with `mvn clean test -DtestGroups=botverification` (or add it as a Jenkins `SUITE` choice — see Jenkinsfile).
+Jenkins `SUITE` currently offers `smoke`/`regression` only. To run just `botverification`, `botverificationTransferMoney`, `multilingual`, or `ui` via CI, trigger manually with e.g. `mvn clean test -DtestGroups=botverification` (or add it as a Jenkins `SUITE` choice — see Jenkinsfile).
+
+`UI12_MultilingualVoiceQueryTest`'s `@Test` methods carry `ui`/`smoke`/`multilingual` groups, not `regression` — so it's part of `testng.xml` but `-DtestGroups=regression` skips it. Run it with `-DtestGroups=multilingual` (or `ui`, or a plain `mvn clean test` with no group filter, which runs everything in `testng.xml` regardless of group).
 
 ### No Jenkins global vars required
 URLs are managed in `Endpoints.java` and selected via `-Denv` — no server-side configuration needed.
@@ -116,9 +133,14 @@ URLs are managed in `Endpoints.java` and selected via `-Denv` — no server-side
 | UI4_LanguageTest | ui, regression | Language selection |
 | UI5_VoiceRegistrationTest | ui, regression | Voice registration screen |
 | UI6_HomePageTest | ui, regression | Home screen elements, one mocked voice query |
-| UI7_BalanceInquiryTest | ui, regression, botverification | 43 real voice balance queries via fake-mic WAV, incl. account disambiguation with retry |
+| UI7_BalanceInquiryTest | ui, regression, botverification | 44 real voice balance queries via fake-mic WAV, incl. account disambiguation with retry; shared browser session across rows |
+| UI8_TransactionHistoryTest | ui, regression, botverification | 36 voice transaction-history queries (some marked `SkipException`-skipped, known not working — see class for the current list) + known-account rows; fresh login per row deliberately (a shared-session filter-state leak was observed live) |
+| UI9_LoanInquiryTest | ui, regression, botverification | 76 voice loan-inquiry queries, incl. which-loan disambiguation and a "what would you like to know" detail-category walk (EMI/tenure/interest/outstanding/next-EMI-due/loan-amount) in one conversation; shared browser session across rows |
+| UI10_TransferMoneyTest | ui, regression, botverificationTransferMoney | Voice money-transfer queries |
+| UI11_VoiceRegistrationAuthTest | ui, regression, smoke | Registered-voice vs. mismatched-voice balance-query authorization |
+| UI12_MultilingualVoiceQueryTest | ui, multilingual (not regression) | Non-English voice queries |
 
-**UI/voice total: 7 test classes, 43 data-driven balance queries in UI7 alone**
+**UI/voice total: 12 test classes**
 
 ---
 
@@ -134,7 +156,9 @@ voicebanking/
 │   │   └── BotResponsePatterns.java # Regex patterns for bot responses
 │   ├── utils/
 │   │   ├── APIClient.java          # Playwright HTTP wrapper
-│   │   └── TtsUtil.java            # Generates/deletes WAV files for fake-mic voice input
+│   │   ├── TtsUtil.java            # Generates/deletes WAV files for fake-mic voice input
+│   │   ├── SessionEndedTracker.java # Counts + timestamps "Session Ended" recoveries across a run
+│   │   └── NoResponseTracker.java  # Counts + timestamps blank/stuck-Processing bot responses across a run
 │   ├── pages/
 │   │   ├── BaseApiPage.java        # @BeforeMethod setUp() — creates APIClient
 │   │   ├── BasePage.java           # Shared Playwright browser setup for non-voice UI tests
@@ -150,15 +174,19 @@ voicebanking/
 │   │   ├── API9_GetLoanOverdueDetailsTest.java
 │   │   └── API10_GetLoanSummaryListTest.java
 │   └── tests/ui/
-│       ├── base/BaseVoiceTest.java # Chromium + fake-mic lifecycle, shared runVoiceQuery() flow
+│       ├── base/BaseVoiceTest.java # Chromium + fake-mic lifecycle, shared runVoiceQuery() flow, video recording
 │       ├── UI1_WelcomePageTest.java ... UI6_HomePageTest.java
-│       └── UI7_BalanceInquiryTest.java   # 43-query voice balance-inquiry regression suite
+│       ├── UI7_BalanceInquiryTest.java        # 44-query voice balance-inquiry regression suite
+│       ├── UI8_TransactionHistoryTest.java    # Voice transaction-history regression suite
+│       ├── UI9_LoanInquiryTest.java           # Voice loan-inquiry regression suite
+│       ├── UI10_TransferMoneyTest.java        # Voice transfer-money regression suite
+│       ├── UI11_VoiceRegistrationAuthTest.java # Registered-voice vs. mismatched-voice auth check
+│       └── UI12_MultilingualVoiceQueryTest.java # Non-English voice queries
 ├── testng.xml                      # Suite definition (all API + UI classes)
 ├── Jenkinsfile                     # CI pipeline (ENV + SUITE params)
 ├── pom.xml                         # Maven config (Java 21, TestNG, Playwright)
 ├── skills.md                       # AI skills — rules for both API and UI/voice test generation
 ├── TEST_PLAN.md                    # Full test plan + roadmap (API + UI)
-├── TEST_CASES.xlsx                 # Test case register (automated + manual)
 ├── QUICK_REFERENCE.md              # This file
 ├── README.md                       # Getting started
 ├── MICROPHONE_TESTING_GUIDE.md     # Voice/microphone reference
@@ -273,6 +301,9 @@ None required — URLs are managed in `Endpoints.java`.
 | UI test opens a real browser on CI | `headless` system property not set, or hardcoded `setHeadless(false)` | `BaseVoiceTest`/`BasePage` default `headless` to `true` — pass `-Dheadless=false` only when running locally |
 | Disambiguation follow-up ("savings"/"current") not recognized, bot re-asks | Fake-audio-capture loops the previously loaded WAV in memory; overwritten file isn't always picked up in time | `BaseVoiceTest` retries the follow-up up to 3 times with increasing pre-wait — this is expected occasionally, not a product bug |
 | Bot response phrasing not detected as a disambiguation prompt | `isAccountDisambiguation()` doesn't match a new bot phrasing | Add the new phrasing to `isAccountDisambiguation()` in `BaseVoiceTest.java` |
+| "Home page should remain visible after voice query" fails right after a "Session Ended" screenshot | The reconnect click was targeting the wrong element — `[data-testid='listening-hold-to-speak-btn']` isn't present during "Session Ended"; the actual reconnect control is `[data-testid='listening-reconnect-btn']` ("Hold to reconnect"), only relabeling back to the ordinary button once truly reconnected | Fixed in `HomePage.recoverFromSessionEndedIfPresent()` — if this resurfaces, confirm the reconnect button's `data-testid` hasn't changed again |
+| Bot answered with a generic greeting/menu prompt instead of the actual query | The bot occasionally answers the very first query right after a reconnect with its own session-start greeting instead of processing it | `BaseVoiceTest`'s re-ask loop (`isGenericGreeting`, up to `MAX_REASK_ATTEMPTS`) re-asks the same query; if a *new* greeting/menu phrasing shows up unhandled, widen the `GENERIC_GREETING` pattern |
+| `target/session-ended-count.txt` / `target/no-response-count.txt` missing or always 0 after a run that clearly hit one | `TestListener` (which writes both via `SessionEndedTracker`/`NoResponseTracker`) was only registered via testng.xml's suite-level `<listener>` tag, which Surefire skips for any `-Dtest=` invocation | `BaseVoiceTest` now also carries `@Listeners(TestListener.class)` directly — should self-heal; if it recurs, check for a listener declared only in testng.xml |
 
 ---
 

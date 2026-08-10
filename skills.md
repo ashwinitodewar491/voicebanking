@@ -257,7 +257,7 @@ src/test/java/com/voicebanking/
 ├── tests/ui/
 │   ├── base/
 │   │   └── BaseVoiceTest.java   # Browser lifecycle + shared voice-query flow — extend ONLY for voice-driven tests
-│   └── UI{N}_{FeatureName}Test.java   # One file per screen/flow (UI1_WelcomePageTest ... UI7_BalanceInquiryTest)
+│   └── UI{N}_{FeatureName}Test.java   # One file per screen/flow (UI1_WelcomePageTest ... UI12_MultilingualVoiceQueryTest)
 ├── pages/
 │   ├── BasePage.java             # Shared Playwright browser setup for non-voice UI tests
 │   ├── HomePage.java, WelcomePage.java, OtpPage.java, LanguagePage.java, VoiceRegistrationPage.java
@@ -283,7 +283,9 @@ src/test/java/com/voicebanking/
 |---|---|
 | `ui` | All UI tests |
 | `regression` | Full validation — runs on scheduled/manual runs |
-| `botverification` | Voice-query bot-response regression suite (`UI7_BalanceInquiryTest`) — run with `-DtestGroups=botverification` |
+| `botverification` | Voice-query bot-response regression suite (`UI7_BalanceInquiryTest`, `UI8_TransactionHistoryTest`, `UI9_LoanInquiryTest`) — run with `-DtestGroups=botverification` |
+| `botverificationTransferMoney` | Voice transfer-money bot-response regression suite (`UI10_TransferMoneyTest`) |
+| `multilingual` | Non-English voice queries (`UI12_MultilingualVoiceQueryTest`) — not part of `regression`, run explicitly |
 
 ### Adding a Voice Query Test — Step-by-Step
 
