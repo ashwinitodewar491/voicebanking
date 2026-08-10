@@ -27,6 +27,24 @@ import java.util.function.Predicate;
 public class UI10_TransferMoneyTest extends BaseVoiceTest {
 
     /**
+     * Trying shared-session here despite a real risk UI7/UI9 don't carry: every row completes
+     * an actual ₹1 transfer through a beneficiary → amount → confirm → OTP chain with a limited
+     * OTP-attempt budget (see the doc comments on {@link #handleAdditionalFollowUp} and {@link
+     * #answerOtpPrompt} — wasted retries already burn into that budget within a single row). UI8
+     * hit a real bug where shared-session conversation state leaked between unrelated rows; for a
+     * read-only query that just gave a wrong displayed answer, but here the same class of leak —
+     * a fresh row's query landing while the bot still thinks it's mid-transfer-flow from the
+     * previous row — could complete a wrong transfer (wrong beneficiary/amount) instead of just
+     * failing an assertion, or burn OTP attempts across rows rather than within one. If a
+     * regression run starts producing transfers that don't match the row's own beneficiary/amount,
+     * or OTP failures with no obvious per-row cause, revert this override first.
+     */
+    @Override
+    protected boolean useSharedSession() {
+        return true;
+    }
+
+    /**
      * Customer A (Sneha Kulkarni, CIF202602260010) — has Pooja Desai as a real,
      * existing beneficiary (confirmed live: she appears alongside Vikas Patil
      * in every "available options" prompt this account's transfer flow has
