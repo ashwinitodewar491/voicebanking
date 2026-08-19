@@ -34,6 +34,16 @@ import java.util.regex.Pattern;
  * then verify a later balance query is authorized when spoken in the same voice and rejected
  * when spoken in a different one.
  *
+ * <p>Logs in as Leena Kamat (9812341042) rather than a fresh random-phone registration — stage
+ * currently rejects unregistered numbers before the OTP screen even loads, which this whole flow
+ * depends on. Each test method enrolls her voice fresh via {@link #registerVoiceAndReachHome},
+ * then removes it again in a {@code finally} block ({@link #removeVoiceRegistration}) via the
+ * app's own "Remove your voice" menu action, so the next method/run starts from an unregistered
+ * state again. {@link #registerVoiceAndReachHome} still has a returning-user fallback in case
+ * cleanup itself ever fails to run (e.g. a crash before the {@code finally} block) — if a run's
+ * own recording gets treated as "already registered" instead of walking the fresh-enrollment
+ * screens, that's the first thing to check: a prior run's cleanup didn't complete.
+ *
  * <p>Re-record/Submit are always both present after a take completes regardless of quality — the
  * app additionally shows a "Recording not accepted" dialog on top of that bar, but only when a
  * take genuinely fails its quality check, so that dialog's heading (not Re-record's mere presence)
@@ -117,9 +127,15 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
     }
 
     /**
-     * Logs in as a fresh random-phone user and completes the 3x voice-registration enrollment
-     * flow (consent → Start Registration → tap mic/speak/Submit x3), then clicks Start Banking
-     * to land on Home.
+     * Logs in as Leena Kamat (CIF202602260042, 9812341042) and completes the 3x
+     * voice-registration enrollment flow (consent → Start Registration → tap mic/speak/Submit
+     * x3), then clicks Start Banking to land on Home. Was previously a fresh random-phone
+     * registration, but stage no longer accepts unregistered numbers at the OTP step (confirmed
+     * live: "Send OTP" never surfaces the OTP screen for a random number) — Leena Kamat is used
+     * instead as a real, known account with no beneficiary/loan history to interfere. NOTE: this
+     * permanently enrolls her voiceprint on stage; there's currently no known way (API or UI) to
+     * remove/reset it afterward, so repeat runs against her account may behave like a returning,
+     * already-registered user rather than re-enrolling — see the class Javadoc.
      *
      * <p>Regenerates the enrollment phrase into {@code generatedWavPath} first — that path is a
      * single class-level file shared with {@link #askBalanceWithVoice}, which overwrites it
@@ -136,7 +152,7 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();
         welcomePage.dismissPwaPopupIfPresent();
-        welcomePage.enterPhoneNumber(WelcomePage.generateRandomPhone());
+        welcomePage.enterPhoneNumber("9812341042");
         welcomePage.clickSendOtp();
 
         OtpPage otpPage = new OtpPage(page);
@@ -154,7 +170,17 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
         }
 
         VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
-        voicePage.waitForPageLoad();
+        try {
+            voicePage.waitForPageLoad();
+        } catch (PlaywrightException alreadyRegistered) {
+            // Leena Kamat already has a voiceprint enrolled from an earlier run on this account
+            // (see class Javadoc) — the app skips straight past registration for her, the same
+            // way LanguagePage is skipped for any other returning user above.
+            HomePage returningHomePage = new HomePage(page);
+            returningHomePage.waitForPageLoad();
+            return returningHomePage;
+        }
+
         voicePage.checkConsent();
         voicePage.clickStartRegistration();
 
@@ -221,13 +247,17 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
     public void testPositiveVoiceMatchIsAuthorized() throws Exception {
         HomePage homePage = registerVoiceAndReachHome();
 
-        String botResponse = askBalanceWithVoice(homePage, EdgeTtsEngine.VOICE);
+        try {
+            String botResponse = askBalanceWithVoice(homePage, EdgeTtsEngine.VOICE);
 
-        Assert.assertTrue(
-                Pattern.compile(BotResponsePatterns.Balance.ANY).matcher(botResponse).find(),
-                "[VoiceAuth] Expected a balance response for the registered voice.\n"
-                + "  Pattern : " + BotResponsePatterns.Balance.ANY + "\n"
-                + "  Got     : " + botResponse);
+            Assert.assertTrue(
+                    Pattern.compile(BotResponsePatterns.Balance.ANY).matcher(botResponse).find(),
+                    "[VoiceAuth] Expected a balance response for the registered voice.\n"
+                    + "  Pattern : " + BotResponsePatterns.Balance.ANY + "\n"
+                    + "  Got     : " + botResponse);
+        } finally {
+            removeVoiceRegistration(homePage);
+        }
     }
 
     @Test(groups = {"ui", "regression", "smoke"},
@@ -235,18 +265,38 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
     public void testNegativeVoiceMismatchIsRejected() throws Exception {
         HomePage homePage = registerVoiceAndReachHome();
 
-        String botResponse = askBalanceWithVoice(homePage, EdgeTtsEngine.VOICE_EN_ALTERNATE);
+        try {
+            String botResponse = askBalanceWithVoice(homePage, EdgeTtsEngine.VOICE_EN_ALTERNATE);
 
-        Assert.assertFalse(
-                Pattern.compile(BotResponsePatterns.Balance.ANY).matcher(botResponse).find(),
-                "[VoiceAuth] A voice that does not match the registered voice should NOT receive "
-                + "the account balance.\n  Got: " + botResponse);
+            Assert.assertFalse(
+                    Pattern.compile(BotResponsePatterns.Balance.ANY).matcher(botResponse).find(),
+                    "[VoiceAuth] A voice that does not match the registered voice should NOT receive "
+                    + "the account balance.\n  Got: " + botResponse);
 
-        Assert.assertTrue(
-                Pattern.compile(BotResponsePatterns.Authorization.VOICE_NOT_RECOGNIZED)
-                        .matcher(botResponse).find(),
-                "[VoiceAuth] Expected an authorization-rejected response for the mismatched voice.\n"
-                + "  Pattern : " + BotResponsePatterns.Authorization.VOICE_NOT_RECOGNIZED + "\n"
-                + "  Got     : " + botResponse);
+            Assert.assertTrue(
+                    Pattern.compile(BotResponsePatterns.Authorization.VOICE_NOT_RECOGNIZED)
+                            .matcher(botResponse).find(),
+                    "[VoiceAuth] Expected an authorization-rejected response for the mismatched voice.\n"
+                    + "  Pattern : " + BotResponsePatterns.Authorization.VOICE_NOT_RECOGNIZED + "\n"
+                    + "  Got     : " + botResponse);
+        } finally {
+            removeVoiceRegistration(homePage);
+        }
+    }
+
+    /**
+     * Cleans up Leena Kamat's voiceprint via the "Remove your voice" flow (user menu → Remove
+     * your voice → confirm Remove) so the next run of this class re-enrolls fresh instead of
+     * hitting the returning-user branch in {@link #registerVoiceAndReachHome}. Runs in a
+     * {@code finally} block so it still fires when the test's own assertions fail — otherwise a
+     * failing run would leave the account registered and break every subsequent run. Swallows its
+     * own failures rather than masking the real test result with an unrelated cleanup error.
+     */
+    private void removeVoiceRegistration(HomePage homePage) {
+        try {
+            homePage.removeRegisteredVoice();
+        } catch (Exception e) {
+            System.out.println("[VoiceRegistration] WARN — cleanup (remove voice) failed: " + e.getMessage());
+        }
     }
 }

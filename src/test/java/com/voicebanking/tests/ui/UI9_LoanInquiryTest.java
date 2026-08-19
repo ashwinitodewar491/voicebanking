@@ -15,15 +15,18 @@ import java.nio.file.StandardCopyOption;
 import java.util.regex.Pattern;
 
 /**
- * Customer A (Sneha Kulkarni, 9765432109) actually has two loans — Home Loan (LN10014) and
- * Personal Loan (LN10015), confirmed via a live trial run. "Education loan" is not one of them;
+ * Customer A (Rohit Mehta, CIF202602260005, 9898989898) has two loans — Home Loan (LN10005,
+ * active) and Education Loan (LN20005, closed) — confirmed live. "Car loan" is not one of them;
  * it's used deliberately in two rows as a negative test of the bot's fallback: named a loan type
  * that doesn't exist, the bot should list the real loans and ask which one, matching
  * BotResponsePatterns.Loans.LOAN_OPTIONS_PROMPT.
  * All 69 phrasings are active. Loan-agnostic queries (no type named) answer the disambiguation
- * follow-up alternating Home/Personal via the mic-reacquire fix in BaseVoiceTest. Most {loan type}
+ * follow-up alternating Home/Education via the mic-reacquire fix in BaseVoiceTest. Most {loan type}
  * queries assert on keywords only — the exact response format is confirmed for EMI, interest,
  * outstanding, and next-EMI-due (upgraded to a precise pattern); everything else is exploratory.
+ * Rows that assume an *active* loan (EMI due date, min amount due, etc.) may need a second look
+ * now that the second loan (Education) is closed rather than active — flag any new failures there
+ * for a closer look at whether the bot's response differs for a closed loan.
  */
 public class UI9_LoanInquiryTest extends BaseVoiceTest {
 
@@ -48,7 +51,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
 
     @Override
     protected String getLoginPhoneNumber() {
-        return "9765432109";
+        return "9898989898";
     }
 
     @DataProvider(name = "voiceQueries")
@@ -58,7 +61,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
             // {queryName, query, expectedKeywords, assertionPattern, disambiguationAccount}
 
             // No loan type named — bot lists the real loans and asks which; these rows answer the
-            // follow-up (alternating Home/Personal) and assert the resolved response. The
+            // follow-up (alternating Home/Education) and assert the resolved response. The
             // follow-up mic stream is force-reacquired before speaking (see
             // BaseVoiceTest.reacquireMicrophoneForFollowUp) so Chromium's fake audio device opens
             // fresh and picks up the overwritten WAV, instead of replaying whatever it originally
@@ -66,7 +69,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
             {"Loan Details",                  VoiceQueries.English.LOAN_DETAILS,
                     new String[]{"loan"}, null, "home loan"},
             {"Active Loans Any",               VoiceQueries.English.ACTIVE_LOANS_ANY,
-                    new String[]{"loan"}, null, "personal loan"},
+                    new String[]{"loan"}, null, "education loan"},
 
             // A nonexistent loan type — bot must list the real loans and ask, and these rows stop
             // there (no follow-up: disambiguationAccount is null) to assert the fallback itself.
@@ -87,16 +90,16 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
             {"Loan Type Status Home",          VoiceQueries.English.LOAN_TYPE_STATUS_HOME,
                     new String[]{"status"}, null, null},
 
-            // Personal Loan — the other real loan for this customer.
-            {"Loan Type EMI Personal",         VoiceQueries.English.LOAN_TYPE_EMI_PERSONAL,
+            // Education Loan — the other real loan for this customer (closed status).
+            {"Loan Type EMI Education",        VoiceQueries.English.LOAN_TYPE_EMI_PERSONAL,
                     new String[]{"emi"}, null, null},
-            {"Loan Type Interest Personal",    VoiceQueries.English.LOAN_TYPE_INTEREST_PERSONAL,
+            {"Loan Type Interest Education",   VoiceQueries.English.LOAN_TYPE_INTEREST_PERSONAL,
                     new String[]{"interest"}, null, null},
-            {"Loan Type Outstanding Personal", VoiceQueries.English.LOAN_TYPE_OUTSTANDING_PERSONAL,
+            {"Loan Type Outstanding Education", VoiceQueries.English.LOAN_TYPE_OUTSTANDING_PERSONAL,
                     null, BotResponsePatterns.Loans.OUTSTANDING, null},
-            {"Next EMI Due Personal",          VoiceQueries.English.LOAN_TYPE_NEXT_EMI_DUE_PERSONAL,
+            {"Next EMI Due Education",          VoiceQueries.English.LOAN_TYPE_NEXT_EMI_DUE_PERSONAL,
                     null, BotResponsePatterns.Loans.NEXT_EMI_DUE, null},
-            // Remaining {loan type} phrasings — text already alternates home/personal loan in
+            // Remaining {loan type} phrasings — text already alternates home/education loan in
             // VoiceQueries.java, so no disambiguation triggers; upgraded to a precise pattern
             // where the response format is already confirmed (outstanding, next EMI due).
             {"Loan Type Tell",                 VoiceQueries.English.LOAN_TYPE_TELL,
@@ -153,79 +156,79 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
                     new String[]{"sanctioned", "approved"}, null, null},
 
             // Loan-agnostic queries — no type named, so the bot disambiguates every time; each row
-            // answers the follow-up (alternating Home/Personal) via the mic-reacquire fix.
+            // answers the follow-up (alternating Home/Education) via the mic-reacquire fix.
             {"Loan Accounts Tell",             VoiceQueries.English.LOAN_ACCOUNTS_TELL,
                     new String[]{"loan"}, null, "home loan"},
             {"Loan Accounts What",             VoiceQueries.English.LOAN_ACCOUNTS_WHAT,
-                    new String[]{"loan"}, null, "personal loan"},
+                    new String[]{"loan"}, null, "education loan"},
             {"Loan Accounts Show",             VoiceQueries.English.LOAN_ACCOUNTS_SHOW,
                     new String[]{"loan"}, null, "home loan"},
             {"Loans What",                     VoiceQueries.English.LOANS_WHAT,
-                    new String[]{"loan"}, null, "personal loan"},
+                    new String[]{"loan"}, null, "education loan"},
             {"Loans Tell About",               VoiceQueries.English.LOANS_TELL_ABOUT,
                     new String[]{"loan"}, null, "home loan"},
             {"Active Loans Show",              VoiceQueries.English.ACTIVE_LOANS_SHOW,
-                    new String[]{"loan", "active"}, null, "personal loan"},
+                    new String[]{"loan", "active"}, null, "education loan"},
             {"Loans Running Which",            VoiceQueries.English.LOANS_RUNNING_WHICH,
                     new String[]{"loan"}, null, "home loan"},
             {"Loans Currently Paying",         VoiceQueries.English.LOANS_CURRENTLY_PAYING,
-                    new String[]{"loan"}, null, "personal loan"},
+                    new String[]{"loan"}, null, "education loan"},
             {"EMI How Much",                   VoiceQueries.English.EMI_HOW_MUCH,
                     new String[]{"emi"}, null, "home loan"},
             {"Monthly Installment What",       VoiceQueries.English.MONTHLY_INSTALLMENT_WHAT,
-                    new String[]{"installment", "emi"}, null, "personal loan"},
+                    new String[]{"installment", "emi"}, null, "education loan"},
             {"Pay Every Month What",           VoiceQueries.English.PAY_EVERY_MONTH_WHAT,
                     new String[]{"emi", "month"}, null, "home loan"},
             {"Interest How Much",              VoiceQueries.English.INTEREST_HOW_MUCH,
-                    new String[]{"interest"}, null, "personal loan"},
+                    new String[]{"interest"}, null, "education loan"},
             {"Loan Interest Rate My",          VoiceQueries.English.LOAN_INTEREST_RATE_MY,
                     new String[]{"interest"}, null, "home loan"},
             {"Still Owe How Much",             VoiceQueries.English.STILL_OWE_HOW_MUCH,
-                    new String[]{"owe", "outstanding", "remaining"}, null, "personal loan"},
+                    new String[]{"owe", "outstanding", "remaining"}, null, "education loan"},
             {"Loan Left How Much",             VoiceQueries.English.LOAN_LEFT_HOW_MUCH,
                     new String[]{"loan", "outstanding", "remaining"}, null, "home loan"},
             {"Remaining Loan Balance My",      VoiceQueries.English.REMAINING_LOAN_BALANCE_MY,
-                    new String[]{"remaining", "balance"}, null, "personal loan"},
+                    new String[]{"remaining", "balance"}, null, "education loan"},
             {"EMIs Left How Many",             VoiceQueries.English.EMIS_LEFT_HOW_MANY,
                     new String[]{"emi"}, null, "home loan"},
             {"Installments Remaining How Many", VoiceQueries.English.INSTALLMENTS_REMAINING_HOW_MANY,
-                    new String[]{"installment", "emi", "remaining"}, null, "personal loan"},
+                    new String[]{"installment", "emi", "remaining"}, null, "education loan"},
             {"Months Left Loan",               VoiceQueries.English.MONTHS_LEFT_LOAN,
                     new String[]{"month", "tenure", "remaining"}, null, "home loan"},
             {"Loan End When",                  VoiceQueries.English.LOAN_END_WHEN,
-                    new String[]{"loan", "end", "tenure"}, null, "personal loan"},
+                    new String[]{"loan", "end", "tenure"}, null, "education loan"},
             {"Remaining Tenure Loan",          VoiceQueries.English.REMAINING_TENURE_LOAN,
                     new String[]{"tenure", "remaining"}, null, "home loan"},
             {"Still Have To Pay How Long",     VoiceQueries.English.STILL_HAVE_TO_PAY_HOW_LONG,
-                    new String[]{"tenure", "month", "remaining"}, null, "personal loan"},
+                    new String[]{"tenure", "month", "remaining"}, null, "education loan"},
             {"Loan Taken How Much",            VoiceQueries.English.LOAN_TAKEN_HOW_MUCH,
                     new String[]{"loan", "amount"}, null, "home loan"},
             {"Sanctioned Amount Was",          VoiceQueries.English.SANCTIONED_AMOUNT_WAS,
-                    new String[]{"sanctioned"}, null, "personal loan"},
+                    new String[]{"sanctioned"}, null, "education loan"},
             {"Total Loan Amount What",         VoiceQueries.English.TOTAL_LOAN_AMOUNT_WHAT,
                     new String[]{"loan", "amount"}, null, "home loan"},
             {"Next EMI Due When",              VoiceQueries.English.NEXT_EMI_DUE_WHEN,
-                    new String[]{"emi", "due"}, null, "personal loan"},
+                    new String[]{"emi", "due"}, null, "education loan"},
             {"Next EMI Date What",             VoiceQueries.English.NEXT_EMI_DATE_WHAT,
                     new String[]{"emi", "date"}, null, "home loan"},
             {"Payment Due When",               VoiceQueries.English.PAYMENT_DUE_WHEN,
-                    new String[]{"emi", "due", "payment"}, null, "personal loan"},
+                    new String[]{"emi", "due", "payment"}, null, "education loan"},
             {"Installment Due When",           VoiceQueries.English.INSTALLMENT_DUE_WHEN,
                     new String[]{"emi", "due", "installment"}, null, "home loan"},
             {"Loan Status What",               VoiceQueries.English.LOAN_STATUS_WHAT,
-                    new String[]{"status", "loan"}, null, "personal loan"},
+                    new String[]{"status", "loan"}, null, "education loan"},
             {"Loan Still Running",             VoiceQueries.English.LOAN_STILL_RUNNING,
                     new String[]{"active", "running", "loan"}, null, "home loan"},
             {"Loan Closed Has",                VoiceQueries.English.LOAN_CLOSED_HAS,
-                    new String[]{"closed", "loan", "active"}, null, "personal loan"},
+                    new String[]{"closed", "loan", "active"}, null, "education loan"},
             {"Loan Amount Was",                VoiceQueries.English.LOAN_AMOUNT_WAS,
                     new String[]{"loan", "amount"}, null, "home loan"},
             {"Next EMI Due Date",              VoiceQueries.English.NEXT_EMI_DUE_DATE,
-                    new String[]{"emi", "due"}, null, "personal loan"},
+                    new String[]{"emi", "due"}, null, "education loan"},
             {"Next EMI Pay When",              VoiceQueries.English.NEXT_EMI_PAY_WHEN,
                     new String[]{"emi", "due"}, null, "home loan"},
             {"Latest EMI Paid",                VoiceQueries.English.LATEST_EMI_PAID,
-                    new String[]{"emi", "paid"}, null, "personal loan"},
+                    new String[]{"emi", "paid"}, null, "education loan"},
             {"Loan Active Is",                 VoiceQueries.English.LOAN_ACTIVE_IS,
                     new String[]{"active", "loan"}, null, "home loan"},
         };
@@ -240,23 +243,23 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
 
     /** Five queries chosen to cover every distinct loan-flow category and both real loans for
      * this customer: a named-type keyword query (Home), a precise-pattern query confirmed via
-     * manual testing (Outstanding, Personal — different loan than the row above), the
+     * manual testing (Outstanding, Education — different loan than the row above), the
      * loan-agnostic disambiguation flow (no type named, resolves to Home), the nonexistent-type
      * fallback (bot lists real loans instead of answering), and a second precise-pattern category
-     * (Next EMI Due, Personal) distinct from Outstanding. Run this tier for a fast build/deploy
+     * (Next EMI Due, Education) distinct from Outstanding. Run this tier for a fast build/deploy
      * health check. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
             {"Loan Type EMI Home", VoiceQueries.English.LOAN_TYPE_EMI_HOME,
                     new String[]{"emi"}, null, null},
-            {"Loan Type Outstanding Personal", VoiceQueries.English.LOAN_TYPE_OUTSTANDING_PERSONAL,
+            {"Loan Type Outstanding Education", VoiceQueries.English.LOAN_TYPE_OUTSTANDING_PERSONAL,
                     null, BotResponsePatterns.Loans.OUTSTANDING, null},
             {"Loan Details", VoiceQueries.English.LOAN_DETAILS,
                     new String[]{"loan"}, null, "home loan"},
             {"Loan Type Details Education", VoiceQueries.English.LOAN_TYPE_DETAILS,
                     null, BotResponsePatterns.Loans.LOAN_OPTIONS_PROMPT, null},
-            {"Next EMI Due Personal", VoiceQueries.English.LOAN_TYPE_NEXT_EMI_DUE_PERSONAL,
+            {"Next EMI Due Education", VoiceQueries.English.LOAN_TYPE_NEXT_EMI_DUE_PERSONAL,
                     null, BotResponsePatterns.Loans.NEXT_EMI_DUE, null},
         };
     }
@@ -276,7 +279,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         return new Object[][]{
             {"Loan Type EMI Home",         VoiceQueries.English.LOAN_TYPE_EMI_HOME,
                     new String[]{"emi"}, null, null},
-            {"Loan Type Outstanding Personal", VoiceQueries.English.LOAN_TYPE_OUTSTANDING_PERSONAL,
+            {"Loan Type Outstanding Education", VoiceQueries.English.LOAN_TYPE_OUTSTANDING_PERSONAL,
                     null, BotResponsePatterns.Loans.OUTSTANDING, null},
             {"Loan Details",                VoiceQueries.English.LOAN_DETAILS,
                     new String[]{"loan"}, null, "home loan"},
@@ -323,23 +326,35 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
      * rather than a hardcoded pattern, since the right answer depends on what was actually
      * asked (EMI, interest, outstanding, ...). */
     @Override
-    protected String handleAdditionalFollowUp(String queryName, String botResponse,
+    protected String handleAdditionalFollowUp(String queryName, String query, String botResponse,
                                                String disambiguationAccount, HomePage homePage) throws Exception {
         if (isLoanDisambiguation(botResponse) && disambiguationAccount != null) {
-            botResponse = answerWhichLoan(queryName, homePage, disambiguationAccount);
+            botResponse = answerWhichLoan(queryName, query, botResponse, homePage, disambiguationAccount);
         }
 
         if (isLoanDetailPrompt(botResponse)) {
-            botResponse = walkLoanDetailCategories(queryName, homePage);
+            botResponse = walkLoanDetailCategories(queryName, query, homePage);
         }
 
         return botResponse;
     }
 
-    private String answerWhichLoan(String queryName, HomePage homePage, String followUpLoan) throws Exception {
-        String followUpResponse = "";
+    private String answerWhichLoan(String queryName, String query, String botResponse, HomePage homePage,
+                                    String followUpLoan) throws Exception {
+        String followUpResponse = botResponse;
 
         for (int attempt = 1; attempt <= 3; attempt++) {
+            followUpResponse = reestablishIntentIfSessionEnded(homePage, queryName, query, followUpResponse);
+            // Excludes a still-broken context-lost fallback — if re-sending the original query got
+            // the same fallback back, the bot hasn't actually recovered; keep retrying instead of
+            // handing that fallback off as if it were a resolved answer.
+            if (!isLoanDisambiguation(followUpResponse) && !isContextLostFallback(followUpResponse)) {
+                // Re-sending the original query after a session drop either answered it directly
+                // or landed somewhere else entirely — either way there's no "which loan" prompt
+                // left to answer.
+                return followUpResponse;
+            }
+
             System.out.println("[" + queryName + "] Bot asked to choose a loan — following up with '"
                     + followUpLoan + "' (attempt " + attempt + ")...");
 
@@ -361,7 +376,11 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
             System.out.println("[" + queryName + "] Follow-up Bot response: " + followUpResponse);
 
             boolean heardExpectedLoan = followUpTranscribed.toLowerCase().contains(followUpLoan.toLowerCase());
-            if (heardExpectedLoan && !isLoanDisambiguation(followUpResponse)) {
+            // Excludes the context-lost fallback for the same reason as BaseVoiceTest's own
+            // account-disambiguation loop — it isn't the "which loan" prompt either, so without
+            // this the loop would break out treating the fallback as a real answer instead of
+            // retrying/recovering.
+            if (heardExpectedLoan && !isLoanDisambiguation(followUpResponse) && !isContextLostFallback(followUpResponse)) {
                 break;
             }
             System.out.println("[" + queryName + "] WARN — follow-up not recognised (attempt " + attempt
@@ -388,13 +407,13 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
      * account. Every category gets asserted internally regardless, but the response returned to
      * the caller (whose own final assertion checks it again, against the row's own pattern) is
      * whichever category the row's query actually named — not simply whichever was walked last.
-     * That matters for a row like "Next EMI Due Personal", which expects its own final check
+     * That matters for a row like "Next EMI Due Education", which expects its own final check
      * (NEXT_EMI_DUE) to pass: a live STT mishearing can turn that query into something the bot
      * doesn't recognize as naming a specific detail, landing here via the generic prompt even
      * though the row itself is not generic — confirmed live. Falls back to the last category
      * walked for rows that genuinely are generic (e.g. "Loan Details", which names no category
      * and only expects a loose keyword match, so it doesn't matter which one comes back). */
-    private String walkLoanDetailCategories(String queryName, HomePage homePage) throws Exception {
+    private String walkLoanDetailCategories(String queryName, String query, HomePage homePage) throws Exception {
         java.util.Map<String, String> responsesByCategory = new java.util.LinkedHashMap<>();
 
         for (String category : LOAN_DETAIL_CATEGORIES) {
@@ -402,6 +421,22 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
             String response = "";
 
             for (int attempt = 1; attempt <= 3; attempt++) {
+                // A session drop here loses the "which loan"/"what would you like to know"
+                // context this category follow-up depends on — re-send the original query first
+                // so we're back at (at worst) the loan-detail prompt before asking for this
+                // category by name, rather than "EMI"/"Tenure"/... landing as a context-less
+                // standalone query.
+                String restored = reestablishIntentIfSessionEnded(homePage, queryName, query, "");
+                // A still-broken context-lost fallback here means recovery hasn't actually
+                // succeeded yet — don't hand it off as "landed outside the loan-detail prompt";
+                // fall through and keep retrying instead.
+                if (!restored.isEmpty() && !isLoanDetailPrompt(restored) && !isContextLostFallback(restored)) {
+                    System.out.println("[" + queryName + "] Session-drop recovery for '" + category
+                            + "' landed outside the loan-detail prompt — using that response as-is: " + restored);
+                    response = restored;
+                    break;
+                }
+
                 System.out.println("[" + queryName + "] Loan-detail follow-up: asking '" + category
                         + "' (attempt " + attempt + ")...");
 
@@ -442,7 +477,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
     /** Picks the response for whichever category the row's queryName actually names, checked in
      * order from most to least specific (e.g. "pending"/"remaining" before the bare "tenure"
      * they're both a kind of, "next emi due" before the bare "emi" it contains) so a name like
-     * "Next EMI Due Personal" resolves to "Next EMI due date" rather than accidentally matching
+     * "Next EMI Due Education" resolves to "Next EMI due date" rather than accidentally matching
      * "EMI" first. Falls back to the last category walked when nothing in the name points at a
      * specific one — true generic-query rows land here, and any of the (already individually
      * asserted) responses satisfies their own loose keyword check. */

@@ -7,6 +7,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
 import com.voicebanking.DataText.BotResponsePatterns;
+import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.DataText.VoiceQueries;
 import com.voicebanking.pages.HomePage;
@@ -62,9 +63,6 @@ public abstract class BaseVoiceTest {
      * first login. */
     private String loggedInPhoneNumber;
 
-    /** Cached random phone number so every default-identity call within one shared session logs
-     * into the same account instead of a fresh one each time. Unused outside shared-session mode. */
-    private String cachedRandomPhone;
 
     /**
      * Opt-in for test classes whose data-provider rows can safely share one browser/login session
@@ -198,21 +196,13 @@ public abstract class BaseVoiceTest {
     }
 
     /**
-     * Phone number used to log in before speaking the query. Defaults to a fresh random number
-     * (new-user registration flow, no seeded history) — in {@link #useSharedSession()} mode that
-     * random number is generated once and cached, so every default-identity row in the class logs
-     * into the same account instead of a fresh one each time. Override to log in as an existing
-     * seeded customer instead — e.g. when the query needs real transaction/loan history to assert
-     * against, since a brand-new account has none.
+     * Phone number used to log in before speaking the query. Defaults to Rohit Mehta
+     * (CIF202602260005, {@link Constants#EXPECTED_CUSTOMER_MOBILE}) — a known seeded customer with
+     * real account/loan/beneficiary history to assert against, rather than a fresh random
+     * registration with no history. Override to log in as a different seeded customer instead.
      */
     protected String getLoginPhoneNumber() {
-        if (!useSharedSession()) {
-            return WelcomePage.generateRandomPhone();
-        }
-        if (cachedRandomPhone == null) {
-            cachedRandomPhone = WelcomePage.generateRandomPhone();
-        }
-        return cachedRandomPhone;
+        return Constants.EXPECTED_CUSTOMER_MOBILE;
     }
 
     /** Navigates, logs in, speaks the query, retries on transcription mismatch, and asserts the bot response. */
@@ -334,9 +324,13 @@ public abstract class BaseVoiceTest {
         // of the first), so this loop self-heals through repeated drops, not just a single one.
         // Only once every attempt here is exhausted does the caller's own "bot never responded"
         // check further down get to fail the test — deliberately not failing on the very first
-        // blank response, since that pre-empted every one of these retries.
+        // blank response, since that pre-empted every one of these retries. Also re-asks on
+        // isContextLostFallback() — the same silent-context-loss symptom as isGenericGreeting(),
+        // just a "didn't understand" capability reset instead of a session-start greeting; see
+        // reestablishIntentIfSessionEnded() for the equivalent check on the follow-up path.
         for (int reaskNum = 1;
-             reaskNum <= MAX_REASK_ATTEMPTS && (isGenericGreeting(botResponse) || botResponse.isBlank());
+             reaskNum <= MAX_REASK_ATTEMPTS
+                     && (isGenericGreeting(botResponse) || isContextLostFallback(botResponse) || botResponse.isBlank());
              reaskNum++) {
             if (botResponse.isBlank()) {
                 // Recorded here — not only if every retry below eventually fails — so a
@@ -344,9 +338,9 @@ public abstract class BaseVoiceTest {
                 // signal, the same way SessionEndedTracker counts a recovered session drop.
                 NoResponseTracker.recordOccurrence(queryName);
             }
-            System.out.println("[" + queryName + "] WARN — got a generic greeting/empty response instead of"
-                    + " an answer (stuck Processing, or post-reconnect) — re-asking (" + reaskNum + " of "
-                    + MAX_REASK_ATTEMPTS + ")...");
+            System.out.println("[" + queryName + "] WARN — got a generic greeting/fallback/empty response"
+                    + " instead of an answer (stuck Processing, or post-reconnect) — re-asking (" + reaskNum
+                    + " of " + MAX_REASK_ATTEMPTS + ")...");
             homePage.holdToSpeakWithRetry(holdMs, 3, 8000);
             homePage.waitForVoiceResponse(BOT_RESPONSE_TIMEOUT_MS);
             transcribed = homePage.getLastTranscribedText();
@@ -389,9 +383,28 @@ public abstract class BaseVoiceTest {
             String expectedPattern = getDisambiguationExpectedPattern(followUpAccount);
 
             String followUpTranscribed = "";
-            String followUpResponse = "";
+            // Seeded with botResponse (the disambiguation prompt) so the first iteration's
+            // reestablishIntentIfSessionEnded() call below can still see it; from the second
+            // iteration on this holds the previous attempt's actual follow-up response (including
+            // a context-lost fallback, if that's what came back) — passing the stale outer
+            // botResponse here instead, as an earlier version did, meant isContextLostFallback()
+            // was only ever checked against the original prompt and never against what the bot
+            // actually said after the follow-up, so recovery silently never fired past attempt 1.
+            String followUpResponse = botResponse;
 
             for (int attempt = 1; attempt <= 3; attempt++) {
+                followUpResponse = reestablishIntentIfSessionEnded(homePage, queryName, query, followUpResponse);
+                // Excludes a still-broken context-lost fallback — if the bot is stuck badly enough
+                // that even re-sending the original query got the same fallback back, that isn't a
+                // resolved state to hand off as the final answer; keep retrying instead of giving
+                // up on the spot (confirmed live: a single retry attempt wasn't always enough).
+                if (!isAccountDisambiguation(followUpResponse) && !isContextLostFallback(followUpResponse)) {
+                    // Re-sending the original query already answered it directly (no
+                    // disambiguation needed this time) or landed somewhere else entirely —
+                    // either way there's no "which account" prompt left to answer.
+                    break;
+                }
+
                 System.out.println("[" + queryName + "] Bot asked to choose account — following up with '"
                         + followUpAccount + "' (attempt " + attempt + ")...");
 
@@ -416,7 +429,11 @@ public abstract class BaseVoiceTest {
 
                 boolean heardExpectedAccount =
                         followUpTranscribed.toLowerCase().contains(followUpAccount.toLowerCase());
-                boolean gotRealResponse = !followUpResponse.isBlank();
+                // A context-lost fallback (see isContextLostFallback) is non-blank and isn't the
+                // disambiguation prompt either — without excluding it here too, this treats the
+                // fallback as a real answer and breaks out on attempt 1, never reaching a later
+                // attempt where reestablishIntentIfSessionEnded() would actually recover it.
+                boolean gotRealResponse = !followUpResponse.isBlank() && !isContextLostFallback(followUpResponse);
                 if (heardExpectedAccount && gotRealResponse && !isAccountDisambiguation(followUpResponse)) {
                     break;
                 }
@@ -442,7 +459,7 @@ public abstract class BaseVoiceTest {
         // class overrides this itself rather than growing this shared base with logic only it
         // uses, since string-matching heuristics for one feature can misfire on another's
         // responses (this happened once already between account- and loan-disambiguation).
-        botResponse = handleAdditionalFollowUp(queryName, botResponse, disambiguationAccount, homePage);
+        botResponse = handleAdditionalFollowUp(queryName, query, botResponse, disambiguationAccount, homePage);
 
         if (assertionPattern != null) {
             boolean matched = Pattern.compile(assertionPattern).matcher(botResponse).find();
@@ -496,6 +513,24 @@ public abstract class BaseVoiceTest {
         return GENERIC_GREETING.matcher(botResponse).find();
     }
 
+    /** Matches the bot's generic "I didn't understand" capability-reset fallback, e.g. "Sorry, I
+     * didn't understand that. I can help with things like checking your balance, recent
+     * transactions, or transferring money. What would you like to do?" — observed replacing the
+     * expected answer to a follow-up (account/loan disambiguation, OTP, ...) after the bot silently
+     * lost the conversation's dialogue state mid-flow, confirmed live for UI8's transaction-history
+     * follow-ups. Distinct from both {@link #isGenericGreeting} (session-start greeting after a
+     * reconnect) and {@link com.voicebanking.pages.HomePage#isSessionEnded} (an explicit "Session
+     * Ended" banner) — this fallback shows neither, so without this check {@link
+     * #reestablishIntentIfSessionEnded} never fires and a follow-up keeps getting sent into a
+     * context-less conversation until retries are exhausted. "Sorry, I didn't understand that" and
+     * "What would you like to do" are the fixed anchors; the capability list in between varies. */
+    private static final Pattern CONTEXT_LOST_FALLBACK =
+            Pattern.compile("(?i)didn.t understand that.*what would you like to do");
+
+    protected boolean isContextLostFallback(String botResponse) {
+        return CONTEXT_LOST_FALLBACK.matcher(botResponse).find();
+    }
+
     /** Cap on re-asking the same query after a post-reconnect greeting/empty response — see the
      * re-ask loop in {@link #runVoiceQuery(String, String, String[], String, String, String)}. */
     private static final int MAX_REASK_ATTEMPTS = 3;
@@ -507,10 +542,64 @@ public abstract class BaseVoiceTest {
 
     /** Extension point — see call site in {@link #runVoiceQuery(String, String, String[], String,
      * String, String)}. Override in a test class to handle a follow-up prompt specific to that
-     * class's feature; return {@code botResponse} unchanged when there's nothing to do. */
-    protected String handleAdditionalFollowUp(String queryName, String botResponse,
+     * class's feature; return {@code botResponse} unchanged when there's nothing to do. {@code
+     * query} is the original query text — needed by {@link #reestablishIntentIfSessionEnded} if
+     * the override's own follow-up loop hits a session drop. */
+    protected String handleAdditionalFollowUp(String queryName, String query, String botResponse,
                                                String disambiguationAccount, HomePage homePage) throws Exception {
         return botResponse;
+    }
+
+    /**
+     * If the bot's chat has dropped into a "Session Ended" state, or the bot's dialogue state was
+     * silently lost without ever showing that banner (see {@link #isContextLostFallback}), before
+     * a follow-up answer is about to be spoken, reconnects (when there's actually a "Session
+     * Ended" screen to reconnect from) and re-speaks the ORIGINAL query first, rather than sending
+     * the bare follow-up (e.g. "savings") straight into a context-less conversation. A reconnect
+     * restores the WebRTC session but not the bot's own dialogue state — without this, a follow-up
+     * spoken right after context is lost gets treated as a brand-new, standalone query instead of
+     * an answer to whatever it was asked (account/loan disambiguation, transfer confirmation,
+     * ...), producing an unrelated generic response instead of the expected one. Confirmed live
+     * two ways: "today's transactions" → session drop → "savings" alone got answered with generic
+     * savings-account-types marketing copy instead of the transaction list; and (UI8, no "Session
+     * Ended" banner at all) a transaction-history follow-up answered with the "Sorry, I didn't
+     * understand that... What would you like to do?" capability-reset fallback instead of the
+     * transaction list.
+     * <p>
+     * Call this at the start of each follow-up attempt, before overwriting {@code
+     * currentAudioPath} with the follow-up's own audio — once overwritten, the original query
+     * text is still available as {@code query} for regeneration, but the file itself is gone.
+     * <p>
+     * Returns the bot's response after re-establishing intent (which should be the original
+     * disambiguation/confirmation prompt reappearing) if a lost-context state was found and
+     * recovered, or {@code currentBotResponse} unchanged if no recovery was needed.
+     */
+    protected String reestablishIntentIfSessionEnded(HomePage homePage, String queryName, String query,
+                                                       String currentBotResponse) throws Exception {
+        boolean sessionEnded = homePage.isSessionEnded();
+        if (!sessionEnded && !isContextLostFallback(currentBotResponse)) return currentBotResponse;
+
+        if (sessionEnded) {
+            System.out.println("[" + queryName + "] Session ended before follow-up — re-sending original query "
+                    + "to restore context before answering...");
+            homePage.recoverFromSessionEndedIfPresent();
+        } else {
+            System.out.println("[" + queryName + "] Bot lost conversation context before follow-up (got the"
+                    + " generic \"didn't understand\" fallback, no \"Session Ended\" banner) — re-sending"
+                    + " original query to restore context before answering...");
+        }
+
+        String freshQueryPath = TtsUtil.generateWav(query);
+        Files.copy(Path.of(freshQueryPath), Path.of(currentAudioPath), StandardCopyOption.REPLACE_EXISTING);
+        int holdMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
+        TtsUtil.deleteWav(freshQueryPath);
+
+        homePage.holdToSpeakWithRetry(holdMs, 3, 8000);
+        homePage.waitForVoiceResponse(BOT_RESPONSE_TIMEOUT_MS);
+
+        String restoredResponse = homePage.getLastBotResponse();
+        System.out.println("[" + queryName + "] Re-sent original query — bot response: " + restoredResponse);
+        return restoredResponse;
     }
 
     /**

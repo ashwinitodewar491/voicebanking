@@ -17,14 +17,25 @@ public final class Endpoints {
     public static final String UI_BASE_URL_PROD
             = "https://voicebank.joshsoftware.com";
 
+    // UI-only environment — no API base URL given for dev yet, so getBaseUrl() still falls back
+    // to prod for -Denv=dev. Fine for now since this was added specifically for UI testing.
+    public static final String UI_BASE_URL_DEV
+            = "https://voicebank-dev.joshsoftware.com";
+
+    private static String resolveEnv() {
+        return System.getProperty("env", System.getenv("ENV") != null ? System.getenv("ENV") : "prod");
+    }
+
     public static String getBaseUrl() {
-        String env = System.getProperty("env", System.getenv("ENV") != null ? System.getenv("ENV") : "prod");
+        String env = resolveEnv();
         return "stage".equalsIgnoreCase(env) ? BASE_URL_STAGE : BASE_URL_PROD;
     }
 
     public static String getUiBaseUrl() {
-        String env = System.getProperty("env", System.getenv("ENV") != null ? System.getenv("ENV") : "prod");
-        return "stage".equalsIgnoreCase(env) ? UI_BASE_URL_STAGE : UI_BASE_URL_PROD;
+        String env = resolveEnv();
+        if ("stage".equalsIgnoreCase(env)) return UI_BASE_URL_STAGE;
+        if ("dev".equalsIgnoreCase(env)) return UI_BASE_URL_DEV;
+        return UI_BASE_URL_PROD;
     }
 
     public static final String ACCOUNT_LIST

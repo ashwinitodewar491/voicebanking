@@ -107,9 +107,9 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
                     loan.get("customerName").asText(),
                     Constants.CUSTOMER_NAME);
 
-            Assert.assertEquals(
-                    loan.get("accountStatus").asText(),
-                    Constants.ACTIVE_STATUS);
+            Assert.assertTrue(
+                    Constants.VALID_LOAN_STATUSES.contains(loan.get("accountStatus").asText()),
+                    "Invalid loan account status");
 
             Assert.assertEquals(
                     loan.get("accountCurrency").asText(),
@@ -169,29 +169,29 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
 
         JsonNode loans = getLoanDetails();
 
-        boolean businessLoanFound = false;
-        boolean personalLoanFound = false;
+        boolean homeLoanFound = false;
+        boolean educationLoanFound = false;
 
         for (JsonNode loan : loans) {
 
             String loanType = loan.get("loanType").asText();
 
-            if ("BUSINESS_LOAN".equals(loanType)) {
-                businessLoanFound = true;
+            if ("HOME_LOAN".equals(loanType)) {
+                homeLoanFound = true;
             }
 
-            if ("PERSONAL_LOAN".equals(loanType)) {
-                personalLoanFound = true;
+            if ("EDUCATION_LOAN".equals(loanType)) {
+                educationLoanFound = true;
             }
         }
 
         Assert.assertTrue(
-                businessLoanFound,
-                "BUSINESS_LOAN not found");
+                homeLoanFound,
+                "HOME_LOAN not found");
 
         Assert.assertTrue(
-                personalLoanFound,
-                "PERSONAL_LOAN not found");
+                educationLoanFound,
+                "EDUCATION_LOAN not found");
     }
 
     // --- Negative Tests ---

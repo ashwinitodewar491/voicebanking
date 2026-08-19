@@ -41,12 +41,13 @@ import java.util.Set;
  */
 public class UI8_TransactionHistoryTest extends BaseVoiceTest {
 
-    /** Customer A (Sneha Kulkarni, CIF202602260010) — has real seeded transaction history,
+    /** Customer A (Rohit Mehta, CIF202602260005) — has real seeded transaction history,
      * unlike the random new-user registration BaseVoiceTest defaults to. A brand-new account
-     * has nothing for a transaction query to return. */
+     * has nothing for a transaction query to return. Dual account (savings + current) is also
+     * required here since some rows disambiguate to "current". */
     @Override
     protected String getLoginPhoneNumber() {
-        return "9765432109";
+        return "9898989898";
     }
 
     @DataProvider(name = "voiceQueries")
@@ -196,21 +197,22 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Customer A (Sneha Kulkarni, CIF202602260010, 9765432109) — dual account: savings + current.
-     * Customer B (CIF202602260007, 9723456789) — savings only. Account-to-customer mapping is known
-     * statically, so each row names its account explicitly (SAVINGS_TRANSACTIONS / CURRENT_TRANSACTIONS)
-     * and never triggers the disambiguation follow-up — no need to guess or loop over possibilities. */
+    /** Customer A (Rohit Mehta, CIF202602260005, 9898989898) — dual account: savings + current.
+     * Customer B (Leena Kamat, CIF202602260042, 9812341042) — savings only.
+     * Account-to-customer mapping is known statically, so each row names its account explicitly
+     * (SAVINGS_TRANSACTIONS / CURRENT_TRANSACTIONS) and never triggers the disambiguation follow-up
+     * — no need to guess or loop over possibilities. */
     @DataProvider(name = "knownAccountTransactionQueries")
     public Object[][] knownAccountTransactionQueries() {
         return new Object[][]{
 
             // {queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber}
             {"Customer A Savings Transactions", VoiceQueries.English.SAVINGS_TRANSACTIONS,
-                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null, "9765432109"},
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null, "9898989898"},
             {"Customer A Current Transactions", VoiceQueries.English.CURRENT_TRANSACTIONS,
-                    new String[]{"transaction", "current"}, BotResponsePatterns.Transactions.ENTRY, null, "9765432109"},
+                    new String[]{"transaction", "current"}, BotResponsePatterns.Transactions.ENTRY, null, "9898989898"},
             {"Customer B Savings Transactions", VoiceQueries.English.SAVINGS_TRANSACTIONS,
-                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null, "9723456789"},
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, null, "9812341042"},
         };
     }
 
@@ -241,7 +243,7 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
      * itself displays are self-consistent — a real cross-check we couldn't previously do without
      * visibility into the account's actual transaction data. */
     @Override
-    protected String handleAdditionalFollowUp(String queryName, String botResponse,
+    protected String handleAdditionalFollowUp(String queryName, String query, String botResponse,
                                                String disambiguationAccount, HomePage homePage) throws Exception {
         if (RECENT_COUNT_5.contains(queryName)) {
             int count = countTransactionEntries(botResponse);
