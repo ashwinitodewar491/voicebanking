@@ -104,11 +104,26 @@ public class UI12_MultilingualVoiceQueryTest {
         runMultilingualQuery(queryName, locale, query, voice);
     }
 
-    private void runMultilingualQuery(String queryName, String locale, String query, String voice) throws Exception {
+    /**
+     * Logs in as Rohit Mehta (CIF202602260005, 9898989898) rather than a fresh random-phone
+     * registration — stage no longer accepts unregistered numbers at the OTP step (same issue
+     * fixed in UI11_VoiceRegistrationAuthTest). He has everything every row here needs: dual
+     * account for balance/transaction queries, a real beneficiary for the transfer rows, and a
+     * loan for the loan/EMI rows.
+     * <p>
+     * Unlike voice registration, language can be changed at any time via the home globe icon
+     * (see HomePage#clickLanguageButton, confirmed in UI6_HomePageTest) — not just once during
+     * onboarding — so this doesn't need a cleanup step the way UI11 does. On his first-ever login
+     * the onboarding LanguagePage/VoiceRegistrationPage screens appear and are walked normally;
+     * on every later run (returning user, those screens skipped) it lands on Home directly and
+     * explicitly switches language via the globe icon instead, which also means each row reliably
+     * gets its own correct locale even when the row before it used a different one.
+     */
+    private HomePage loginAndSetLocale(String locale) throws Exception {
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();
         welcomePage.dismissPwaPopupIfPresent();
-        welcomePage.enterPhoneNumber(WelcomePage.generateRandomPhone());
+        welcomePage.enterPhoneNumber("9898989898");
         welcomePage.clickSendOtp();
 
         OtpPage otpPage = new OtpPage(page);
@@ -117,16 +132,34 @@ public class UI12_MultilingualVoiceQueryTest {
         otpPage.clickContinue();
 
         LanguagePage languagePage = new LanguagePage(page);
-        languagePage.waitForPageLoad();
-        languagePage.selectByLocale(locale);
-        languagePage.clickContinue();
+        HomePage homePage;
+        try {
+            languagePage.waitForPageLoad();
+            languagePage.selectByLocale(locale);
+            languagePage.clickContinue();
 
-        VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
-        voicePage.waitForPageLoad();
-        voicePage.clickSkipForNow();
+            VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
+            voicePage.waitForPageLoad();
+            voicePage.clickSkipForNow();
 
-        HomePage homePage = new HomePage(page);
-        homePage.waitForPageLoad();
+            homePage = new HomePage(page);
+            homePage.waitForPageLoad();
+        } catch (PlaywrightException returningUser) {
+            // Onboarding screens absent for a returning user — land on Home directly, then set
+            // this row's locale explicitly via the globe icon instead.
+            homePage = new HomePage(page);
+            homePage.waitForPageLoad();
+            homePage.clickLanguageButton();
+            languagePage.waitForPageLoad();
+            languagePage.selectByLocale(locale);
+            languagePage.clickContinue();
+            homePage.waitForPageLoad();
+        }
+        return homePage;
+    }
+
+    private void runMultilingualQuery(String queryName, String locale, String query, String voice) throws Exception {
+        HomePage homePage = loginAndSetLocale(locale);
 
         int holdMs = (int) TtsUtil.getWavDurationMs(audioPath);
         homePage.holdToSpeakWithRetry(holdMs, 3, 8000);

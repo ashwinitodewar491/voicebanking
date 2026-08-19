@@ -2,6 +2,7 @@ package com.voicebanking.pages;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.voicebanking.utils.SessionEndedTracker;
 
@@ -11,6 +12,7 @@ public class HomePage {
 
     private static final String LANGUAGE_BTN        = "[data-testid='home-language-btn']";
     private static final String USER_MENU_BTN       = "[data-testid='home-user-menu-btn']";
+    private static final String UNREGISTER_VOICE_BTN = "[data-testid='home-menu-unregister-voice']";
     private static final String BALANCE_TOGGLE_BTN  = "[data-testid='home-balance-toggle-btn']";
     private static final String TRANSACTIONS_BTN    = "[data-testid='home-transactions-btn']";
     private static final String HOLD_TO_SPEAK_BTN   = "[data-testid='listening-hold-to-speak-btn']";
@@ -78,6 +80,38 @@ public class HomePage {
 
     public boolean isUserMenuButtonVisible() {
         return page.locator(USER_MENU_BTN).isVisible();
+    }
+
+    public void clickUserMenu() {
+        page.locator(USER_MENU_BTN).click();
+    }
+
+    /**
+     * Full teardown flow for an enrolled voiceprint: open the user menu, click "Remove your
+     * voice", then confirm on the red "Remove" button in the resulting dialog. Used to keep a
+     * test account re-enrollable across runs — see UI11_VoiceRegistrationAuthTest, which has no
+     * other way to reset a voice registration between test methods.
+     */
+    public void removeRegisteredVoice() {
+        clickUserMenu();
+
+        Locator unregisterBtn = page.locator(UNREGISTER_VOICE_BTN);
+        unregisterBtn.waitFor(new Locator.WaitForOptions()
+                .setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(5000));
+        unregisterBtn.click();
+
+        // The confirm dialog's own button is plain "Remove" with no data-testid — exact-matched
+        // by role/name so it isn't picked up by the "Remove your voice" menu item's own text.
+        Locator confirmBtn = page.getByRole(AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("Remove").setExact(true));
+        confirmBtn.waitFor(new Locator.WaitForOptions()
+                .setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(5000));
+        confirmBtn.click();
+        confirmBtn.waitFor(new Locator.WaitForOptions()
+                .setState(WaitForSelectorState.HIDDEN)
+                .setTimeout(10000));
     }
 
     public void clickBalanceToggle() {
@@ -603,7 +637,7 @@ public class HomePage {
      * "session ended" as one contiguous substring even though it read that way on screen,
      * silently skipping recovery for an actual "Session Ended" state.
      */
-    private boolean isSessionEnded() {
+    public boolean isSessionEnded() {
         try {
             return (Boolean) page.evaluate(
                     "() => document.body.innerText.toLowerCase().includes('session ended')");

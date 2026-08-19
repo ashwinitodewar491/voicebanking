@@ -22,9 +22,9 @@ public class BotResponsePatterns {
         // One transaction entry renders as a structured card (nested <div>s), not a plain text
         // bubble — Locator.textContent() concatenates nested block elements with NO separator
         // (no space, no newline). Raw text for one entry looks like:
-        //   "Transfer to Pooja Desai-₹1.00DEBIT • 23 Jul 2026, 12:00 am"
+        //   "Transfer to Suresh Patel-₹1.00DEBIT • 23 Jul 2026, 12:00 am"
         //   "Refund | Swiggy | ref=REF20260210+₹350.00CREDIT • 10 Feb 2026, 12:00 am"
-        // The description ("Transfer to Pooja Desai") is too free-form to anchor on, so this only
+        // The description ("Transfer to Suresh Patel") is too free-form to anchor on, so this only
         // matches the fixed part: "+|-₹<amount>DEBIT|CREDIT • <D> <Mon> <YYYY>, <hh>:<mm> AM|PM".
         // An earlier version of this pattern assumed the amount trailed the timestamp instead
         // (amount-after-AM/PM, Month-Day date order) — that never actually matched any response
@@ -90,15 +90,16 @@ public class BotResponsePatterns {
     }
 
     public static class Loans {
-        // Confirmed for Customer A (9765432109): Home Loan (LN10014), Personal Loan (LN10015).
+        // Confirmed for Customer A (Rohit Mehta, 9898989898): Home Loan (LN10005, active),
+        // Education Loan (LN20005, closed).
         // "The outstanding amount on your Home Loan is Rs.800000.0"
         public static final String OUTSTANDING =
-                "The outstanding amount on your (?:Home|Personal) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
+                "The outstanding amount on your (?:Home|Education) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
 
-        // "The next EMI due date for your Personal Loan is N/A." — "N/A" is a legitimate value
+        // "The next EMI due date for your Education Loan is N/A." — "N/A" is a legitimate value
         // when no due date is scheduled, so the date portion is left loose on purpose.
         public static final String NEXT_EMI_DUE =
-                "The next EMI due date for your (?:Home|Personal) Loan is .+";
+                "The next EMI due date for your (?:Home|Education) Loan is .+";
 
         // Precise per-category patterns confirmed live for the "Give me details of my home loan"
         // flow (see LOAN_DETAIL_OPTIONS_PROMPT below) — each answers a single-word/short-phrase
@@ -106,22 +107,22 @@ public class BotResponsePatterns {
         // Only the numeric value itself varies per account; the wording is fixed.
         // "Your EMI for Home Loan is Rs.18000."
         public static final String EMI_AMOUNT =
-                "Your EMI for (?:Home|Personal) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
+                "Your EMI for (?:Home|Education) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
         // "Your Home Loan has a tenure of 240 months."
         public static final String TENURE =
-                "Your (?:Home|Personal) Loan has a tenure of \\d+ months?";
+                "Your (?:Home|Education) Loan has a tenure of \\d+ months?";
         // "The remaining tenure for your Home Loan is 5 months."
         public static final String PENDING_TENURE =
-                "The remaining tenure for your (?:Home|Personal) Loan is \\d+ months?";
+                "The remaining tenure for your (?:Home|Education) Loan is \\d+ months?";
         // "The interest rate on your Home Loan is 7.8%."
         public static final String INTEREST_RATE =
-                "The interest rate on your (?:Home|Personal) Loan is [\\d.]+%";
+                "The interest rate on your (?:Home|Education) Loan is [\\d.]+%";
         // "The sanctioned amount for your Home Loan is Rs.900000.0." — confirmed live. The
         // follow-up category is spoken as "Loan amount", but the bot answers with "sanctioned
         // amount" wording instead — an earlier guess assumed it would echo "loan amount" back
         // (matching OUTSTANDING's "outstanding amount" self-echo pattern), which was wrong.
         public static final String LOAN_AMOUNT =
-                "The sanctioned amount for your (?:Home|Personal) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
+                "The sanctioned amount for your (?:Home|Education) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
 
         // Asked when the loan type is already known (e.g. "Give me details of my home loan") but
         // no specific detail was named — lists every category the bot can answer about that loan
@@ -133,9 +134,9 @@ public class BotResponsePatterns {
         // concatenation elsewhere in this file), not something to anchor on, so this only checks
         // the fixed lead-in.
         public static final String LOAN_DETAIL_OPTIONS_PROMPT =
-                "(?i)What would you like to know about your (?:Home|Personal) Loan";
+                "(?i)What would you like to know about your (?:Home|Education) Loan";
 
-        // Fallback when the named loan type isn't recognised (e.g. "education loan", which this
+        // Fallback when the named loan type isn't recognised (e.g. "car loan", which this
         // customer doesn't have), or no type was named and the customer has more than one loan —
         // the bot lists what it actually has and asks the caller to pick. The exact wording is
         // NOT stable — at least 7 lead-in variants have been observed for the same underlying
@@ -144,12 +145,12 @@ public class BotResponsePatterns {
         // to? ...", etc.), so this deliberately doesn't match a literal phrase. Instead it
         // requires, anywhere in the response: the word "which", the word "loan", and at least two
         // distinct loan references — either an account number (LN followed by digits) or a named
-        // loan type ("Home Loan"/"Personal Loan"). Originally required two LN-codes specifically,
+        // loan type ("Home Loan"/"Education Loan"). Originally required two LN-codes specifically,
         // but a live response instead listed loans by type name with no LN-code at all: "You have
-        // the following loans: 1. (Home Loan), 2. (Personal Loan). Which loan would you like to
+        // the following loans: 1. (Home Loan), 2. (Education Loan). Which loan would you like to
         // check?" — the bot isn't consistent about which identifier style it lists loans by, so
         // both count.
         public static final String LOAN_OPTIONS_PROMPT =
-                "(?i)(?=.*\\bwhich\\b)(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Personal) Loan)){2})";
+                "(?i)(?=.*\\bwhich\\b)(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Education) Loan)){2})";
     }
 }

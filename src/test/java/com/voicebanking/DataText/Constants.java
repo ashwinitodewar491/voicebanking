@@ -20,17 +20,14 @@ public final class Constants {
     public static final String LOAN_OVERDUE_SUCCESS_MESSAGE = "Overdue loan details fetched successfully";
     public static final String LOAN_SUMMARY_SUCCESS_MESSAGE = "Loan summary fetched successfully";
 
-    // Fixed values — Customer A (dual account, single loan): CIF202602260010 / Sneha Kulkarni
-    public static final String EXISTING_CUSTOMER_ID = "CIF202602260010";
-    public static final String EXISTING_ACCOUNT_ID = "ACC202602260014";
+    // Fixed values — Customer A (dual account, two loans): CIF202602260005 / Rohit Mehta
+    public static final String EXISTING_CUSTOMER_ID = "CIF202602260005";
+    public static final String EXISTING_ACCOUNT_ID = "ACC202602260007";
 
-    // Customer B (multi-loan): CIF202602260007 / Suresh Patel — used by loan summary test only,
-    // since it needs a customer with more than one loan product type
-    public static final String LOAN_SUMMARY_CUSTOMER_ID = "CIF202602260007";
-    public static final String RECEIVER_CUSTOMER_ID = "CIF202602260002";
-    public static final String RECEIVER_ACCOUNT_ID = "ACC202602260006";
-    public static final String RECEIVER_BENEFICIARY_ID = "a3c7e2b5-6f44-4a01-8c45-3f8c2e7b4d04";
-    public static final String ORIGINAL_SENDER_BENEFICIARY_ID = "";
+    // Loan summary test reuses Customer A (CIF202602260005 / Rohit Mehta) — has two loan
+    // product types (HOME_LOAN active, EDUCATION_LOAN closed). Suresh Patel (CIF202602260007) is
+    // now only a beneficiary of Customer A's CURRENT account, not a standalone test customer.
+    public static final String LOAN_SUMMARY_CUSTOMER_ID = "CIF202602260005";
     public static final String SUCCESS_STATUS = "success";
     public static final int SUCCESS_STATUS_CODE = 200;
 
@@ -43,16 +40,18 @@ public final class Constants {
     public static final String VERIFIED_KYC_STATUS = "VERIFIED";
     public static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$";
     public static final String MOBILE_REGEX = "^\\d{10}$";
-    public static final String EXPECTED_CUSTOMER_ID = "CIF202602260010";
-    public static final String EXPECTED_CUSTOMER_NAME = "Sneha Kulkarni";
-    public static final String EXPECTED_CUSTOMER_EMAIL = "sneha.kulkarni@gmail.com";
-    public static final String EXPECTED_CUSTOMER_MOBILE = "9765432109";
-    public static final String EXPECTED_CUSTOMER_DOB = "1993-04-18";
+    public static final String EXPECTED_CUSTOMER_ID = "CIF202602260005";
+    public static final String EXPECTED_CUSTOMER_NAME = "Rohit Mehta";
+    public static final String EXPECTED_CUSTOMER_EMAIL = "rohit.mehta@gmail.com";
+    public static final String EXPECTED_CUSTOMER_MOBILE = "9898989898";
+    public static final String EXPECTED_CUSTOMER_DOB = "1987-01-19";
 
     // Account Balance
-    public static final String EXPECTED_ACCOUNT_ID = "ACC202602260014";
-    public static final String EXPECTED_MASKED_ACCOUNT = "XXXX0014";
-    public static final double EXPECTED_ACCOUNT_BALANCE = 30200.00;
+    public static final String EXPECTED_ACCOUNT_ID = "ACC202602260007";
+    public static final String EXPECTED_MASKED_ACCOUNT = "XXXX0007";
+    // Live balance, drifts by -1.00 with every real-money API6 transfer test run — refresh as
+    // needed rather than treating as permanently fixed.
+    public static final double EXPECTED_ACCOUNT_BALANCE = 359472.00;
 
     // Beneficiary List
     public static final String BENEFICIARY_ID = "beneficiaryId";
@@ -61,11 +60,11 @@ public final class Constants {
     public static final String IFSC = "ifsc";
     public static final String STATUS = "status";
     public static final String TRANSFER_TYPE = "transferType";
-    public static final String BENEFICIARY_1_NAME = "Swapnil Deshpande";
-    public static final String BENEFICIARY_1_BANK = "IDFC First Bank";
-    public static final String BENEFICIARY_1_IFSC = "IDFB0000456";
+    public static final String BENEFICIARY_1_NAME = "Ananya Iyer";
+    public static final String BENEFICIARY_1_BANK = "Punjab National Bank";
+    public static final String BENEFICIARY_1_IFSC = "PUNB0000051";
     public static final String BENEFICIARY_1_TRANSFER_TYPE = "IMPS";
-    public static final int EXPECTED_BENEFICIARY_COUNT = 1;
+    public static final int EXPECTED_BENEFICIARY_COUNT = 2;
     public static final List<String> VALID_BENEFICIARY_STATUSES = Arrays.asList("ACTIVE", "INACTIVE");
     public static final List<String> VALID_TRANSFER_TYPES = Arrays.asList("IMPS", "NEFT", "RTGS");
     public static final String BENEFICIARY_LIST_NOT_EMPTY = "Beneficiary list should not be empty";
@@ -74,41 +73,42 @@ public final class Constants {
     public static final String BANK_NAME_EMPTY = "Bank name should not be empty";
     public static final String IFSC_EMPTY = "IFSC should not be empty";
 
-    //Loan Statement — LN10016, Customer A's Education Loan
-    public static final String LOAN_ACCOUNT_ID = "LN10016";
+    //Loan Statement — LN10005, Rohit Mehta's Home Loan
+    public static final String LOAN_ACCOUNT_ID = "LN10005";
 
-    public static final String EMI_PAYMENT_DESCRIPTION = "EMI Payment";
+    public static final String EMI_PAYMENT_DESCRIPTION = "EMI Payment | Due day 2";
 
-    public static final double EMI_AMOUNT = 9000.00;
+    public static final double EMI_AMOUNT = 15750.00;
 
     public static final int LOAN_STATEMENT_PAGE = 0;
     public static final int LOAN_STATEMENT_SIZE = 10;
-    public static final int LOAN_STATEMENT_TOTAL_PAGES = 4;
-    public static final int LOAN_STATEMENT_TOTAL_ELEMENTS = 34;
+    public static final int LOAN_STATEMENT_TOTAL_PAGES = 6;
+    public static final int LOAN_STATEMENT_TOTAL_ELEMENTS = 51;
     // Loan Statement
 
     public static final String LOAN_STATEMENT_FROM_DATE = "2022-03-01";
     public static final String LOAN_STATEMENT_TO_DATE = "2026-09-01";
 
-    //Loan Overdue — LN10016
-    public static final String CUSTOMER_SHORT_NAME = "Sneha Kulkarni";
-    public static final double TOTAL_OVERDUE_AMOUNT = 9000.0;
+    //Loan Overdue — LN10005
+    public static final String CUSTOMER_SHORT_NAME = "Rohit Mehta";
+    public static final double TOTAL_OVERDUE_AMOUNT = 0.0;
 
-    public static final double LOAN_AMOUNT = 220000.0;
-    public static final double PRINCIPAL_BALANCE = 180000.0;
-    public static final double TOTAL_OUTSTANDINGS = 185000.0;
-    public static final double AVAILABLE_BALANCE = 8000.0;
-    public static final double MIN_AMOUNT_DUE = 9000.0;
-    public static final double NEXT_INSTALLMENT_AMOUNT = 9000.0;
-    public static final double AMOUNT_PAID_TODAY = 4000.0;
+    public static final double LOAN_AMOUNT = 575000.0;
+    public static final double PRINCIPAL_BALANCE = 333270.0;
+    public static final double TOTAL_OUTSTANDINGS = 333270.0;
+    public static final double AVAILABLE_BALANCE = 26661.60;
+    public static final double MIN_AMOUNT_DUE = 15750.0;
+    public static final double NEXT_INSTALLMENT_AMOUNT = 15750.0;
+    public static final double AMOUNT_PAID_TODAY = 0.0;
 
-    public static final String NEXT_DUE_DATE = "2026-08-01";
-    public static final String MATURITY_DATE = "2027-09-01";
+    public static final String NEXT_DUE_DATE = "2026-09-02";
+    public static final String MATURITY_DATE = "2042-06-02";
 
-    //Loan Summary list — Customer B (CIF202602260007 / Suresh Patel): BUSINESS_LOAN + PERSONAL_LOAN
-    public static final String CUSTOMER_NAME = "Suresh Patel";
+    //Loan Summary list — Customer A (CIF202602260005 / Rohit Mehta): HOME_LOAN + EDUCATION_LOAN
+    public static final String CUSTOMER_NAME = "Rohit Mehta";
     public static final String INR_CURRENCY = "INR";
     public static final String MONTH_TERM_UNIT = "M";
+    public static final List<String> VALID_LOAN_STATUSES = Arrays.asList("ACTIVE", "CLOSED");
 
     public static final String TRANSACTION_TO_DATE = "2026-07-08";
 
@@ -144,11 +144,13 @@ public final class Constants {
     public static final int DEFAULT_PAGE = 0;
     public static final int DEFAULT_PAGE_SIZE = 100;
 
-    public static final String SENDER_CUSTOMER_ID_ORIGINAL = "CIF202602260028";
-    public static final String SENDER_ACCOUNT_ID_ORIGINAL = "ACC202602260033";
-    public static final String RECEIVER_CUSTOMER_ID_1 = "CIF202602260029";
-    public static final String RECEIVER_ACCOUNT_ID_1 = "ACC202602260034";
-    public static final String RECEIVER_BENEFICIARY_ID_1 = "0ca1d48f-f967-8a5b-e142-8d76c041e6cc";
-    public static final String SENDER_BENEFICIARY_ID_ORIGINAL = "c8fe1a72-3fe3-76d4-d4f3-9d2e085d3a98";
+    // Transfer test — sender is Customer A (Rohit Mehta, CIF202602260005 / ACC202602260007
+    // savings); receiver is Ananya Iyer, a real beneficiary on that account. One-way only: Ananya
+    // Iyer doesn't have Rohit Mehta as her own beneficiary, so there's no cleanup/refund path yet.
+    public static final String SENDER_CUSTOMER_ID_ORIGINAL = "CIF202602260005";
+    public static final String SENDER_ACCOUNT_ID_ORIGINAL = "ACC202602260007";
+    public static final String RECEIVER_CUSTOMER_ID_1 = "CIF202602260006";
+    public static final String RECEIVER_ACCOUNT_ID_1 = "ACC202602260009";
+    public static final String RECEIVER_BENEFICIARY_ID_1 = "05678e14-f770-2f79-84e8-653dd144a25b";
 
 }

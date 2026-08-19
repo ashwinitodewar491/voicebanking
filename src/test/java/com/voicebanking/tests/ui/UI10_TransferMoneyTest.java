@@ -19,10 +19,17 @@ import java.util.function.Predicate;
  * precise pattern.
  * <p>
  * Every row walks the full follow-up chain (beneficiary → amount → confirm →
- * OTP) through to a completed real ₹1 transfer to Pooja Desai — a confirmed
- * real beneficiary for this account, and ₹1 matches this account's own seeded
- * transfer pattern. This means a single run of this suite executes up to 8
- * separate real transfers on the live system.
+ * OTP) through to a completed real ₹1 transfer to Pooja Nair — a real beneficiary
+ * on Rohit Mehta's SAVINGS account, matching the "Send Money From Savings" row
+ * (his CURRENT-account beneficiary, Suresh Patel, was tried first but doesn't
+ * belong to the account that row names — the app's beneficiary listing turned
+ * out to be customer-wide rather than account-scoped, so it technically worked,
+ * but stayed a real data mismatch regardless). Rohit has 3 beneficiaries total
+ * across both accounts (Ananya Iyer/Pooja Nair on savings, Suresh Patel on
+ * current), so the disambiguation prompt still fires on every generic
+ * (no-beneficiary-named) row — "Pooja Nair" is simply always the answer given.
+ * ₹1 matches this account's own seeded transfer pattern. This means a single
+ * run of this suite executes up to 8 separate real transfers on the live system.
  */
 public class UI10_TransferMoneyTest extends BaseVoiceTest {
 
@@ -45,14 +52,15 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
     }
 
     /**
-     * Customer A (Sneha Kulkarni, CIF202602260010) — has Pooja Desai as a real,
-     * existing beneficiary (confirmed live: she appears alongside Vikas Patil
-     * in every "available options" prompt this account's transfer flow has
-     * produced).
+     * Rohit Mehta (CIF202602260005, 9898989898) — Pooja Nair is a real, confirmed beneficiary on
+     * his SAVINGS account, matching the "Send Money From Savings" row. He has 2 other
+     * beneficiaries besides her (Ananya Iyer on savings, Suresh Patel on current), so the
+     * beneficiary-disambiguation prompt does fire on generic rows — every row answers it with
+     * "Pooja Nair" via the disambiguationAccount column below.
      */
     @Override
     protected String getLoginPhoneNumber() {
-        return "9765432109";
+        return "9898989898";
     }
 
     @DataProvider(name = "voiceQueries")
@@ -60,24 +68,24 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
         return new Object[][]{
             // {queryName, query, expectedKeywords, assertionPattern, disambiguationAccount}
             // disambiguationAccount doubles as "who to answer with if the bot asks which
-            // beneficiary to use" — every row uses "Pooja Desai" since every row is meant to
+            // beneficiary to use" — every row uses "Pooja Nair" since every row is meant to
             // reach a completed transfer regardless of how much the query itself already specified.
             {"Can I Transfer Money", VoiceQueries.English.CAN_TRANSFER_MONEY,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Transfer Money Short", VoiceQueries.English.TRANSFER_MONEY_SHORT,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Send Money From Savings", VoiceQueries.English.SEND_MONEY_FROM_SAVINGS,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Transfer Using UPI", VoiceQueries.English.TRANSFER_USING_UPI,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Make Transfer To Beneficiary", VoiceQueries.English.MAKE_TRANSFER_TO_BENEFICIARY,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Transfer Amount To Beneficiary", VoiceQueries.English.TRANSFER_AMOUNT_TO_BENEFICIARY,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Send Amount To Beneficiary", VoiceQueries.English.SEND_AMOUNT_TO_BENEFICIARY,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Pay Amount To Beneficiary", VoiceQueries.English.PAY_AMOUNT_TO_BENEFICIARY,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},};
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},};
     }
 
     @Test(dataProvider = "voiceQueries", groups = {"ui", "regression", "botverificationTransferMoney"},
@@ -100,15 +108,15 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
     public Object[][] smokeQueries() {
         return new Object[][]{
             {"Can I Transfer Money", VoiceQueries.English.CAN_TRANSFER_MONEY,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Send Money From Savings", VoiceQueries.English.SEND_MONEY_FROM_SAVINGS,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Make Transfer To Beneficiary", VoiceQueries.English.MAKE_TRANSFER_TO_BENEFICIARY,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Transfer Amount To Beneficiary", VoiceQueries.English.TRANSFER_AMOUNT_TO_BENEFICIARY,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
             {"Pay Amount To Beneficiary", VoiceQueries.English.PAY_AMOUNT_TO_BENEFICIARY,
-                new String[]{"transfer", "success"}, null, "Pooja Desai"},
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
         };
     }
 
@@ -155,24 +163,38 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
      * the bot's response actually move past this prompt" instead avoids that.
      */
     @Override
-    protected String handleAdditionalFollowUp(String queryName, String botResponse,
+    protected String handleAdditionalFollowUp(String queryName, String query, String botResponse,
             String disambiguationAccount, HomePage homePage) throws Exception {
-        String beneficiary = disambiguationAccount != null ? disambiguationAccount : "Pooja Desai";
+        String beneficiary = disambiguationAccount != null ? disambiguationAccount : "Pooja Nair";
 
-        if (isBeneficiaryDisambiguation(botResponse)) {
-            botResponse = speakSingleFollowUp(queryName, homePage, beneficiary,
-                    "Bot asked to choose a beneficiary", this::isBeneficiaryDisambiguation);
-        }
-        if (isAmountPrompt(botResponse)) {
-            botResponse = speakSingleFollowUp(queryName, homePage, VoiceQueries.English.TRANSFER_AMOUNT_FOLLOWUP,
-                    "Bot asked for the amount", this::isAmountPrompt);
-        }
-        if (isTransferConfirmation(botResponse)) {
-            botResponse = speakSingleFollowUp(queryName, homePage, VoiceQueries.English.CONFIRM_THE_TRANSFER,
-                    "Bot asked to confirm the transfer", this::isTransferConfirmation);
-        }
-        if (isOtpRequested(botResponse)) {
-            botResponse = answerOtpPrompt(queryName, homePage);
+        // Wrapped in a bounded loop, not a single sequential pass — a session drop mid-chain
+        // forces reestablishIntentIfSessionEnded (inside each stage helper below) to re-send the
+        // ORIGINAL query, which can rewind the conversation to an earlier stage than where it
+        // dropped (e.g. back to "which beneficiary" after already having reached "confirm"). One
+        // pass through the four checks wouldn't re-walk forward from there; several passes will.
+        // Capped well above the 4 real stages so a full rewind-and-replay still completes.
+        for (int pass = 0; pass < 8; pass++) {
+            String beforePass = botResponse;
+
+            if (isBeneficiaryDisambiguation(botResponse)) {
+                botResponse = speakSingleFollowUp(queryName, query, homePage, beneficiary,
+                        "Bot asked to choose a beneficiary", this::isBeneficiaryDisambiguation);
+            }
+            if (isAmountPrompt(botResponse)) {
+                botResponse = speakSingleFollowUp(queryName, query, homePage, VoiceQueries.English.TRANSFER_AMOUNT_FOLLOWUP,
+                        "Bot asked for the amount", this::isAmountPrompt);
+            }
+            if (isTransferConfirmation(botResponse)) {
+                botResponse = speakSingleFollowUp(queryName, query, homePage, VoiceQueries.English.CONFIRM_THE_TRANSFER,
+                        "Bot asked to confirm the transfer", this::isTransferConfirmation);
+            }
+            if (isOtpRequested(botResponse)) {
+                botResponse = answerOtpPrompt(queryName, query, homePage);
+            }
+
+            boolean stillInKnownState = isBeneficiaryDisambiguation(botResponse) || isAmountPrompt(botResponse)
+                    || isTransferConfirmation(botResponse) || isOtpRequested(botResponse);
+            if (!stillInKnownState || botResponse.equals(beforePass)) break;
         }
 
         return botResponse;
@@ -212,9 +234,10 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
     }
 
     /**
-     * Returns true when the bot is asking which beneficiary to use — observed
-     * verbatim as "Please choose from the available options: Vikas Patil and
-     * Pooja Desai."
+     * Returns true when the bot is asking which beneficiary to use — observed verbatim as
+     * "Please choose from the available options: X, Y and Z." Fires on every generic row for
+     * Rohit Mehta, who has 3 beneficiaries total across both accounts (Ananya Iyer/Pooja Nair on
+     * savings, Suresh Patel on current) — each such row answers with "Pooja Nair".
      */
     private boolean isBeneficiaryDisambiguation(String response) {
         return response.toLowerCase().contains("available options");
@@ -226,11 +249,22 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
      * single number (TTS would otherwise read "111111" as one large number, not
      * six digits).
      */
-    private String answerOtpPrompt(String queryName, HomePage homePage) throws Exception {
+    private String answerOtpPrompt(String queryName, String query, HomePage homePage) throws Exception {
         String otpPhrase = VoiceQueries.English.TEST_OTP_SPOKEN;
         String response = "";
 
         for (int attempt = 1; attempt <= 3; attempt++) {
+            response = reestablishIntentIfSessionEnded(homePage, queryName, query, response);
+            // Excludes a still-broken context-lost fallback — if re-sending the original query got
+            // the same fallback back, the bot hasn't actually recovered; keep retrying instead of
+            // handing that fallback off to the caller as if it were a resolved stage.
+            if (!response.isEmpty() && !isOtpRequested(response) && !isContextLostFallback(response)) {
+                // Session dropped and the resend either completed the transfer a different way
+                // or rewound to an earlier stage (beneficiary/amount/confirm) — either way, OTP
+                // isn't the next thing to answer; let the caller's outer loop re-check from here.
+                return response;
+            }
+
             System.out.println("[" + queryName + "] Bot asked for the OTP — speaking '" + otpPhrase
                     + "' (attempt " + attempt + ")...");
 
@@ -251,7 +285,10 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
             System.out.println("[" + queryName + "] OTP Transcribed : " + transcribed);
             System.out.println("[" + queryName + "] OTP Bot response: " + response);
 
-            if (!isOtpRequested(response)) {
+            // Excludes the context-lost fallback for the same reason as speakSingleFollowUp()
+            // below — it isn't an OTP-request prompt either, so without this the loop would break
+            // out treating the fallback as a real advance instead of retrying/recovering.
+            if (!isOtpRequested(response) && !isContextLostFallback(response)) {
                 break;
             }
             System.out.println("[" + queryName + "] WARN — OTP not accepted (attempt " + attempt
@@ -272,11 +309,22 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
      * repeating the full word-match retry ceremony that previously caused
      * wasted retries to eat into the bot's own OTP-attempt budget.
      */
-    private String speakSingleFollowUp(String queryName, HomePage homePage, String phrase, String logLabel,
+    private String speakSingleFollowUp(String queryName, String query, HomePage homePage, String phrase, String logLabel,
             Predicate<String> stillWaiting) throws Exception {
         String response = "";
 
         for (int attempt = 1; attempt <= 3; attempt++) {
+            response = reestablishIntentIfSessionEnded(homePage, queryName, query, response);
+            // Excludes a still-broken context-lost fallback — same reasoning as answerOtpPrompt()
+            // above: a fallback here means recovery hasn't actually succeeded, so keep retrying
+            // rather than returning it to the caller as a resolved stage.
+            if (!response.isEmpty() && !stillWaiting.test(response) && !isContextLostFallback(response)) {
+                // Session dropped and the resend either resolved this stage a different way or
+                // rewound to an earlier one — either way, the caller's outer loop re-checks from
+                // here rather than this method blindly re-speaking a now-stale follow-up phrase.
+                return response;
+            }
+
             System.out.println("[" + queryName + "] " + logLabel + " — speaking '" + phrase
                     + "' (attempt " + attempt + ")...");
 
@@ -303,7 +351,11 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
             System.out.println("[" + queryName + "] " + logLabel + " Transcribed : " + transcribed);
             System.out.println("[" + queryName + "] " + logLabel + " Bot response: " + response);
 
-            if (!stillWaiting.test(response)) {
+            // A context-lost fallback response would make stillWaiting.test(...) return false too
+            // (it's neither the awaited prompt nor a real advance), so it must be excluded here as
+            // well — otherwise this breaks out treating the fallback as if the flow had advanced,
+            // never reaching a later attempt where reestablishIntentIfSessionEnded() recovers it.
+            if (!stillWaiting.test(response) && !isContextLostFallback(response)) {
                 break;
             }
             System.out.println("[" + queryName + "] " + logLabel + " — bot did not advance (attempt "

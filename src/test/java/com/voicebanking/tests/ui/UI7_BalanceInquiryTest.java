@@ -8,20 +8,18 @@ import org.testng.annotations.Test;
 
 public class UI7_BalanceInquiryTest extends BaseVoiceTest {
 
-    /** Default identity for the generic voiceQueries/smokeQueries/sanityQueries rows — a known
-     * dual-account (savings + current) customer confirmed to resolve explicit CURRENT-balance
-     * queries correctly. Customer A (9765432109) also has both account types but its CURRENT
-     * balance query was reproducibly answered with the SAVINGS figure even under a fully isolated,
-     * freshly-logged-in conversation — a bot/backend account-resolution issue specific to that
-     * customer, unrelated to session sharing. Scoped to this class only: UI8/UI9/UI10 keep using
-     * Customer A deliberately for their own seeded transaction/loan/beneficiary history. */
+    /** Default identity for the generic voiceQueries/smokeQueries/sanityQueries rows — the known
+     * dual-account (savings + current) customer, Rohit Mehta (CIF202602260005), confirmed to
+     * resolve explicit CURRENT-balance queries correctly. Also used as CUSTOMER_A_PHONE below —
+     * he's the only one of the three known accounts with both a savings and a current account. */
     private static final String BALANCE_INQUIRY_CUSTOMER_PHONE = "9898989898";
 
-    /** Customer A (Sneha Kulkarni, CIF202602260010) — dual account: savings + current. Used here
-     * only by knownAccountBalanceQueries, which specifically targets this named customer. */
-    private static final String CUSTOMER_A_PHONE = "9765432109";
-    /** Customer B (CIF202602260007) — savings only. */
-    private static final String CUSTOMER_B_PHONE = "9723456789";
+    /** Customer A (Rohit Mehta, CIF202602260005) — dual account: savings + current. Same identity
+     * as BALANCE_INQUIRY_CUSTOMER_PHONE; kept as a separate named constant since
+     * knownAccountBalanceQueries targets it explicitly by name. */
+    private static final String CUSTOMER_A_PHONE = "9898989898";
+    /** Customer B (Leena Kamat, CIF202602260042) — savings only, no loan, no beneficiary. */
+    private static final String CUSTOMER_B_PHONE = "9812341042";
 
     /** All balance-inquiry rows are independent conversational turns against the same account —
      * safe to run in one continuous session instead of a fresh browser/login per row. Cuts this
