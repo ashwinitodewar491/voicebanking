@@ -2,6 +2,7 @@ package com.voicebanking.DataText;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public final class Constants {
 
@@ -52,6 +53,9 @@ public final class Constants {
     // Live balance, drifts by -1.00 with every real-money API6 transfer test run — refresh as
     // needed rather than treating as permanently fixed.
     public static final double EXPECTED_ACCOUNT_BALANCE = 359472.00;
+
+    // Customer A (Rohit Mehta)'s CURRENT account — SAVINGS is EXPECTED_ACCOUNT_ID above.
+    public static final String CUSTOMER_A_CURRENT_ACCOUNT_ID = "ACC202602260008";
 
     // Beneficiary List
     public static final String BENEFICIARY_ID = "beneficiaryId";
@@ -153,4 +157,28 @@ public final class Constants {
     public static final String RECEIVER_ACCOUNT_ID_1 = "ACC202602260009";
     public static final String RECEIVER_BENEFICIARY_ID_1 = "05678e14-f770-2f79-84e8-653dd144a25b";
 
+    // --- Ground-truth cross-verification customers (UI7/UI8/UI9 known-customer rows) ---
+
+    // Customer B — Leena Kamat: savings-only, no loan, no beneficiary. Already used inline
+    // ("9812341042") by UI7/UI8/UI11; named here so cross-verification call sites don't repeat
+    // the literal.
+    public static final String CUSTOMER_B_CUSTOMER_ID = "CIF202602260042";
+    public static final String CUSTOMER_B_PHONE = "9812341042";
+    public static final String CUSTOMER_B_SAVINGS_ACCOUNT_ID = "ACC202602260067";
+
+    // Customer C — Aniket More: savings-only, one active PERSONAL_LOAN, one beneficiary (Priya
+    // Singh).
+    public static final String CUSTOMER_C_CUSTOMER_ID = "CIF202602260041";
+    public static final String CUSTOMER_C_PHONE = "9812341041";
+    public static final String CUSTOMER_C_SAVINGS_ACCOUNT_ID = "ACC202602260066";
+    public static final String CUSTOMER_C_LOAN_ACCOUNT_ID = "LN10041";
+
+    // Maps a known seeded customer's login phone number to their customerId — used by
+    // BaseVoiceTest#currentCustomerId() so a follow-up flow (e.g. UI9's loan-detail walk) can look
+    // up ground-truth API data for whichever customer is currently logged in without every call
+    // site having to thread customerId through separately.
+    public static final Map<String, String> CUSTOMER_ID_BY_PHONE = Map.of(
+            EXPECTED_CUSTOMER_MOBILE, EXPECTED_CUSTOMER_ID,
+            CUSTOMER_B_PHONE, CUSTOMER_B_CUSTOMER_ID,
+            CUSTOMER_C_PHONE, CUSTOMER_C_CUSTOMER_ID);
 }

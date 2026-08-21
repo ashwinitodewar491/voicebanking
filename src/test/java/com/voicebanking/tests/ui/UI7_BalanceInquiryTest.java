@@ -1,10 +1,14 @@
 package com.voicebanking.tests.ui;
 
 import com.voicebanking.DataText.BotResponsePatterns;
+import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.VoiceQueries;
 import com.voicebanking.tests.ui.base.BaseVoiceTest;
+import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+import java.util.regex.Matcher;
 
 public class UI7_BalanceInquiryTest extends BaseVoiceTest {
 
@@ -199,26 +203,43 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
 
     /** Account-to-customer mapping is known statically, so each row names its account explicitly
      * (SAVINGS_BALANCE / CURRENT_BALANCE) and never triggers the disambiguation follow-up — no
-     * need to guess or loop over possibilities. */
+     * need to guess or loop over possibilities. {@code accountId}/{@code accountType} (new columns
+     * beyond the generic voiceQueries shape) are what {@link #testKnownAccountBalance} cross-checks
+     * the spoken balance against, via the ground-truth Account Balance API. */
     @DataProvider(name = "knownAccountBalanceQueries")
     public Object[][] knownAccountBalanceQueries() {
         return new Object[][]{
 
-            // {queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber}
+            // {queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber, accountId, accountType}
             {"Customer A Savings Balance", VoiceQueries.English.SAVINGS_BALANCE,
-                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, CUSTOMER_A_PHONE},
+                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, CUSTOMER_A_PHONE,
+                    Constants.EXPECTED_ACCOUNT_ID, Constants.SAVINGS_ACCOUNT_TYPE},
             {"Customer A Current Balance", VoiceQueries.English.CURRENT_BALANCE,
-                    new String[]{"balance", "current"}, BotResponsePatterns.Balance.CURRENT, null, CUSTOMER_A_PHONE},
+                    new String[]{"balance", "current"}, BotResponsePatterns.Balance.CURRENT, null, CUSTOMER_A_PHONE,
+                    Constants.CUSTOMER_A_CURRENT_ACCOUNT_ID, Constants.CURRENT_ACCOUNT_TYPE},
             {"Customer B Savings Balance", VoiceQueries.English.SAVINGS_BALANCE,
-                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, CUSTOMER_B_PHONE},
+                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, CUSTOMER_B_PHONE,
+                    Constants.CUSTOMER_B_SAVINGS_ACCOUNT_ID, Constants.SAVINGS_ACCOUNT_TYPE},
+            {"Customer C Savings Balance", VoiceQueries.English.SAVINGS_BALANCE,
+                    new String[]{"balance", "savings"}, BotResponsePatterns.Balance.SAVINGS, null, Constants.CUSTOMER_C_PHONE,
+                    Constants.CUSTOMER_C_SAVINGS_ACCOUNT_ID, Constants.SAVINGS_ACCOUNT_TYPE},
         };
     }
 
     @Test(dataProvider = "knownAccountBalanceQueries", groups = {"ui", "regression", "botverification"},
-            description = "Should return the correct account balance for known seeded customers")
+            description = "Should return the correct account balance for known seeded customers, cross-checked against the Account Balance API")
     public void testKnownAccountBalance(String queryName, String query, String[] expectedKeywords,
                                          String assertionPattern, String disambiguationAccount,
-                                         String phoneNumber) throws Exception {
+                                         String phoneNumber, String accountId, String accountType) throws Exception {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber);
+
+        Matcher matcher = BotResponsePatterns.Balance.VALUE.matcher(lastBotResponse());
+        Assert.assertTrue(matcher.find(),
+                "[" + queryName + "] Could not extract a balance value from: " + lastBotResponse());
+        double spokenBalance = Double.parseDouble(matcher.group(1).replace(",", ""));
+
+        double actualBalance = groundTruth().accountBalance(accountId, Constants.CUSTOMER_ID_BY_PHONE.get(phoneNumber), accountType);
+        Assert.assertEquals(spokenBalance, actualBalance, 0.01,
+                "[" + queryName + "] Spoken balance did not match the ground-truth Account Balance API.");
     }
 }

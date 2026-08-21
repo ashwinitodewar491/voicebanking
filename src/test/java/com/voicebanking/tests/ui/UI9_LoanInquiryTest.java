@@ -1,9 +1,11 @@
 package com.voicebanking.tests.ui;
 
 import com.voicebanking.DataText.BotResponsePatterns;
+import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.VoiceQueries;
 import com.voicebanking.pages.HomePage;
 import com.voicebanking.tests.ui.base.BaseVoiceTest;
+import com.voicebanking.utils.GroundTruthApi;
 import com.voicebanking.utils.TtsUtil;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -295,6 +297,45 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
+    /** Negative/positive-case cross-verification: {@code expectedLoanCount} is independently
+     * confirmed against the Loan Summary API itself (not just assumed) before the voice query
+     * even runs, so a real seed-data change would fail loudly here instead of a row silently
+     * asserting the wrong thing forever.
+     * <p>
+     * Customer B (Leena Kamat, CIF202602260042) has no loans at all — expectedKeywords stays a
+     * loose check since the bot's "no loans" wording isn't confirmed, and there's no loan-detail
+     * prompt to walk either way. Customer C (Aniket More, CIF202602260041) has one active
+     * PERSONAL_LOAN — confirmed live to use the same "What would you like to know about your
+     * Personal Loan?" phrasing as Home/Education, so {@link BotResponsePatterns.Loans} covers
+     * "Personal" in every alternation and this row gets the full {@link
+     * #walkLoanDetailCategories} cross-verification (EMI, tenure, interest rate, outstanding,
+     * sanctioned amount, next EMI due) for free — nothing further to wire up here. */
+    @DataProvider(name = "knownAccountLoanQueries")
+    public Object[][] knownAccountLoanQueries() {
+        return new Object[][]{
+
+            // {queryName, query, expectedKeywords, phoneNumber, expectedLoanCount}
+            {"Customer B No Loans", VoiceQueries.English.LOAN_DETAILS,
+                    new String[]{"loan"}, Constants.CUSTOMER_B_PHONE, 0},
+            {"Customer C Personal Loan", VoiceQueries.English.LOAN_DETAILS,
+                    new String[]{"loan"}, Constants.CUSTOMER_C_PHONE, 1},
+        };
+    }
+
+    @Test(dataProvider = "knownAccountLoanQueries", groups = {"ui", "regression", "botverification"},
+            description = "Should return correct loan details (or confirmed absence/count of loans) for known seeded customers")
+    public void testKnownAccountLoanDetails(String queryName, String query, String[] expectedKeywords,
+                                             String phoneNumber, int expectedLoanCount) throws Exception {
+        String customerId = Constants.CUSTOMER_ID_BY_PHONE.get(phoneNumber);
+        java.util.List<GroundTruthApi.LoanRecord> apiLoans = groundTruth().loanSummary(customerId);
+        Assert.assertEquals(apiLoans.size(), expectedLoanCount,
+                "[" + queryName + "] Expected " + expectedLoanCount + " loan(s) for " + phoneNumber
+                + " per the Loan Summary API, got " + apiLoans.size()
+                + " — seed data may have changed, update this row's expectations.");
+
+        runVoiceQuery(queryName, query, expectedKeywords, null, null, phoneNumber);
+    }
+
     /** Also recognizes loan disambiguation and the loan-detail-category prompt, so the
      * transcription-retry loop stops re-playing the original query's audio once the bot has
      * already moved to "which loan?" or "what would you like to know?" — otherwise a retry
@@ -333,7 +374,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         }
 
         if (isLoanDetailPrompt(botResponse)) {
-            botResponse = walkLoanDetailCategories(queryName, query, homePage);
+            botResponse = walkLoanDetailCategories(queryName, query, botResponse, homePage);
         }
 
         return botResponse;
@@ -413,8 +454,20 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
      * though the row itself is not generic — confirmed live. Falls back to the last category
      * walked for rows that genuinely are generic (e.g. "Loan Details", which names no category
      * and only expects a loose keyword match, so it doesn't matter which one comes back). */
-    private String walkLoanDetailCategories(String queryName, String query, HomePage homePage) throws Exception {
+    private String walkLoanDetailCategories(String queryName, String query, String promptResponse,
+                                             HomePage homePage) throws Exception {
         java.util.Map<String, String> responsesByCategory = new java.util.LinkedHashMap<>();
+
+        // Ground-truth cross-verification: the "what would you like to know about your X loan?"
+        // prompt itself names the loan (see BotResponsePatterns.Loans.LOAN_DETAIL_OPTIONS_PROMPT),
+        // so the loan record to check every category's spoken value against is resolved once,
+        // up front, rather than threading the loan type through from answerWhichLoan — that's
+        // simpler here since not every row reaches this method via disambiguation (a row that
+        // names its loan directly, e.g. "home loan", skips answerWhichLoan entirely and lands
+        // here straight away). Null (not thrown) when the loan type can't be resolved from the
+        // prompt or the customer isn't a known one — see crossCheckLoanDetail for how that's
+        // handled per category rather than failing the whole walk.
+        GroundTruthApi.LoanRecord loanRecord = resolveLoanRecord(promptResponse);
 
         for (String category : LOAN_DETAIL_CATEGORIES) {
             String expectedPattern = loanDetailPatternFor(category);
@@ -469,6 +522,8 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
                     + "  Pattern : " + expectedPattern + "\n"
                     + "  Got     : " + response);
             responsesByCategory.put(category, response);
+
+            crossCheckLoanDetail(queryName, category, response, loanRecord);
         }
 
         return responseMatchingQuery(queryName, responsesByCategory);
@@ -506,6 +561,95 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
             case "Loan amount" -> BotResponsePatterns.Loans.LOAN_AMOUNT;
             default -> throw new IllegalStateException("Unknown loan-detail category: " + category);
         };
+    }
+
+    /** Resolves the {@link GroundTruthApi.LoanRecord} the loan-detail prompt is talking about, by
+     * matching the loan type named in the prompt text (see {@link
+     * BotResponsePatterns.Loans#LOAN_DETAIL_OPTIONS_PROMPT}) against the current customer's Loan
+     * Summary. Returns null — rather than throwing — when the customer isn't one of the known,
+     * mapped seeded customers ({@link #currentCustomerId()}), or the API doesn't return a loan of
+     * the named type; either way {@link #crossCheckLoanDetail} just skips the numeric check for
+     * that row instead of failing the whole walk, so the existing pattern-shape assertions above
+     * (which already run regardless) remain the only requirement for customers this cross-check
+     * doesn't cover yet. */
+    private GroundTruthApi.LoanRecord resolveLoanRecord(String promptResponse) throws Exception {
+        String customerId = currentCustomerId();
+        if (customerId == null) {
+            return null;
+        }
+
+        String lowerPrompt = promptResponse.toLowerCase();
+        String wantedType = lowerPrompt.contains("education") ? "EDUCATION_LOAN"
+                : lowerPrompt.contains("home") ? "HOME_LOAN"
+                : lowerPrompt.contains("personal") ? "PERSONAL_LOAN" : null;
+        if (wantedType == null) {
+            return null;
+        }
+
+        for (GroundTruthApi.LoanRecord loan : groundTruth().loanSummary(customerId)) {
+            if (wantedType.equals(loan.loanType)) {
+                return loan;
+            }
+        }
+        return null;
+    }
+
+    /** Extracts the numeric/text value the bot actually spoke for {@code category} and asserts it
+     * matches the ground-truth Loan Summary/Overdue APIs for {@code loan} — the real
+     * cross-verification this class was missing, on top of the shape-only pattern check the
+     * caller already ran. A null {@code loan} (unresolvable customer/loan type — see {@link
+     * #resolveLoanRecord}) skips the numeric check entirely rather than failing; "Next EMI due
+     * date" further skips when the loan is CLOSED, since a closed loan's own bot response is the
+     * literal string "N/A" (a legitimate
+     * answer, not a date to fetch from Loan Overdue). */
+    private void crossCheckLoanDetail(String queryName, String category, String response,
+                                       GroundTruthApi.LoanRecord loan) throws Exception {
+        if (loan == null) {
+            return;
+        }
+
+        switch (category) {
+            case "Tenure" -> assertExtractedEquals(queryName, category, response,
+                    BotResponsePatterns.Loans.TENURE_VALUE, (double) loan.loanTenure);
+            case "Pending tenure" -> assertExtractedEquals(queryName, category, response,
+                    BotResponsePatterns.Loans.PENDING_TENURE_VALUE, (double) loan.pendingTenure);
+            case "Interest rate" -> assertExtractedEquals(queryName, category, response,
+                    BotResponsePatterns.Loans.INTEREST_RATE_VALUE, loan.interestRate);
+            case "Outstanding amount" -> assertExtractedEquals(queryName, category, response,
+                    BotResponsePatterns.Loans.OUTSTANDING_VALUE, loan.outstandingAmount);
+            case "Loan amount" -> assertExtractedEquals(queryName, category, response,
+                    BotResponsePatterns.Loans.LOAN_AMOUNT_VALUE, loan.loanAmount);
+            case "EMI" -> {
+                if (Constants.ACTIVE_STATUS.equals(loan.accountStatus)) {
+                    GroundTruthApi.OverdueRecord overdue = groundTruth().loanOverdue(loan.accountId);
+                    assertExtractedEquals(queryName, category, response,
+                            BotResponsePatterns.Loans.EMI_AMOUNT_VALUE, overdue.nextInstallmentAmount);
+                }
+            }
+            case "Next EMI due date" -> {
+                if (Constants.ACTIVE_STATUS.equals(loan.accountStatus)) {
+                    java.util.regex.Matcher m = BotResponsePatterns.Loans.NEXT_EMI_DUE_VALUE.matcher(response);
+                    if (m.find() && !"N/A".equalsIgnoreCase(m.group(1).trim())) {
+                        GroundTruthApi.OverdueRecord overdue = groundTruth().loanOverdue(loan.accountId);
+                        Assert.assertEquals(m.group(1).trim(), overdue.nextDueDate,
+                                "[" + queryName + "] '" + category + "' spoken date did not match Loan Overdue API");
+                    }
+                }
+            }
+            default -> { }
+        }
+    }
+
+    private void assertExtractedEquals(String queryName, String category, String response,
+                                        Pattern capturingPattern, double expected) {
+        java.util.regex.Matcher matcher = capturingPattern.matcher(response);
+        Assert.assertTrue(matcher.find(),
+                "[" + queryName + "] Could not extract a value for '" + category + "' from: " + response);
+
+        double actual = Double.parseDouble(matcher.group(1).replace(",", ""));
+        Assert.assertEquals(actual, expected, 0.01,
+                "[" + queryName + "] '" + category + "' spoken value did not match the ground-truth API.\n"
+                + "  Response : " + response);
     }
 
     /** Returns true when the bot response is asking the user to choose between loans. Deliberately

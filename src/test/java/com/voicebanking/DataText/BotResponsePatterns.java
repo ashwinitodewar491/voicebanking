@@ -1,5 +1,7 @@
 package com.voicebanking.DataText;
 
+import java.util.regex.Pattern;
+
 public class BotResponsePatterns {
 
     public static class Balance {
@@ -16,6 +18,13 @@ public class BotResponsePatterns {
                 "The balance in your SAVINGS (?:\\([A-Z0-9]+\\) )?account is [\\d,]+(?:\\.\\d+)?";
         public static final String CURRENT =
                 "The balance in your CURRENT (?:\\([A-Z0-9]+\\) )?account is [\\d,]+(?:\\.\\d+)?";
+
+        // Capturing counterpart of ANY/SAVINGS/CURRENT above, for extracting the spoken balance
+        // out of an already-matched response so it can be cross-checked against the ground-truth
+        // Account Balance API (see UI7_BalanceInquiryTest#testKnownAccountBalance) — not used for
+        // pass/fail shape matching itself.
+        public static final Pattern VALUE =
+                Pattern.compile("The balance in your [A-Z]+ (?:\\([A-Z0-9]+\\) )?account is ([\\d,]+(?:\\.\\d+)?)");
     }
 
     public static class Transactions {
@@ -91,15 +100,18 @@ public class BotResponsePatterns {
 
     public static class Loans {
         // Confirmed for Customer A (Rohit Mehta, 9898989898): Home Loan (LN10005, active),
-        // Education Loan (LN20005, closed).
+        // Education Loan (LN20005, closed). Personal Loan confirmed for Customer C (Aniket More,
+        // 9812341041, LN10041, active) — same phrasing pattern as Home/Education throughout this
+        // class, just a third loan-type name, so every (?:Home|Education|Personal) alternation below
+        // includes it too.
         // "The outstanding amount on your Home Loan is Rs.800000.0"
         public static final String OUTSTANDING =
-                "The outstanding amount on your (?:Home|Education) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
+                "The outstanding amount on your (?:Home|Education|Personal) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
 
         // "The next EMI due date for your Education Loan is N/A." — "N/A" is a legitimate value
         // when no due date is scheduled, so the date portion is left loose on purpose.
         public static final String NEXT_EMI_DUE =
-                "The next EMI due date for your (?:Home|Education) Loan is .+";
+                "The next EMI due date for your (?:Home|Education|Personal) Loan is .+";
 
         // Precise per-category patterns confirmed live for the "Give me details of my home loan"
         // flow (see LOAN_DETAIL_OPTIONS_PROMPT below) — each answers a single-word/short-phrase
@@ -107,22 +119,22 @@ public class BotResponsePatterns {
         // Only the numeric value itself varies per account; the wording is fixed.
         // "Your EMI for Home Loan is Rs.18000."
         public static final String EMI_AMOUNT =
-                "Your EMI for (?:Home|Education) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
+                "Your EMI for (?:Home|Education|Personal) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
         // "Your Home Loan has a tenure of 240 months."
         public static final String TENURE =
-                "Your (?:Home|Education) Loan has a tenure of \\d+ months?";
+                "Your (?:Home|Education|Personal) Loan has a tenure of \\d+ months?";
         // "The remaining tenure for your Home Loan is 5 months."
         public static final String PENDING_TENURE =
-                "The remaining tenure for your (?:Home|Education) Loan is \\d+ months?";
+                "The remaining tenure for your (?:Home|Education|Personal) Loan is \\d+ months?";
         // "The interest rate on your Home Loan is 7.8%."
         public static final String INTEREST_RATE =
-                "The interest rate on your (?:Home|Education) Loan is [\\d.]+%";
+                "The interest rate on your (?:Home|Education|Personal) Loan is [\\d.]+%";
         // "The sanctioned amount for your Home Loan is Rs.900000.0." — confirmed live. The
         // follow-up category is spoken as "Loan amount", but the bot answers with "sanctioned
         // amount" wording instead — an earlier guess assumed it would echo "loan amount" back
         // (matching OUTSTANDING's "outstanding amount" self-echo pattern), which was wrong.
         public static final String LOAN_AMOUNT =
-                "The sanctioned amount for your (?:Home|Education) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
+                "The sanctioned amount for your (?:Home|Education|Personal) Loan is Rs\\.[\\d,]+(?:\\.\\d+)?";
 
         // Asked when the loan type is already known (e.g. "Give me details of my home loan") but
         // no specific detail was named — lists every category the bot can answer about that loan
@@ -134,7 +146,7 @@ public class BotResponsePatterns {
         // concatenation elsewhere in this file), not something to anchor on, so this only checks
         // the fixed lead-in.
         public static final String LOAN_DETAIL_OPTIONS_PROMPT =
-                "(?i)What would you like to know about your (?:Home|Education) Loan";
+                "(?i)What would you like to know about your (?:Home|Education|Personal) Loan";
 
         // Fallback when the named loan type isn't recognised (e.g. "car loan", which this
         // customer doesn't have), or no type was named and the customer has more than one loan —
@@ -151,6 +163,25 @@ public class BotResponsePatterns {
         // check?" — the bot isn't consistent about which identifier style it lists loans by, so
         // both count.
         public static final String LOAN_OPTIONS_PROMPT =
-                "(?i)(?=.*\\bwhich\\b)(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Education) Loan)){2})";
+                "(?i)(?=.*\\bwhich\\b)(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Education|Personal) Loan)){2})";
+
+        // Capturing-group counterparts of a few patterns above, for extracting the actual value
+        // out of an already-matched response so it can be cross-checked against the ground-truth
+        // Loan Summary/Overdue APIs (see UI9_LoanInquiryTest#crossCheckLoanDetail) — not used for
+        // pass/fail matching itself, that's still the non-capturing patterns above.
+        public static final Pattern EMI_AMOUNT_VALUE =
+                Pattern.compile("Your EMI for (?:Home|Education|Personal) Loan is Rs\\.([\\d,]+(?:\\.\\d+)?)");
+        public static final Pattern TENURE_VALUE =
+                Pattern.compile("Your (?:Home|Education|Personal) Loan has a tenure of (\\d+) months?");
+        public static final Pattern PENDING_TENURE_VALUE =
+                Pattern.compile("The remaining tenure for your (?:Home|Education|Personal) Loan is (\\d+) months?");
+        public static final Pattern INTEREST_RATE_VALUE =
+                Pattern.compile("The interest rate on your (?:Home|Education|Personal) Loan is ([\\d.]+)%");
+        public static final Pattern OUTSTANDING_VALUE =
+                Pattern.compile("The outstanding amount on your (?:Home|Education|Personal) Loan is Rs\\.([\\d,]+(?:\\.\\d+)?)");
+        public static final Pattern LOAN_AMOUNT_VALUE =
+                Pattern.compile("The sanctioned amount for your (?:Home|Education|Personal) Loan is Rs\\.([\\d,]+(?:\\.\\d+)?)");
+        public static final Pattern NEXT_EMI_DUE_VALUE =
+                Pattern.compile("The next EMI due date for your (?:Home|Education|Personal) Loan is (.+?)\\.?$");
     }
 }

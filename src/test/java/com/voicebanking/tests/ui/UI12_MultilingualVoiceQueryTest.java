@@ -145,21 +145,52 @@ public class UI12_MultilingualVoiceQueryTest {
             homePage = new HomePage(page);
             homePage.waitForPageLoad();
         } catch (PlaywrightException returningUser) {
-            // Onboarding screens absent for a returning user — land on Home directly, then set
-            // this row's locale explicitly via the globe icon instead.
+            // Onboarding screens absent for a returning user — but NOT the "Enable Voice
+            // Banking" consent screen itself: unlike LanguagePage/VoiceRegistrationPage in the
+            // try block above (skipped once, only during first-ever onboarding), this consent
+            // screen reappears on every fresh browser session for any account that hasn't
+            // completed real voice registration — every account this class uses, since real
+            // registration is only ever performed by UI5/UI11. BaseVoiceTest#login expects and
+            // skips it completely unconditionally on every single login for exactly this reason;
+            // confirmed live here too — the very first landing after OTP, before any language
+            // switch, showed this screen instead of Home, not just after switching locale (an
+            // earlier version of this fix only handled the post-switch case and still timed out
+            // 5/5 on this first one instead). Land on Home directly, then set this row's locale
+            // explicitly via the globe icon.
             homePage = new HomePage(page);
+            skipVoiceRegistrationIfPresent();
             homePage.waitForPageLoad();
             homePage.clickLanguageButton();
             languagePage.waitForPageLoad();
             languagePage.selectByLocale(locale);
             languagePage.clickContinue();
+
+            // The consent screen can reappear again here too, after the locale switch itself —
+            // same underlying cause as above, just triggered a second time by this navigation
+            // instead of the initial login. Tolerates it not reappearing as the expected case
+            // (e.g. re-selecting the locale already active).
+            skipVoiceRegistrationIfPresent();
             homePage.waitForPageLoad();
         }
         return homePage;
     }
 
+    /** Clicks past the "Enable Voice Banking" consent screen if it's currently showing, tolerant
+     * of it not being there — see the two call sites in {@link #loginAndSetLocale} for why this
+     * can legitimately appear at either point. */
+    private void skipVoiceRegistrationIfPresent() {
+        try {
+            VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
+            voicePage.waitForPageLoad();
+            voicePage.clickSkipForNow();
+        } catch (PlaywrightException notShowing) {
+            // Already on Home — nothing to skip.
+        }
+    }
+
     private void runMultilingualQuery(String queryName, String locale, String query, String voice) throws Exception {
         HomePage homePage = loginAndSetLocale(locale);
+        homePage.setCurrentQueryName(queryName);
 
         int holdMs = (int) TtsUtil.getWavDurationMs(audioPath);
         homePage.holdToSpeakWithRetry(holdMs, 3, 8000);

@@ -16,6 +16,7 @@ import com.voicebanking.pages.OtpPage;
 import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
 import com.voicebanking.listeners.TestListener;
+import com.voicebanking.utils.GroundTruthApi;
 import com.voicebanking.utils.NoResponseTracker;
 import com.voicebanking.utils.ScreenshotUtil;
 import com.voicebanking.utils.TtsUtil;
@@ -59,9 +60,32 @@ public abstract class BaseVoiceTest {
     private String sessionAudioPath;
     private boolean sessionInitialized = false;
 
-    /** Phone number currently logged into, in {@link #useSharedSession()} mode. Null until the
-     * first login. */
-    private String loggedInPhoneNumber;
+    /** Phone number of whichever seeded customer is currently logged in — set by every {@link
+     * #login} call, in shared-session mode or not. Null until the first login. Protected (not
+     * just used internally) so a follow-up flow that needs ground-truth data for the current
+     * customer — e.g. UI9's loan-detail walk — can resolve it via {@link #currentCustomerId()}
+     * without every call site having to thread customerId through separately. */
+    protected String loggedInPhoneNumber;
+
+    /** Lazily-created {@link GroundTruthApi} client — one per test class instance, reused across
+     * every row/attempt rather than opening a new HTTP client per call. Against {@link
+     * Endpoints#getGroundTruthApiBaseUrl()} — never prod unless -Denv=prod is explicit; see that
+     * method's own javadoc. */
+    private GroundTruthApi groundTruthApi;
+
+    protected GroundTruthApi groundTruth() {
+        if (groundTruthApi == null) {
+            groundTruthApi = new GroundTruthApi(Endpoints.getGroundTruthApiBaseUrl());
+        }
+        return groundTruthApi;
+    }
+
+    /** Maps {@link #loggedInPhoneNumber} to its known seeded customerId via {@link
+     * Constants#CUSTOMER_ID_BY_PHONE} — null if nobody's logged in yet, or the phone isn't one of
+     * the mapped known customers (e.g. a fresh random registration). */
+    protected String currentCustomerId() {
+        return loggedInPhoneNumber == null ? null : Constants.CUSTOMER_ID_BY_PHONE.get(loggedInPhoneNumber);
+    }
 
 
     /**
@@ -278,6 +302,24 @@ public abstract class BaseVoiceTest {
         return homePage;
     }
 
+    /** The {@link HomePage} instance {@link #runVoiceQuery} used for the query currently/most
+     * recently in flight. {@link HomePage#getLastBotResponse()} distinguishes a genuinely new
+     * plain-text bubble from a structured card (e.g. a transaction list) via an instance field
+     * tracked across the conversation ({@code botBubblesBefore}) — a freshly constructed {@code
+     * new HomePage(page)} has none of that history, and silently returns stale/wrong text for any
+     * response that renders as a card. Reusing this exact instance (not a fresh wrapper) is what
+     * {@link #lastBotResponse()} depends on to read correctly. */
+    private HomePage lastHomePage;
+
+    /** The bot's response text as of right now — for a caller that needs to inspect/extract from
+     * it after {@link #runVoiceQuery} already ran and asserted the shape-level pattern itself
+     * (e.g. cross-checking the spoken number against a ground-truth API). {@code runVoiceQuery}
+     * stays {@code void} rather than threading a return value through every call site just for
+     * this. */
+    protected String lastBotResponse() {
+        return lastHomePage.getLastBotResponse();
+    }
+
     /** Same as {@link #runVoiceQuery(String, String, String[], String, String)} but logs in as
      * an explicit phone number instead of {@link #getLoginPhoneNumber()} — for data-provider rows
      * that exercise a specific known seeded customer rather than the class-wide default. */
@@ -286,6 +328,7 @@ public abstract class BaseVoiceTest {
                                   String phoneNumber) throws Exception {
 
         HomePage homePage = ensureLoggedIn(phoneNumber);
+        lastHomePage = homePage;
         homePage.setCurrentQueryName(queryName);
 
         int holdMs = (int) TtsUtil.getWavDurationMs(currentAudioPath);
@@ -701,6 +744,19 @@ public abstract class BaseVoiceTest {
         int count = 0;
         while (matcher.find()) count++;
         return count;
+    }
+
+    /** Every entry amount in a card-format bot response, in the order they appear — for
+     * cross-checking against a ground-truth API's own transaction list (e.g. confirming the top
+     * entry the bot read out is actually one of that account's real transactions), rather than
+     * just counting entries the way {@link #countTransactionEntries} does. */
+    protected java.util.List<Double> transactionEntryAmounts(String botResponse) {
+        java.util.List<Double> amounts = new java.util.ArrayList<>();
+        Matcher matcher = TRANSACTION_ENTRY_AMOUNT.matcher(botResponse);
+        while (matcher.find()) {
+            amounts.add(parseAmount(matcher.group(1)));
+        }
+        return amounts;
     }
 
     /** When a response includes a "Total spent₹X" summary line, verifies X equals the sum of every

@@ -31,6 +31,17 @@ public final class Endpoints {
         return "stage".equalsIgnoreCase(env) ? BASE_URL_STAGE : BASE_URL_PROD;
     }
 
+    /** Base URL for the ground-truth cross-verification API calls the UI test suite makes (see
+     * GroundTruthApi) — deliberately never resolves to prod except on an explicit -Denv=prod.
+     * Unlike {@link #getBaseUrl()}, an unset/default env and -Denv=dev both resolve to stage here:
+     * there's no separate dev API backend (see {@link #UI_BASE_URL_DEV}'s own comment), and
+     * automated cross-verification calls have no business hitting live prod data just because
+     * -Denv was left at its default. */
+    public static String getGroundTruthApiBaseUrl() {
+        String env = resolveEnv();
+        return "prod".equalsIgnoreCase(env) ? BASE_URL_PROD : BASE_URL_STAGE;
+    }
+
     public static String getUiBaseUrl() {
         String env = resolveEnv();
         if ("stage".equalsIgnoreCase(env)) return UI_BASE_URL_STAGE;
