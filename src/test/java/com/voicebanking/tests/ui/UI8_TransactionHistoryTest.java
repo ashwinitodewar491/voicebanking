@@ -243,6 +243,9 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         GroundTruthApi.TransactionsPage apiPage =
                 groundTruth().transactions(accountId, LocalDate.now().toString());
 
+        System.out.println("[GroundTruth] " + queryName + " — spoken amounts=" + spokenAmounts
+                + " api amounts=" + apiPage.amounts + " api totalElements=" + apiPage.totalElements);
+
         if (spokenAmounts.isEmpty()) {
             // A legitimate "no transactions" response (Customer B, ENTRY_OR_NO_RESULTS) is only
             // correct if the account genuinely has none — independently confirmed against the API
@@ -253,6 +256,7 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         } else {
             for (double amount : spokenAmounts) {
                 boolean foundInApi = apiPage.amounts.stream().anyMatch(a -> Math.abs(a - amount) < 0.01);
+                System.out.println("[GroundTruth] " + queryName + " — amount=" + amount + " foundInApi=" + foundInApi);
                 Assert.assertTrue(foundInApi,
                         "[" + queryName + "] Bot listed an amount (" + amount + ") not found in the"
                         + " Transactions List API's own data for this account.");

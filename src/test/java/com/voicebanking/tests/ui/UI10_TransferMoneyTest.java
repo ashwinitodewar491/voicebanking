@@ -277,7 +277,21 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
             homePage.reacquireMicrophoneForFollowUp();
 
             int preWaitMs = (int) oldAudioDurationMs + 2000 + ((attempt - 1) * 2000);
-            homePage.speakFollowUp(preWaitMs, otpHoldMs, 8000);
+            try {
+                homePage.speakFollowUp(preWaitMs, otpHoldMs, 8000);
+            } catch (RuntimeException sttNotDetected) {
+                // A transient STT miss here (no user bubble at all within the poll window) is not
+                // the same as the bot rejecting a heard OTP — but until now it escaped this loop's
+                // own retry mechanism uncaught and killed the test outright on whichever attempt
+                // hit it, even attempt 1 or 2 of the intended 3. Confirmed live: the transfer often
+                // completes for real seconds later regardless (visible in the failure screenshot,
+                // captured after tearDown's own delay), because the browser session and the bot's
+                // own OTP handling keep going — only this test's premature exit was ever the
+                // problem. Treat it exactly like an "OTP not accepted" response: log and retry.
+                System.out.println("[" + queryName + "] WARN — OTP attempt " + attempt
+                        + " STT not detected (" + sttNotDetected.getMessage() + ") — retrying...");
+                continue;
+            }
             homePage.waitForVoiceResponse(15000);
 
             String transcribed = homePage.getLastTranscribedText();
@@ -287,8 +301,15 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
 
             // Excludes the context-lost fallback for the same reason as speakSingleFollowUp()
             // below — it isn't an OTP-request prompt either, so without this the loop would break
-            // out treating the fallback as a real advance instead of retrying/recovering.
-            if (!isOtpRequested(response) && !isContextLostFallback(response)) {
+            // out treating the fallback as a real advance instead of retrying/recovering. Also
+            // excludes a blank response — confirmed live via the account's actual transaction
+            // history that the transfer can still be mid-flight (bot hasn't finished responding)
+            // right when this check runs, and a blank response was being treated as "resolved,
+            // stop retrying" the same way BaseVoiceTest's own re-ask loop already knows blank means
+            // "not done yet" elsewhere — here it fell through to the caller as a final answer,
+            // which then failed the keyword/pattern check downstream against nothing at all
+            // instead of ever seeing the real confirmation.
+            if (!response.isBlank() && !isOtpRequested(response) && !isContextLostFallback(response)) {
                 break;
             }
             System.out.println("[" + queryName + "] WARN — OTP not accepted (attempt " + attempt
@@ -355,7 +376,9 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
             // (it's neither the awaited prompt nor a real advance), so it must be excluded here as
             // well — otherwise this breaks out treating the fallback as if the flow had advanced,
             // never reaching a later attempt where reestablishIntentIfSessionEnded() recovers it.
-            if (!stillWaiting.test(response) && !isContextLostFallback(response)) {
+            // Same reasoning excludes a blank response — see answerOtpPrompt's identical fix for
+            // why "hasn't responded yet" was being treated as "resolved, return this as final."
+            if (!response.isBlank() && !stillWaiting.test(response) && !isContextLostFallback(response)) {
                 break;
             }
             System.out.println("[" + queryName + "] " + logLabel + " — bot did not advance (attempt "

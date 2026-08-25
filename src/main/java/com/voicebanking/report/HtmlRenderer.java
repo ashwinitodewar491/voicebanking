@@ -23,6 +23,13 @@ public class HtmlRenderer {
 
     public String render(List<TestResult> results, int sessionEndedCount, List<String> sessionEndedDetails,
                           int noResponseCount, List<String> noResponseDetails) {
+        return render(results, sessionEndedCount, sessionEndedDetails, noResponseCount, noResponseDetails,
+                0, List.of());
+    }
+
+    public String render(List<TestResult> results, int sessionEndedCount, List<String> sessionEndedDetails,
+                          int noResponseCount, List<String> noResponseDetails,
+                          int welcomeAbsentCount, List<String> welcomeAbsentDetails) {
         long total = results.size();
         long passed = countStatus(results, TestResult.Status.PASSED);
         long failed = countStatus(results, TestResult.Status.FAILED);
@@ -36,9 +43,11 @@ public class HtmlRenderer {
         html.append("<style>").append(css()).append("</style></head><body>");
 
         html.append(renderHeader(passRate));
-        html.append(renderSummary(total, passed, failed, skipped, durationSeconds, sessionEndedCount, noResponseCount));
+        html.append(renderSummary(total, passed, failed, skipped, durationSeconds, sessionEndedCount,
+                noResponseCount, welcomeAbsentCount));
         html.append(renderDetailsList("Session Drop Details", "session-drops", sessionEndedDetails));
         html.append(renderDetailsList("Bot No-Response Details", "no-response", noResponseDetails));
+        html.append(renderDetailsList("Welcome Message Absent Details", "welcome-absent", welcomeAbsentDetails));
         html.append(renderDonut(total, passed, failed, skipped));
         html.append(renderModuleBreakdown(results));
         html.append(renderFailureReasons(results));
@@ -61,7 +70,8 @@ public class HtmlRenderer {
     }
 
     private String renderSummary(long total, long passed, long failed, long skipped,
-                                  double durationSeconds, int sessionEndedCount, int noResponseCount) {
+                                  double durationSeconds, int sessionEndedCount, int noResponseCount,
+                                  int welcomeAbsentCount) {
         StringBuilder sb = new StringBuilder("<section class=\"summary\">");
         sb.append(statCard("Total", String.valueOf(total), "neutral"));
         sb.append(statCard("Passed", String.valueOf(passed), "pass"));
@@ -71,19 +81,23 @@ public class HtmlRenderer {
         // Environment-stability signals, not test outcomes — either one that gets successfully
         // recovered from (session reconnect, or a later re-ask finally getting an answer — see
         // BaseVoiceTest.runVoiceQuery) never shows up as a failure at all, so this is the only
-        // place either count is visible.
+        // place either count is visible. Welcome-message-absent is the same shape but only ever
+        // recorded for the post-switch landing point, where absence is expected behaviour, not a
+        // bug — see UI12_MultilingualVoiceQueryTest#checkWelcomeMessage.
         sb.append(statCard("Session Drops", String.valueOf(sessionEndedCount),
                 sessionEndedCount > 0 ? "warn" : "neutral"));
         sb.append(statCard("Bot No-Response", String.valueOf(noResponseCount),
                 noResponseCount > 0 ? "warn" : "neutral"));
+        sb.append(statCard("Welcome Msg Absent", String.valueOf(welcomeAbsentCount),
+                welcomeAbsentCount > 0 ? "warn" : "neutral"));
         sb.append("</section>");
         return sb.toString();
     }
 
     /** Lists each occurrence (time + query) of an environment-stability signal below the summary
      * cards, so a non-zero count can be traced back to exactly where it happened rather than just
-     * how many. Shared by "Session Ended" and "bot never responded" — same shape, different
-     * source. Renders nothing when the list is empty. */
+     * how many. Shared by "Session Ended", "bot never responded" and "welcome message absent" —
+     * same shape, different source. Renders nothing when the list is empty. */
     private String renderDetailsList(String title, String cssClass, List<String> details) {
         if (details.isEmpty()) return "";
         StringBuilder sb = new StringBuilder("<section class=\"").append(cssClass).append("\">");
@@ -291,11 +305,11 @@ public class HtmlRenderer {
             .legend li { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
             .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
             .dot.pass { background: var(--pass); } .dot.fail { background: var(--fail); } .dot.skip { background: var(--skip); }
-            .session-drops, .no-response { padding: 8px 32px 24px; }
-            .session-drops h2, .no-response h2 { font-size: 13px; margin: 0 0 12px; color: var(--warn); text-transform: uppercase; letter-spacing: .04em; }
-            .session-drops ul, .no-response ul { list-style: none; margin: 0; padding: 0; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; }
-            .session-drops li, .no-response li { padding: 8px 16px; font-size: 13px; border-bottom: 1px solid var(--border); }
-            .session-drops li:last-child, .no-response li:last-child { border-bottom: none; }
+            .session-drops, .no-response, .welcome-absent { padding: 8px 32px 24px; }
+            .session-drops h2, .no-response h2, .welcome-absent h2 { font-size: 13px; margin: 0 0 12px; color: var(--warn); text-transform: uppercase; letter-spacing: .04em; }
+            .session-drops ul, .no-response ul, .welcome-absent ul { list-style: none; margin: 0; padding: 0; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; }
+            .session-drops li, .no-response li, .welcome-absent li { padding: 8px 16px; font-size: 13px; border-bottom: 1px solid var(--border); }
+            .session-drops li:last-child, .no-response li:last-child, .welcome-absent li:last-child { border-bottom: none; }
             .module-section { padding: 8px 32px 24px; }
             .module-section h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
             .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }

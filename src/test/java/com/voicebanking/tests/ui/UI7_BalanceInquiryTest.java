@@ -239,6 +239,8 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
         double spokenBalance = Double.parseDouble(matcher.group(1).replace(",", ""));
 
         double actualBalance = groundTruth().accountBalance(accountId, Constants.CUSTOMER_ID_BY_PHONE.get(phoneNumber), accountType);
+        System.out.println("[GroundTruth] " + queryName + " — spoken=" + spokenBalance
+                + " api=" + actualBalance + " match=" + (Math.abs(spokenBalance - actualBalance) < 0.01));
         Assert.assertEquals(spokenBalance, actualBalance, 0.01,
                 "[" + queryName + "] Spoken balance did not match the ground-truth Account Balance API.");
     }

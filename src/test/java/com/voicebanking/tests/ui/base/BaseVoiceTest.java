@@ -283,12 +283,15 @@ public abstract class BaseVoiceTest {
         otpPage.clickContinue();
 
         LanguagePage languagePage = new LanguagePage(page);
+        boolean returningUser = false;
         try {
             languagePage.waitForPageLoad();
             languagePage.selectByLocale(VoiceQueries.English.LOCALE);
+            languagePage.waitForLocaleSelected(VoiceQueries.English.LOCALE);
             languagePage.clickContinue();
         } catch (PlaywrightException ignored) {
             // language page absent for returning users
+            returningUser = true;
         }
 
         VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
@@ -298,8 +301,49 @@ public abstract class BaseVoiceTest {
         HomePage homePage = new HomePage(page);
         homePage.waitForPageLoad();
 
+        if (returningUser) {
+            enforceEnglishLocale(homePage, languagePage);
+        }
+
         loggedInPhoneNumber = phoneNumber;
         return homePage;
+    }
+
+    /**
+     * Every test in this class asserts against English bot responses, but a returning user's
+     * locale isn't reset by this login flow — it persists server-side per-account (confirmed via
+     * UI12_MultilingualVoiceQueryTest, which switches this exact same account, e.g. 9898989898 /
+     * Rohit Mehta, to Hindi/Bengali and back). If a multilingual run left this account on a
+     * non-English locale, every English-only assertion here would silently run against the wrong
+     * language instead of failing loudly with a clear cause. The first-time-onboarding branch in
+     * {@link #login} already explicitly selects English, so this only needs to run for a returning
+     * user, where the language page is skipped entirely and nothing else here checks it.
+     */
+    private void enforceEnglishLocale(HomePage homePage, LanguagePage languagePage) {
+        homePage.clickLanguageButton();
+        languagePage.waitForPageLoad();
+
+        if (languagePage.isEnglishSelected()) {
+            languagePage.clickBack();
+            return;
+        }
+
+        System.out.println("[Locale] Account was not on English at login — switching back.");
+        languagePage.selectEnglish();
+        languagePage.waitForLocaleSelected(VoiceQueries.English.LOCALE);
+        languagePage.clickContinue();
+
+        // The "Enable Voice Banking" consent screen can reappear after a locale switch, same as
+        // confirmed in UI12_MultilingualVoiceQueryTest#skipVoiceRegistrationIfPresent — tolerate
+        // it not reappearing as the expected case here too.
+        try {
+            VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
+            voicePage.waitForPageLoad();
+            voicePage.clickSkipForNow();
+        } catch (PlaywrightException notShowing) {
+            // Already back on Home — nothing to skip.
+        }
+        homePage.waitForPageLoad();
     }
 
     /** The {@link HomePage} instance {@link #runVoiceQuery} used for the query currently/most

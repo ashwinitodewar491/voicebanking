@@ -328,6 +328,8 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
                                              String phoneNumber, int expectedLoanCount) throws Exception {
         String customerId = Constants.CUSTOMER_ID_BY_PHONE.get(phoneNumber);
         java.util.List<GroundTruthApi.LoanRecord> apiLoans = groundTruth().loanSummary(customerId);
+        System.out.println("[GroundTruth] " + queryName + " — expectedLoanCount=" + expectedLoanCount
+                + " apiLoanCount=" + apiLoans.size());
         Assert.assertEquals(apiLoans.size(), expectedLoanCount,
                 "[" + queryName + "] Expected " + expectedLoanCount + " loan(s) for " + phoneNumber
                 + " per the Loan Summary API, got " + apiLoans.size()
@@ -631,6 +633,9 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
                     java.util.regex.Matcher m = BotResponsePatterns.Loans.NEXT_EMI_DUE_VALUE.matcher(response);
                     if (m.find() && !"N/A".equalsIgnoreCase(m.group(1).trim())) {
                         GroundTruthApi.OverdueRecord overdue = groundTruth().loanOverdue(loan.accountId);
+                        System.out.println("[GroundTruth] " + queryName + " — '" + category + "' spoken="
+                                + m.group(1).trim() + " api=" + overdue.nextDueDate
+                                + " match=" + m.group(1).trim().equals(overdue.nextDueDate));
                         Assert.assertEquals(m.group(1).trim(), overdue.nextDueDate,
                                 "[" + queryName + "] '" + category + "' spoken date did not match Loan Overdue API");
                     }
@@ -647,6 +652,8 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
                 "[" + queryName + "] Could not extract a value for '" + category + "' from: " + response);
 
         double actual = Double.parseDouble(matcher.group(1).replace(",", ""));
+        System.out.println("[GroundTruth] " + queryName + " — '" + category + "' spoken=" + actual
+                + " api=" + expected + " match=" + (Math.abs(actual - expected) < 0.01));
         Assert.assertEquals(actual, expected, 0.01,
                 "[" + queryName + "] '" + category + "' spoken value did not match the ground-truth API.\n"
                 + "  Response : " + response);

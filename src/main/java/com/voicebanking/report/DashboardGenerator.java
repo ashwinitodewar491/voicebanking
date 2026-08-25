@@ -22,6 +22,8 @@ public class DashboardGenerator {
         File sessionEndedDetailsFile = new File(projectDir, "target/session-ended-details.txt");
         File noResponseFile = new File(projectDir, "target/no-response-count.txt");
         File noResponseDetailsFile = new File(projectDir, "target/no-response-details.txt");
+        File welcomeAbsentFile = new File(projectDir, "target/welcome-message-absent-count.txt");
+        File welcomeAbsentDetailsFile = new File(projectDir, "target/welcome-message-absent-details.txt");
 
         if (!surefireDir.isDirectory()) {
             System.out.println("[Dashboard] No surefire-reports found at " + surefireDir + " — run tests first.");
@@ -39,9 +41,11 @@ public class DashboardGenerator {
         List<String> sessionEndedDetails = readDetails(sessionEndedDetailsFile);
         int noResponseCount = readCount(noResponseFile);
         List<String> noResponseDetails = readDetails(noResponseDetailsFile);
+        int welcomeAbsentCount = readCount(welcomeAbsentFile);
+        List<String> welcomeAbsentDetails = readDetails(welcomeAbsentDetailsFile);
 
         String html = new HtmlRenderer().render(results, sessionEndedCount, sessionEndedDetails,
-                noResponseCount, noResponseDetails);
+                noResponseCount, noResponseDetails, welcomeAbsentCount, welcomeAbsentDetails);
         Files.writeString(new File(outputDir, "index.html").toPath(), html);
 
         long total = results.size();
@@ -86,9 +90,10 @@ public class DashboardGenerator {
         }
     }
 
-    /** Reads the count SessionEndedTracker/NoResponseTracker wrote out at suite end (test-side;
-     * not importable here since src/main can't depend on src/test) — a plain text file with just
-     * the integer. Returns 0 if it doesn't exist (e.g. no test run happened, or none occurred). */
+    /** Reads the count SessionEndedTracker/NoResponseTracker/WelcomeMessageTracker wrote out at
+     * suite end (test-side; not importable here since src/main can't depend on src/test) — a plain
+     * text file with just the integer. Returns 0 if it doesn't exist (e.g. no test run happened,
+     * or none occurred). */
     private static int readCount(File file) {
         try {
             return Integer.parseInt(Files.readString(file.toPath()).trim());
@@ -97,9 +102,9 @@ public class DashboardGenerator {
         }
     }
 
-    /** Reads the per-occurrence detail lines SessionEndedTracker/NoResponseTracker wrote out
-     * (timestamp — query name), one per line. Returns an empty list if the file doesn't exist
-     * (no test run yet) or is empty (none this run). */
+    /** Reads the per-occurrence detail lines SessionEndedTracker/NoResponseTracker/
+     * WelcomeMessageTracker wrote out (timestamp — query name), one per line. Returns an empty
+     * list if the file doesn't exist (no test run yet) or is empty (none this run). */
     private static List<String> readDetails(File file) {
         try {
             return Files.readAllLines(file.toPath());
