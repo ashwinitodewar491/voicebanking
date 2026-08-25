@@ -1,14 +1,18 @@
 package com.voicebanking.tests.ui;
 
 import com.voicebanking.DataText.BotResponsePatterns;
+import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.VoiceQueries;
 import com.voicebanking.pages.HomePage;
 import com.voicebanking.tests.ui.base.BaseVoiceTest;
+import com.voicebanking.utils.GroundTruthApi;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -199,29 +203,65 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
 
     /** Customer A (Rohit Mehta, CIF202602260005, 9898989898) — dual account: savings + current.
      * Customer B (Leena Kamat, CIF202602260042, 9812341042) — savings only.
+     * Customer C (Aniket More, CIF202602260041, 9812341041) — savings only.
      * Account-to-customer mapping is known statically, so each row names its account explicitly
      * (SAVINGS_TRANSACTIONS / CURRENT_TRANSACTIONS) and never triggers the disambiguation follow-up
-     * — no need to guess or loop over possibilities. */
+     * — no need to guess or loop over possibilities. {@code accountId} (a new column beyond the
+     * generic voiceQueries shape) is what {@link #testKnownAccountTransactions} cross-checks the
+     * bot's returned entries against, via the ground-truth Transactions List API. */
     @DataProvider(name = "knownAccountTransactionQueries")
     public Object[][] knownAccountTransactionQueries() {
         return new Object[][]{
 
-            // {queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber}
+            // {queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber, accountId}
             {"Customer A Savings Transactions", VoiceQueries.English.SAVINGS_TRANSACTIONS,
-                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null, "9898989898"},
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null, "9898989898",
+                    Constants.EXPECTED_ACCOUNT_ID},
             {"Customer A Current Transactions", VoiceQueries.English.CURRENT_TRANSACTIONS,
-                    new String[]{"transaction", "current"}, BotResponsePatterns.Transactions.ENTRY, null, "9898989898"},
+                    new String[]{"transaction", "current"}, BotResponsePatterns.Transactions.ENTRY, null, "9898989898",
+                    Constants.CUSTOMER_A_CURRENT_ACCOUNT_ID},
             {"Customer B Savings Transactions", VoiceQueries.English.SAVINGS_TRANSACTIONS,
-                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, null, "9812341042"},
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, null, "9812341042",
+                    Constants.CUSTOMER_B_SAVINGS_ACCOUNT_ID},
+            {"Customer C Savings Transactions", VoiceQueries.English.SAVINGS_TRANSACTIONS,
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, null, Constants.CUSTOMER_C_PHONE,
+                    Constants.CUSTOMER_C_SAVINGS_ACCOUNT_ID},
         };
     }
 
     @Test(dataProvider = "knownAccountTransactionQueries", groups = {"ui", "regression", "botverification"},
-            description = "Should return recent transactions for the correct account for known seeded customers")
+            description = "Should return recent transactions for the correct account for known seeded customers, cross-checked against the Transactions List API")
     public void testKnownAccountTransactions(String queryName, String query, String[] expectedKeywords,
                                               String assertionPattern, String disambiguationAccount,
-                                              String phoneNumber) throws Exception {
+                                              String phoneNumber, String accountId) throws Exception {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, phoneNumber);
+
+        List<Double> spokenAmounts = transactionEntryAmounts(lastBotResponse());
+        // "Today" (not a fixed historical date, e.g. Constants.TRANSACTION_TO_DATE) — this needs
+        // to include whatever the bot itself considers "recent" right now, not a snapshot pinned
+        // to whenever that other constant was last refreshed.
+        GroundTruthApi.TransactionsPage apiPage =
+                groundTruth().transactions(accountId, LocalDate.now().toString());
+
+        System.out.println("[GroundTruth] " + queryName + " — spoken amounts=" + spokenAmounts
+                + " api amounts=" + apiPage.amounts + " api totalElements=" + apiPage.totalElements);
+
+        if (spokenAmounts.isEmpty()) {
+            // A legitimate "no transactions" response (Customer B, ENTRY_OR_NO_RESULTS) is only
+            // correct if the account genuinely has none — independently confirmed against the API
+            // rather than assumed.
+            Assert.assertEquals(apiPage.totalElements, 0,
+                    "[" + queryName + "] Bot reported no transactions, but the Transactions List API"
+                    + " shows " + apiPage.totalElements + " for this account.");
+        } else {
+            for (double amount : spokenAmounts) {
+                boolean foundInApi = apiPage.amounts.stream().anyMatch(a -> Math.abs(a - amount) < 0.01);
+                System.out.println("[GroundTruth] " + queryName + " — amount=" + amount + " foundInApi=" + foundInApi);
+                Assert.assertTrue(foundInApi,
+                        "[" + queryName + "] Bot listed an amount (" + amount + ") not found in the"
+                        + " Transactions List API's own data for this account.");
+            }
+        }
     }
 
     /** Queries asking generically for "recent" transactions have been consistently observed

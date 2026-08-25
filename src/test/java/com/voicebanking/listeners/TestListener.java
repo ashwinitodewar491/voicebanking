@@ -6,6 +6,7 @@ import com.aventstack.extentreports.reporter.ExtentSparkReporter;
 import com.aventstack.extentreports.reporter.configuration.Theme;
 import com.voicebanking.utils.NoResponseTracker;
 import com.voicebanking.utils.SessionEndedTracker;
+import com.voicebanking.utils.WelcomeMessageTracker;
 import org.testng.ISuite;
 import org.testng.ISuiteListener;
 import org.testng.ITestListener;
@@ -43,6 +44,7 @@ public class TestListener implements ITestListener, ISuiteListener {
         }
         SessionEndedTracker.writeToDisk();
         NoResponseTracker.writeToDisk();
+        WelcomeMessageTracker.writeToDisk();
     }
 
     @Override

@@ -46,6 +46,27 @@ public class LanguagePage {
         }
     }
 
+    private static String testIdFor(String locale) {
+        return switch (locale) {
+            case "en" -> LANG_EN;
+            case "hi" -> LANG_HI;
+            case "bn" -> LANG_BN;
+            default -> throw new IllegalArgumentException("Unsupported locale: " + locale);
+        };
+    }
+
+    /** Waits for {@code locale}'s button to actually report {@code aria-pressed="true"} —
+     * {@link #selectByLocale} only fires the click event and returns immediately, it doesn't wait
+     * for the app to register the selection. Call this before {@link #clickContinue()} so
+     * continuing doesn't race ahead of a selection that hasn't taken effect yet, which otherwise
+     * can carry the previous locale forward silently. */
+    public void waitForLocaleSelected(String locale) {
+        page.locator(testIdFor(locale) + "[aria-pressed='true']").waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(5000));
+    }
+
     public void clickContinue() {
         page.locator(CONTINUE_BTN).click();
     }

@@ -62,6 +62,29 @@ public class HomePage {
         return page.locator(HOLD_TO_SPEAK_BTN).isVisible();
     }
 
+    /** Returns true if a bot message (plain bubble or structured card) is currently present in
+     * the chat area — used right after landing on Home to check whether the session's welcome
+     * greeting actually rendered. Confirmed live that this can legitimately be false right after
+     * a locale switch (the chat area is cleared and no fresh greeting is posted), so this is an
+     * observation to track, not something safe to assert unconditionally true everywhere. */
+    public boolean isWelcomeMessageVisible() {
+        return page.locator(BOT_BUBBLE).count() > 0 || page.locator(BOT_CONTAINER).count() > 0;
+    }
+
+    /** Polls for {@link #isWelcomeMessageVisible()} up to {@code timeoutMs} instead of checking
+     * once — a one-shot check right after {@link #waitForPageLoad()} reads ABSENT almost every
+     * time even when a greeting is genuinely about to render, since it hasn't had any time to
+     * stream in yet (confirmed live: an instant check read 15/15 and 18/18 ABSENT across two full
+     * runs). Returns true as soon as a message appears, false if the deadline passes first. */
+    public boolean waitForWelcomeMessage(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (isWelcomeMessageVisible()) return true;
+            page.waitForTimeout(300);
+        }
+        return false;
+    }
+
     public boolean isBalanceToggleVisible() {
         return page.locator(BALANCE_TOGGLE_BTN).isVisible();
     }
@@ -225,12 +248,28 @@ public class HomePage {
      * conversation state this turn will actually run in.
      */
     public void holdToSpeakWithRetry(int maxHoldMs, int maxAttempts, int sttPollMs) {
+        holdToSpeakWithRetry(maxHoldMs, maxAttempts, sttPollMs, true);
+    }
+
+    /**
+     * Same as {@link #holdToSpeakWithRetry(int, int, int)}, but {@code waitForExistingWelcomeBubble}
+     * controls whether it first waits for a bot bubble that's already there. That wait assumes a
+     * greeting bubble is already sitting in the chat — true for a normal Home landing, but false
+     * right after switching locale via the globe icon: confirmed visually (see
+     * UI12_MultilingualVoiceQueryTest) that a locale switch clears the chat area and does not post
+     * a fresh greeting, so every switch row was hanging the full 15s here waiting for a bubble that
+     * was never coming, regardless of how long a settle wait preceded this call. Callers that just
+     * switched locale should pass {@code false}.
+     */
+    public void holdToSpeakWithRetry(int maxHoldMs, int maxAttempts, int sttPollMs, boolean waitForExistingWelcomeBubble) {
         recoverFromSessionEndedIfPresent();
 
-        page.locator(BOT_BUBBLE).first().waitFor(
-                new Locator.WaitForOptions()
-                        .setState(WaitForSelectorState.VISIBLE)
-                        .setTimeout(15000));
+        if (waitForExistingWelcomeBubble) {
+            page.locator(BOT_BUBBLE).first().waitFor(
+                    new Locator.WaitForOptions()
+                            .setState(WaitForSelectorState.VISIBLE)
+                            .setTimeout(15000));
+        }
 
         waitForButtonReady(10000, 6000);
 
@@ -630,17 +669,20 @@ public class HomePage {
     /**
      * Returns true if the chat screen is showing a "Session Ended" message.
      * <p>
-     * Checks {@code document.body.innerText} (the page's rendered, visible text) for the phrase,
-     * rather than requiring a single leaf element's own text to contain it in full. The latter
-     * missed a real occurrence live — the heading's text was apparently split across sibling
-     * elements (e.g. separate spans), so no individual leaf's {@code textContent} contained
-     * "session ended" as one contiguous substring even though it read that way on screen,
-     * silently skipping recovery for an actual "Session Ended" state.
+     * Checks for {@link #HOLD_TO_RECONNECT_BTN} rather than matching the English phrase "session
+     * ended" in the page's text. That text check (an even earlier version checked a single leaf
+     * element's own text, widened to the whole body's innerText after that missed a real
+     * occurrence whose heading was split across sibling spans) still silently never matched at
+     * all for a Hindi/Bengali session — confirmed live via UI12_MultilingualVoiceQueryTest: the
+     * screen showed "सत्र समाप्त", not "session ended", so recovery was a no-op for every
+     * non-English session drop despite the reconnect screen genuinely being up. The reconnect
+     * button's data-testid is the same locale-independent hook regardless of which language is
+     * showing on screen — the same reasoning HOLD_TO_SPEAK_BTN itself already relies on to work
+     * correctly across locales.
      */
     public boolean isSessionEnded() {
         try {
-            return (Boolean) page.evaluate(
-                    "() => document.body.innerText.toLowerCase().includes('session ended')");
+            return page.locator(HOLD_TO_RECONNECT_BTN).isVisible();
         } catch (Exception e) {
             return false;
         }
