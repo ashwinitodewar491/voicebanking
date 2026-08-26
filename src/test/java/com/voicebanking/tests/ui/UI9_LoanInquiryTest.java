@@ -309,23 +309,39 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
      * Personal Loan?" phrasing as Home/Education, so {@link BotResponsePatterns.Loans} covers
      * "Personal" in every alternation and this row gets the full {@link
      * #walkLoanDetailCategories} cross-verification (EMI, tenure, interest rate, outstanding,
-     * sanctioned amount, next EMI due) for free — nothing further to wire up here. */
+     * sanctioned amount, next EMI due) for free — nothing further to wire up here.
+     * <p>
+     * The Home/Personal EMI-transactions rows render the same structured transaction-card format
+     * as ordinary account transactions (confirmed: "bot container with 5 entries") — reuses
+     * {@link BotResponsePatterns.Transactions#ENTRY} rather than inventing a loan-specific pattern,
+     * same as UI8_TransactionHistoryTest's own rows do for the account side. The Car row instead
+     * hits the negative case: asked against Customer C (single active Personal Loan, not Customer
+     * A's two), the bot's nonexistent-type fallback names its one active loan directly instead of
+     * listing/asking "which" — confirmed live verbatim as "You don't have a car loan. Your active
+     * loan is a Personal Loan." — see {@link BotResponsePatterns.Loans#SINGLE_ACTIVE_LOAN_FALLBACK}. */
     @DataProvider(name = "knownAccountLoanQueries")
     public Object[][] knownAccountLoanQueries() {
         return new Object[][]{
 
-            // {queryName, query, expectedKeywords, phoneNumber, expectedLoanCount}
+            // {queryName, query, expectedKeywords, assertionPattern, phoneNumber, expectedLoanCount}
             {"Customer B No Loans", VoiceQueries.English.LOAN_DETAILS,
-                    new String[]{"loan"}, Constants.CUSTOMER_B_PHONE, 0},
+                    new String[]{"loan"}, null, Constants.CUSTOMER_B_PHONE, 0},
             {"Customer C Personal Loan", VoiceQueries.English.LOAN_DETAILS,
-                    new String[]{"loan"}, Constants.CUSTOMER_C_PHONE, 1},
+                    new String[]{"loan"}, null, Constants.CUSTOMER_C_PHONE, 1},
+            {"Home Loan EMI Transactions", VoiceQueries.English.LOAN_TYPE_EMI_TRANSACTIONS_HOME,
+                    null, BotResponsePatterns.Transactions.ENTRY, Constants.EXPECTED_CUSTOMER_MOBILE, 2},
+            {"Personal Loan EMI Transactions", VoiceQueries.English.LOAN_TYPE_EMI_TRANSACTIONS_PERSONAL,
+                    null, BotResponsePatterns.Transactions.ENTRY, Constants.CUSTOMER_C_PHONE, 1},
+            {"Car Loan EMI Transactions Not Found", VoiceQueries.English.LOAN_TYPE_EMI_TRANSACTIONS_CAR,
+                    null, BotResponsePatterns.Loans.SINGLE_ACTIVE_LOAN_FALLBACK, Constants.CUSTOMER_C_PHONE, 1},
         };
     }
 
     @Test(dataProvider = "knownAccountLoanQueries", groups = {"ui", "regression", "botverification"},
             description = "Should return correct loan details (or confirmed absence/count of loans) for known seeded customers")
     public void testKnownAccountLoanDetails(String queryName, String query, String[] expectedKeywords,
-                                             String phoneNumber, int expectedLoanCount) throws Exception {
+                                             String assertionPattern, String phoneNumber, int expectedLoanCount)
+            throws Exception {
         String customerId = Constants.CUSTOMER_ID_BY_PHONE.get(phoneNumber);
         java.util.List<GroundTruthApi.LoanRecord> apiLoans = groundTruth().loanSummary(customerId);
         System.out.println("[GroundTruth] " + queryName + " — expectedLoanCount=" + expectedLoanCount
@@ -335,7 +351,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
                 + " per the Loan Summary API, got " + apiLoans.size()
                 + " — seed data may have changed, update this row's expectations.");
 
-        runVoiceQuery(queryName, query, expectedKeywords, null, null, phoneNumber);
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, null, phoneNumber);
     }
 
     /** Also recognizes loan disambiguation and the loan-detail-category prompt, so the

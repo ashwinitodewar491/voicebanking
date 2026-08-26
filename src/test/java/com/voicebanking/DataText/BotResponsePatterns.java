@@ -166,6 +166,16 @@ public class BotResponsePatterns {
         public static final String LOAN_OPTIONS_PROMPT =
                 "(?i)(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Education|Personal) Loan)){2})";
 
+        // "You don't have a car loan. Your active loan is a Personal Loan." — confirmed live for
+        // Customer C (Aniket More, single active PERSONAL_LOAN). Distinct from LOAN_OPTIONS_PROMPT
+        // above: that one is the multi-loan customer's fallback (Rohit Mehta, who has two, so the
+        // bot lists/asks "which"), while a single-loan customer instead names their one active loan
+        // directly. Which loan type gets named depends entirely on whichever one the customer
+        // actually has — not hardcoded to "Personal" — so that portion stays an alternation the same
+        // way every other pattern in this class does.
+        public static final String SINGLE_ACTIVE_LOAN_FALLBACK =
+                "(?i)You don.t have a car loan\\..*active loan is a (?:Home|Education|Personal) Loan";
+
         // Capturing-group counterparts of a few patterns above, for extracting the actual value
         // out of an already-matched response so it can be cross-checked against the ground-truth
         // Loan Summary/Overdue APIs (see UI9_LoanInquiryTest#crossCheckLoanDetail) — not used for

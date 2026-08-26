@@ -110,6 +110,18 @@ public class VoiceQueries {
         public static final String LOAN_TYPE_OUTSTANDING_PERSONAL  = "What is the outstanding amount on my education loan";
         public static final String LOAN_TYPE_NEXT_EMI_DUE_PERSONAL = "When is my next EMI due on my education loan";
 
+        // --- Loans — EMI transaction history ---
+        // Home routes to Customer A (Rohit Mehta, active Home Loan); Personal routes to Customer C
+        // (Aniket More, CIF202602260041, whose one loan is a real active PERSONAL_LOAN — unlike
+        // Customer A's "education loan" naming-only substitute above). Car deliberately names a type
+        // neither customer has, run against Customer C specifically so the fallback resolves to
+        // BotResponsePatterns.Loans.SINGLE_ACTIVE_LOAN_FALLBACK's single-active-loan wording, rather
+        // than Customer A's multi-loan LOAN_OPTIONS_PROMPT fallback. See UI9_LoanInquiryTest's
+        // knownAccountLoanQueries DataProvider for the phoneNumber routing.
+        public static final String LOAN_TYPE_EMI_TRANSACTIONS_HOME     = "Show me my EMI transactions for my home loan";
+        public static final String LOAN_TYPE_EMI_TRANSACTIONS_PERSONAL = "Show me my EMI transactions for my personal loan";
+        public static final String LOAN_TYPE_EMI_TRANSACTIONS_CAR      = "Show me my EMI transactions for my car loan";
+
         // --- Loans — full phrasing bank ---
         // {loan type} is replaced with "home loan" or "education loan" (alternating, for coverage
         // of both real loans) — except LOAN_TYPE_DETAILS and LOAN_TYPE_EMI_WHAT, deliberately left
