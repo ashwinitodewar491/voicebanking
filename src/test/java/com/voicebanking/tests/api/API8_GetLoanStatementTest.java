@@ -29,7 +29,7 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"regression", "api"}, description = "Should validate loan statement response structure")
+    @Test(groups = {"smoke", "regression", "api"}, description = "Should validate loan statement response structure")
     public void testLoanStatementResponse() throws Exception {
 
         JsonNode response = getLoanStatementResponse();
@@ -41,6 +41,10 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
         Assert.assertEquals(
                 response.get("statusCode").asInt(),
                 Constants.SUCCESS_STATUS_CODE);
+
+        Assert.assertTrue(
+                response.has("message"),
+                Constants.MESSAGE_EXIST);
 
         Assert.assertEquals(
                 response.get("message").asText(),
@@ -130,7 +134,7 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
 
     @Test(groups = {"regression", "api"}, description = "Should fetch loan statement for the last 1 month")
     public void testLoanStatementLastOneMonth() throws Exception {
-        String fmt = "yyyy-MM-dd";
+        String fmt = Constants.DATE_FORMAT_PATTERN;
         String fromDate = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern(fmt));
         String toDate = LocalDate.now().format(DateTimeFormatter.ofPattern(fmt));
 
@@ -163,7 +167,7 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
 
     @Test(groups = {"regression", "api"}, description = "Should fetch loan statement for the last 2 months")
     public void testLoanStatementLastTwoMonths() throws Exception {
-        String fmt = "yyyy-MM-dd";
+        String fmt = Constants.DATE_FORMAT_PATTERN;
         String fromDate = LocalDate.now().minusMonths(2).format(DateTimeFormatter.ofPattern(fmt));
         String toDate = LocalDate.now().format(DateTimeFormatter.ofPattern(fmt));
 
@@ -196,7 +200,7 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
 
     @Test(groups = {"regression", "api"}, description = "Should fetch loan statement for the last 6 months")
     public void testLoanStatementLastSixMonths() throws Exception {
-        String fmt = "yyyy-MM-dd";
+        String fmt = Constants.DATE_FORMAT_PATTERN;
         String fromDate = LocalDate.now().minusMonths(6).format(DateTimeFormatter.ofPattern(fmt));
         String toDate = LocalDate.now().format(DateTimeFormatter.ofPattern(fmt));
 
@@ -309,7 +313,7 @@ public class API8_GetLoanStatementTest extends BaseApiPage {
 
         Assert.assertEquals(
                 response.get("error").get("code").asText(),
-                "INTERNAL_ERROR",
+                Constants.ERR_CODE_INTERNAL_ERROR,
                 "Error code should indicate internal error for unparseable date");
     }
 

@@ -19,6 +19,7 @@ import com.voicebanking.pages.LanguagePage;
 import com.voicebanking.pages.OtpPage;
 import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
+import com.voicebanking.utils.NoResponseTracker;
 import com.voicebanking.utils.TtsUtil;
 import com.voicebanking.utils.tts.EdgeTtsEngine;
 
@@ -219,10 +220,32 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
                 + " times in a row for enrollment attempt " + rep + " — giving up");
     }
 
+    /** Matches the bot's generic session-start greeting, e.g. "Good afternoon, Welcome Karan
+     * Malhotra, I can help you review your recent transactions or check your account
+     * balances.How can I help you today?" — mirrors BaseVoiceTest#isGenericGreeting (not reusable
+     * here since this class extends BasePage, not BaseVoiceTest — see this class's own doc comment
+     * on {@link #setUpBrowser} for why). Observed live replacing the real answer in
+     * {@link #askBalanceWithVoice} the same way BaseVoiceTest's re-ask loop was built to recover
+     * from: a reconnect re-establishes the session but the query spoken right after it gets
+     * swallowed by the bot's own session-start greeting instead of being answered. */
+    private static final Pattern GENERIC_GREETING = Pattern.compile("Welcome.*How can I help you today");
+
+    /** Matches the bot's generic "I didn't understand" capability-reset fallback — mirrors
+     * BaseVoiceTest#isContextLostFallback, same reason this can't just call that method directly. */
+    private static final Pattern CONTEXT_LOST_FALLBACK =
+            Pattern.compile("(?i)didn.t understand that.*what would you like to do");
+
+    private static final int MAX_REASK_ATTEMPTS = 3;
+
     /**
      * Swaps the on-disk WAV to "What is my account balance" spoken in {@code voice}, forces the
      * app to request a fresh mic stream so it actually picks up the swapped file, then holds to
-     * speak and returns the bot's response.
+     * speak and returns the bot's response. Re-asks with the same audio, up to
+     * {@link #MAX_REASK_ATTEMPTS} times, on a generic greeting/context-lost fallback/blank
+     * response — same recovery BaseVoiceTest#runVoiceQuery uses, needed here because this single
+     * shot had none: confirmed live via testPositiveVoiceMatchIsAuthorized failing on a stuck
+     * session-start greeting ("Good afternoon, Welcome Leena Kamat...How can I help you today?")
+     * instead of the balance, which a same-audio retry recovers from.
      */
     private String askBalanceWithVoice(HomePage homePage, String voice) throws Exception {
         String queryWavPath = TtsUtil.generateWav(VoiceQueries.English.ACCOUNT_BALANCE, voice);
@@ -239,6 +262,28 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
         System.out.println("[VoiceAuth] Voice used   : " + voice);
         System.out.println("[VoiceAuth] Transcribed  : " + transcribed);
         System.out.println("[VoiceAuth] Bot response : " + botResponse);
+
+        for (int reaskNum = 1;
+             reaskNum <= MAX_REASK_ATTEMPTS
+                     && (GENERIC_GREETING.matcher(botResponse).find()
+                        || CONTEXT_LOST_FALLBACK.matcher(botResponse).find()
+                        || botResponse.isBlank());
+             reaskNum++) {
+            if (botResponse.isBlank()) {
+                NoResponseTracker.recordOccurrence("VoiceAuth: " + voice);
+            }
+            System.out.println("[VoiceAuth] WARN — got a generic greeting/fallback/empty response"
+                    + " instead of an answer (stuck Processing, or post-reconnect) — re-asking ("
+                    + reaskNum + " of " + MAX_REASK_ATTEMPTS + ")...");
+            homePage.reacquireMicrophoneForFollowUp();
+            homePage.holdToSpeakWithRetry(holdMs, 3, 8000);
+            homePage.waitForVoiceResponse(15000);
+            transcribed = homePage.getLastTranscribedText();
+            botResponse = homePage.getLastBotResponse();
+            System.out.println("[VoiceAuth] Re-ask " + reaskNum + " Transcribed : " + transcribed);
+            System.out.println("[VoiceAuth] Re-ask " + reaskNum + " Bot response: " + botResponse);
+        }
+
         return botResponse;
     }
 

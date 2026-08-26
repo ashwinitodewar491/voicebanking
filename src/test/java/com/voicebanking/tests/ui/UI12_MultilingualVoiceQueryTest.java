@@ -193,6 +193,12 @@ public class UI12_MultilingualVoiceQueryTest {
             voicePage.clickSkipForNow();
 
             homePage = new HomePage(page);
+            // Set before waitForPageLoad/any recovery below — currentQueryName defaults to
+            // "unknown" (see HomePage#currentQueryName) and runMultilingualQuery doesn't set the
+            // real one until after this method returns, so a session drop caught during login
+            // itself would otherwise show up in SessionEndedTracker's detail log attributed to
+            // "unknown" instead of this row.
+            homePage.setCurrentQueryName(queryName);
             homePage.waitForPageLoad();
             lastConfirmedLocale = locale;
             justSwitchedLocale = true;
@@ -211,6 +217,10 @@ public class UI12_MultilingualVoiceQueryTest {
             // earlier version of this fix only handled the post-switch case and still timed out
             // 5/5 on this first one instead). Land on Home directly first, every time.
             homePage = new HomePage(page);
+            // Same reasoning as the first-login branch above — set before skipVoiceRegistrationIfPresent
+            // and the recoverFromSessionEndedIfPresent() calls further down, so a drop during this
+            // row's login/locale-switch attributes correctly instead of showing "unknown".
+            homePage.setCurrentQueryName(queryName);
             skipVoiceRegistrationIfPresent();
             homePage.waitForPageLoad();
             waitForAndAssertWelcomeMessage(homePage, queryName, "returning-user-initial");

@@ -41,6 +41,7 @@ public final class Constants {
     public static final String VERIFIED_KYC_STATUS = "VERIFIED";
     public static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$";
     public static final String MOBILE_REGEX = "^\\d{10}$";
+    public static final String MASKED_ACCOUNT_REGEX = ".*\\d{4}$";
     public static final String EXPECTED_CUSTOMER_ID = "CIF202602260005";
     public static final String EXPECTED_CUSTOMER_NAME = "Rohit Mehta";
     public static final String EXPECTED_CUSTOMER_EMAIL = "rohit.mehta@gmail.com";
@@ -113,8 +114,13 @@ public final class Constants {
     public static final String INR_CURRENCY = "INR";
     public static final String MONTH_TERM_UNIT = "M";
     public static final List<String> VALID_LOAN_STATUSES = Arrays.asList("ACTIVE", "CLOSED");
+    public static final String HOME_LOAN_TYPE = "HOME_LOAN";
+    public static final String EDUCATION_LOAN_TYPE = "EDUCATION_LOAN";
 
     public static final String TRANSACTION_TO_DATE = "2026-07-08";
+
+    // Shared date-range test format — API5/API8's "last N months" tests
+    public static final String DATE_FORMAT_PATTERN = "yyyy-MM-dd";
 
     // Negative test data
     public static final String INVALID_CUSTOMER_ID = "INVALID_CIF_999";
@@ -144,6 +150,7 @@ public final class Constants {
     public static final String ERR_BOTH_IDS_REQUIRED = "accountId is required; customerId is required";
     public static final String ERR_CUSTOMER_NOT_FOUND = "not found";
     public static final String ERR_NULL_ID = "The given id must not be null";
+    public static final String ERR_CODE_INTERNAL_ERROR = "INTERNAL_ERROR";
 
     public static final int DEFAULT_PAGE = 0;
     public static final int DEFAULT_PAGE_SIZE = 100;
@@ -156,6 +163,9 @@ public final class Constants {
     public static final String RECEIVER_CUSTOMER_ID_1 = "CIF202602260006";
     public static final String RECEIVER_ACCOUNT_ID_1 = "ACC202602260009";
     public static final String RECEIVER_BENEFICIARY_ID_1 = "05678e14-f770-2f79-84e8-653dd144a25b";
+    public static final String TRANSFER_VALIDATION_DESCRIPTION = "Transfer Validation Test";
+    public static final String NEGATIVE_TEST_DESCRIPTION = "Negative test";
+    public static final double NEGATIVE_TEST_TRANSFER_AMOUNT = 10.0;
 
     // --- Ground-truth cross-verification customers (UI7/UI8/UI9 known-customer rows) ---
 

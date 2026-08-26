@@ -28,7 +28,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"regression", "api"}, description = "Should validate transactions API response structure")
+    @Test(groups = {"smoke", "regression", "api"}, description = "Should validate transactions API response structure")
     public void testTransactionsResponse() throws Exception {
 
         JsonNode response = getTransactionsResponse();
@@ -118,7 +118,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
 
     @Test(groups = {"regression", "api"}, description = "Should fetch transactions for the last 1 month")
     public void testTransactionsLastOneMonth() throws Exception {
-        String fmt = "yyyy-MM-dd";
+        String fmt = Constants.DATE_FORMAT_PATTERN;
         String fromDate = LocalDate.now().minusMonths(1).format(DateTimeFormatter.ofPattern(fmt));
         String toDate = LocalDate.now().format(DateTimeFormatter.ofPattern(fmt));
 
@@ -151,7 +151,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
 
     @Test(groups = {"regression", "api"}, description = "Should fetch transactions for the last 2 months")
     public void testTransactionsLastTwoMonths() throws Exception {
-        String fmt = "yyyy-MM-dd";
+        String fmt = Constants.DATE_FORMAT_PATTERN;
         String fromDate = LocalDate.now().minusMonths(2).format(DateTimeFormatter.ofPattern(fmt));
         String toDate = LocalDate.now().format(DateTimeFormatter.ofPattern(fmt));
 
@@ -184,7 +184,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
 
     @Test(groups = {"regression", "api"}, description = "Should fetch transactions for the last 6 months")
     public void testTransactionsLastSixMonths() throws Exception {
-        String fmt = "yyyy-MM-dd";
+        String fmt = Constants.DATE_FORMAT_PATTERN;
         String fromDate = LocalDate.now().minusMonths(6).format(DateTimeFormatter.ofPattern(fmt));
         String toDate = LocalDate.now().format(DateTimeFormatter.ofPattern(fmt));
 
@@ -267,7 +267,7 @@ public class API5_GetTransactionsListTest extends BaseApiPage {
 
         Assert.assertEquals(
                 response.get("error").get("code").asText(),
-                "INTERNAL_ERROR",
+                Constants.ERR_CODE_INTERNAL_ERROR,
                 "Error code should indicate internal error for unparseable date");
     }
 

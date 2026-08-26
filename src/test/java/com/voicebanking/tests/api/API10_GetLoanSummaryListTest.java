@@ -13,7 +13,7 @@ import com.voicebanking.pages.BaseApiPage;
 
 public class API10_GetLoanSummaryListTest extends BaseApiPage {
 
-    private JsonNode getResponse() throws Exception {
+    private JsonNode getLoanSummaryResponse() throws Exception {
 
         Map<String, String> requestBody = new HashMap<>();
         requestBody.put("customerId", Constants.LOAN_SUMMARY_CUSTOMER_ID);
@@ -24,15 +24,15 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
     }
 
     private JsonNode getLoanDetails() throws Exception {
-        return getResponse()
+        return getLoanSummaryResponse()
                 .get("data")
                 .get("loanDetails");
     }
 
-    @Test(groups = {"regression", "api"}, description = "Should validate loan summary response structure")
+    @Test(groups = {"smoke", "regression", "api"}, description = "Should validate loan summary response structure")
     public void testLoanSummaryResponse() throws Exception {
 
-        JsonNode response = getResponse();
+        JsonNode response = getLoanSummaryResponse();
 
         Assert.assertEquals(
                 response.get("status").asText(),
@@ -41,6 +41,10 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
         Assert.assertEquals(
                 response.get("statusCode").asInt(),
                 Constants.SUCCESS_STATUS_CODE);
+
+        Assert.assertTrue(
+                response.has("message"),
+                Constants.MESSAGE_EXIST);
 
         Assert.assertEquals(
                 response.get("message").asText(),
@@ -176,11 +180,11 @@ public class API10_GetLoanSummaryListTest extends BaseApiPage {
 
             String loanType = loan.get("loanType").asText();
 
-            if ("HOME_LOAN".equals(loanType)) {
+            if (Constants.HOME_LOAN_TYPE.equals(loanType)) {
                 homeLoanFound = true;
             }
 
-            if ("EDUCATION_LOAN".equals(loanType)) {
+            if (Constants.EDUCATION_LOAN_TYPE.equals(loanType)) {
                 educationLoanFound = true;
             }
         }

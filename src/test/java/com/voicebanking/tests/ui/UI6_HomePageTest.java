@@ -176,6 +176,16 @@ public class UI6_HomePageTest extends BasePage {
                 "Should return to the home dashboard after confirming a language on the settings page");
     }
 
+    /**
+     * Drives one voice query without extending {@link com.voicebanking.tests.ui.base.BaseVoiceTest}:
+     * that base class is built around a real WAV played through
+     * {@code --use-file-for-fake-audio-capture} and genuine STT, which this class's other tests
+     * (dashboard elements, balance toggle, transactions) have no use for. This single query instead
+     * uses {@link BasePage#speechMockScript}, a JS-level mock that replaces
+     * {@code webkitSpeechRecognition} entirely and fires a fixed transcript — see
+     * UI11_VoiceRegistrationAuthTest's own doc comment, which cites this exact method as the
+     * established lighter-weight alternative to BaseVoiceTest's real-audio pipeline.
+     */
     @Test(groups = {"ui", "regression"},
             description = "Should send voice query 'What is my account balance' and receive a valid balance response")
     public void testVoiceBalanceQuery() {
