@@ -150,20 +150,21 @@ public class BotResponsePatterns {
 
         // Fallback when the named loan type isn't recognised (e.g. "car loan", which this
         // customer doesn't have), or no type was named and the customer has more than one loan —
-        // the bot lists what it actually has and asks the caller to pick. The exact wording is
-        // NOT stable — at least 7 lead-in variants have been observed for the same underlying
-        // prompt ("You have the following loan accounts: ...", "I found multiple loan accounts
-        // for you: ...", "I see you have multiple loan accounts. Which one are you referring
-        // to? ...", etc.), so this deliberately doesn't match a literal phrase. Instead it
-        // requires, anywhere in the response: the word "which", the word "loan", and at least two
-        // distinct loan references — either an account number (LN followed by digits) or a named
-        // loan type ("Home Loan"/"Education Loan"). Originally required two LN-codes specifically,
-        // but a live response instead listed loans by type name with no LN-code at all: "You have
-        // the following loans: 1. (Home Loan), 2. (Education Loan). Which loan would you like to
-        // check?" — the bot isn't consistent about which identifier style it lists loans by, so
-        // both count.
+        // the bot lists what it actually has, sometimes inviting the caller to pick. The exact
+        // wording is NOT stable — at least 7 lead-in variants have been observed for the same
+        // underlying fallback ("You have the following loan accounts: ...", "I found multiple loan
+        // accounts for you: ...", "I see you have multiple loan accounts. Which one are you
+        // referring to? ...", etc.), so this deliberately doesn't match a literal phrase. Requires,
+        // anywhere in the response: the word "loan", and at least two distinct loan references —
+        // either an account number (LN followed by digits) or a named loan type ("Home
+        // Loan"/"Education Loan"). Originally also required the word "which", since an earlier live
+        // response ended with "...Which loan would you like to check?" — but a since-observed
+        // response for the unrecognised-type case never asks at all: "You don't have a car loan.
+        // You have the following loans: 1. (Home Loan), 2. (Education Loan)." (full stop, no
+        // follow-up question) — so "which" isn't a reliable signal and was dropped; two named/coded
+        // loan references is enough on its own to confirm the bot listed the real options.
         public static final String LOAN_OPTIONS_PROMPT =
-                "(?i)(?=.*\\bwhich\\b)(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Education|Personal) Loan)){2})";
+                "(?i)(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Education|Personal) Loan)){2})";
 
         // Capturing-group counterparts of a few patterns above, for extracting the actual value
         // out of an already-matched response so it can be cross-checked against the ground-truth

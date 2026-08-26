@@ -5,10 +5,12 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.voicebanking.listeners.TestListener;
 import com.voicebanking.utils.ScreenshotUtil;
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Listeners;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,6 +20,14 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
+/** {@code @Listeners} registers {@link TestListener} directly on the class, not just via
+ * testng.xml's suite-level {@code <listener>} tag — that tag is silently skipped by Maven
+ * Surefire whenever a run is scoped with {@code -Dtest=SomeClass}, since that flag makes Surefire
+ * build its own ad-hoc suite instead of using testng.xml at all. Without this, every non-voice UI
+ * test (UI1-6, UI11) would never write to ExtentReports or any of the SessionEndedTracker /
+ * NoResponseTracker / WelcomeMessageTracker dashboard files when run standalone — see
+ * {@link com.voicebanking.tests.ui.base.BaseVoiceTest} for the original diagnosis of this gap. */
+@Listeners(TestListener.class)
 public class BasePage {
 
     protected Playwright playwright;

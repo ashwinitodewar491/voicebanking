@@ -86,7 +86,7 @@ public class API3_GetAccountBalanceTest extends BaseApiPage {
                 "Masked account number mismatch");
 
         Assert.assertTrue(
-                maskedAccount.matches(".*\\d{4}$"),
+                maskedAccount.matches(Constants.MASKED_ACCOUNT_REGEX),
                 "Masked account should end with 4 digits");
 
         // Account Type

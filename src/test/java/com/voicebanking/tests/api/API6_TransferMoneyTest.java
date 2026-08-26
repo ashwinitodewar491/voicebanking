@@ -85,7 +85,7 @@ public class API6_TransferMoneyTest extends BaseApiPage {
                 Constants.SENDER_ACCOUNT_ID_ORIGINAL,
                 Constants.RECEIVER_BENEFICIARY_ID_1,
                 amount,
-                "Transfer Validation Test");
+                Constants.TRANSFER_VALIDATION_DESCRIPTION);
         System.out.println("Transfer Response: " + transferResponse);
 
         // Then
@@ -130,8 +130,8 @@ public class API6_TransferMoneyTest extends BaseApiPage {
         request.put("customerId", Constants.SENDER_CUSTOMER_ID_ORIGINAL);
         request.put("fromAccountId", Constants.SENDER_ACCOUNT_ID_ORIGINAL);
         request.put("beneficiaryId", Constants.INVALID_BENEFICIARY_ID);
-        request.put("amount", 10.0);
-        request.put("description", "Negative test");
+        request.put("amount", Constants.NEGATIVE_TEST_TRANSFER_AMOUNT);
+        request.put("description", Constants.NEGATIVE_TEST_DESCRIPTION);
 
         JsonNode response = apiClient.post(Endpoints.TRANSFER_MONEY, request);
 
@@ -159,7 +159,7 @@ public class API6_TransferMoneyTest extends BaseApiPage {
         request.put("fromAccountId", Constants.SENDER_ACCOUNT_ID_ORIGINAL);
         request.put("beneficiaryId", Constants.RECEIVER_BENEFICIARY_ID_1);
         request.put("amount", Constants.ZERO_TRANSFER_AMOUNT);
-        request.put("description", "Negative test");
+        request.put("description", Constants.NEGATIVE_TEST_DESCRIPTION);
 
         JsonNode response = apiClient.post(Endpoints.TRANSFER_MONEY, request);
 
@@ -187,7 +187,7 @@ public class API6_TransferMoneyTest extends BaseApiPage {
         request.put("fromAccountId", Constants.SENDER_ACCOUNT_ID_ORIGINAL);
         request.put("beneficiaryId", Constants.RECEIVER_BENEFICIARY_ID_1);
         request.put("amount", Constants.NEGATIVE_TRANSFER_AMOUNT);
-        request.put("description", "Negative test");
+        request.put("description", Constants.NEGATIVE_TEST_DESCRIPTION);
 
         JsonNode response = apiClient.post(Endpoints.TRANSFER_MONEY, request);
 
@@ -215,7 +215,7 @@ public class API6_TransferMoneyTest extends BaseApiPage {
         request.put("fromAccountId", Constants.SENDER_ACCOUNT_ID_ORIGINAL);
         request.put("beneficiaryId", Constants.RECEIVER_BENEFICIARY_ID_1);
         request.put("amount", Constants.EXCESSIVE_TRANSFER_AMOUNT);
-        request.put("description", "Negative test");
+        request.put("description", Constants.NEGATIVE_TEST_DESCRIPTION);
 
         JsonNode response = apiClient.post(Endpoints.TRANSFER_MONEY, request);
 
@@ -242,8 +242,8 @@ public class API6_TransferMoneyTest extends BaseApiPage {
         request.put("customerId", Constants.SENDER_CUSTOMER_ID_ORIGINAL);
         request.put("fromAccountId", Constants.INVALID_ACCOUNT_ID);
         request.put("beneficiaryId", Constants.RECEIVER_BENEFICIARY_ID_1);
-        request.put("amount", 10.0);
-        request.put("description", "Negative test");
+        request.put("amount", Constants.NEGATIVE_TEST_TRANSFER_AMOUNT);
+        request.put("description", Constants.NEGATIVE_TEST_DESCRIPTION);
 
         JsonNode response = apiClient.post(Endpoints.TRANSFER_MONEY, request);
 

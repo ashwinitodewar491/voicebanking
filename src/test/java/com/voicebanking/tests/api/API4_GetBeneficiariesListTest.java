@@ -24,7 +24,7 @@ public class API4_GetBeneficiariesListTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"regression", "api"}, description = "Should validate beneficiaries API response structure")
+    @Test(groups = {"smoke", "regression", "api"}, description = "Should validate beneficiaries API response structure")
     public void testBeneficiariesResponse() throws Exception {
 
         JsonNode response = getBeneficiariesResponse();

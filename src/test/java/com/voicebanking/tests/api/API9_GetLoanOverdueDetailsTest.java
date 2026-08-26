@@ -23,7 +23,7 @@ public class API9_GetLoanOverdueDetailsTest extends BaseApiPage {
                 requestBody);
     }
 
-    @Test(groups = {"regression", "api"}, description = "Should validate loan overdue response structure")
+    @Test(groups = {"smoke", "regression", "api"}, description = "Should validate loan overdue response structure")
     public void testLoanOverdueResponse() throws Exception {
 
         JsonNode response = getLoanOverdueResponse();
@@ -35,6 +35,10 @@ public class API9_GetLoanOverdueDetailsTest extends BaseApiPage {
         Assert.assertEquals(
                 response.get("statusCode").asInt(),
                 Constants.SUCCESS_STATUS_CODE);
+
+        Assert.assertTrue(
+                response.has("message"),
+                Constants.MESSAGE_EXIST);
 
         Assert.assertEquals(
                 response.get("message").asText(),
