@@ -89,12 +89,15 @@ public class BotResponsePatterns {
     }
 
     public static class Authorization {
-        // Confirmed live (UI11): a balance query spoken in a voice other than the one registered
-        // gets the exact response "Not authorized". The other phrasings are kept as fallback
-        // coverage in case wording varies by scenario/build, but "not authoriz" is the one
-        // observed in practice.
+        // Confirmed live (UI11, UI13): a balance query spoken in a voice other than the one
+        // registered gets the exact response "Not Authorised." — British spelling ('s'), not the
+        // American 'z' this pattern originally only matched. That mismatch was live-confirmed via
+        // UI13's different-voice test: the app correctly rejected the query (no balance leaked),
+        // but the assertion checking for this pattern still failed since "not authoriz" doesn't
+        // match "Authorised" — a false test failure over spelling, not an app bug. The other
+        // phrasings are kept as fallback coverage in case wording varies by scenario/build.
         public static final String VOICE_NOT_RECOGNIZED =
-                "(?i)(not authoriz|could not verify|couldn't verify|voice (does not|doesn't) match|"
+                "(?i)(not authori[sz]|could not verify|couldn't verify|voice (does not|doesn't) match|"
                 + "voice not recogni[sz]ed|unable to authenticate|access denied|verification failed)";
     }
 

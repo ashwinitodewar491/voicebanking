@@ -40,10 +40,15 @@ import java.util.regex.Pattern;
  * depends on. Each test method enrolls her voice fresh via {@link #registerVoiceAndReachHome},
  * then removes it again in a {@code finally} block ({@link #removeVoiceRegistration}) via the
  * app's own "Remove your voice" menu action, so the next method/run starts from an unregistered
- * state again. {@link #registerVoiceAndReachHome} still has a returning-user fallback in case
- * cleanup itself ever fails to run (e.g. a crash before the {@code finally} block) — if a run's
- * own recording gets treated as "already registered" instead of walking the fresh-enrollment
- * screens, that's the first thing to check: a prior run's cleanup didn't complete.
+ * state again.
+ *
+ * <p>{@link #registerVoiceAndReachHome} does <b>not</b> treat "the registration screen didn't
+ * appear" as proof of already being registered — confirmed as an intentional app change, not a
+ * bug: once a user has skipped registration once, the app stops auto-prompting for it on every
+ * login, and registering later requires going through the user menu's own "Register your voice"
+ * option instead. So that method checks {@link HomePage#isVoiceRegistered()} directly and, if the
+ * account genuinely has no voiceprint yet, forces registration via {@link
+ * HomePage#clickRegisterVoiceFromMenu()} rather than assuming.
  *
  * <p>Re-record/Submit are always both present after a take completes regardless of quality — the
  * app additionally shows a "Recording not accepted" dialog on top of that bar, but only when a
@@ -173,13 +178,25 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
         VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
         try {
             voicePage.waitForPageLoad();
-        } catch (PlaywrightException alreadyRegistered) {
-            // Leena Kamat already has a voiceprint enrolled from an earlier run on this account
-            // (see class Javadoc) — the app skips straight past registration for her, the same
-            // way LanguagePage is skipped for any other returning user above.
-            HomePage returningHomePage = new HomePage(page);
-            returningHomePage.waitForPageLoad();
-            return returningHomePage;
+        } catch (PlaywrightException notAutoPrompted) {
+            // The app no longer auto-prompts for registration on every login once a user has
+            // skipped it once — confirmed as an intentional app change, not a bug: registering
+            // later requires going through the user menu's own "Register your voice" option
+            // instead. So "the screen didn't show up" no longer means "already registered" the
+            // way it used to for Leena Kamat's known-enrolled account (see class Javadoc) —
+            // check the menu directly instead of assuming, and force registration through it if
+            // the account genuinely has no voiceprint yet.
+            HomePage homePage = new HomePage(page);
+            homePage.waitForPageLoad();
+
+            if (homePage.isVoiceRegistered()) {
+                return homePage;
+            }
+
+            System.out.println("[VoiceRegistration] Registration screen didn't auto-appear but "
+                    + "the account isn't actually registered — forcing it via the user menu.");
+            homePage.clickRegisterVoiceFromMenu();
+            voicePage.waitForPageLoad();
         }
 
         voicePage.checkConsent();

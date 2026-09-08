@@ -28,4 +28,11 @@ public class MultilingualVoiceQueries {
         public static final String LOAN_ACCOUNT_SAVINGS = "আমার সেভিংস অ্যাকাউন্টের বিপরীতে থাকা লোন অ্যাকাউন্টটি দেখান";
         public static final String EMI_STATEMENT_HOME_LOAN = "আমার সেভিংস অ্যাকাউন্টের home লোনের ইএমআই (EMI) স্টেটমেন্ট";
     }
+
+    public static class Marathi {
+
+        public static final String LOCALE = "mr";
+
+        public static final String SAVINGS_BALANCE = "माझ्या बचत खात्यात किती शिल्लक आहे?";
+    }
 }
