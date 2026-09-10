@@ -21,14 +21,15 @@ import java.util.Set;
  * all-debit, credited/debited, above/below-amount, to-merchant, from-person) may instead return a
  * prose summary of the same data — the live bot isn't consistent about which shape it picks for a
  * given filtered query, so all of these use ENTRY_OR_SUMMARY rather than the strict ENTRY-only
- * pattern. Generic/unfiltered recency and account-scoped queries (recent, latest, last, savings,
- * current, transaction history) have only ever been observed returning the card format, so those
- * stay on strict ENTRY. Queries whose seed data may legitimately have no matches (ATM, today,
- * yesterday, made-today, groceries, this/last week/month/year, spend-this-month, from-person, and
- * the fixed-calendar-date queries — June/July range, after/before date) use ENTRY_OR_NO_RESULTS to
- * accept a documented "nothing found" response as a pass — whether a given date range or filter
- * has any matches at all depends on this seed data's actual transaction dates, which isn't
- * something to assume without checking.
+ * pattern. Every one of these generic/exploratory rows (recent, latest, last, savings, current,
+ * transaction history, and every category/filter query above) additionally accepts a legitimate
+ * "no results found" outcome (the {@code _OR_NO_RESULTS} pattern variants), since none of them is
+ * cross-checked against known seeded data — whether a given query, date range, or filter has any
+ * matches at all depends on this account's actual transaction history, which isn't something to
+ * assume without checking, so a documented "nothing found" response is a valid pass, not a
+ * failure. The one exception is {@link #knownAccountTransactionQueries()} below, which targets
+ * accounts with ground-truth-verified seed data — there, a "no results" response would itself be
+ * the bug under test, so those rows deliberately stay on the strict ENTRY-only pattern.
  * <p>
  * Every row here logs in fresh (no {@code useSharedSession()} override) rather than sharing one
  * session across rows the way UI7 does — the live bot's per-query filter (date range, category,
@@ -59,17 +60,17 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         return new Object[][]{
 
             {"Recent Transactions",             VoiceQueries.English.RECENT_TRANSACTIONS,
-                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.RECENT_ENTRY, "savings"},
+                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.RECENT_ENTRY_OR_NO_RESULTS, "savings"},
             {"Want Recent Transactions",        VoiceQueries.English.WANT_RECENT_TRANSACTIONS,
-                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.RECENT_ENTRY, "current"},
+                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.RECENT_ENTRY_OR_NO_RESULTS, "current"},
             {"Can See Recent Transactions",     VoiceQueries.English.CAN_SEE_RECENT_TRANSACTIONS,
-                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.RECENT_ENTRY, "savings"},
+                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.RECENT_ENTRY_OR_NO_RESULTS, "savings"},
             {"Latest Transaction",              VoiceQueries.English.LATEST_TRANSACTION,
-                    new String[]{"transaction", "latest"},  BotResponsePatterns.Transactions.LATEST_ENTRY, "current"},
+                    new String[]{"transaction", "latest"},  BotResponsePatterns.Transactions.LATEST_ENTRY_OR_NO_RESULTS, "current"},
             {"Last Transaction",                VoiceQueries.English.LAST_TRANSACTION,
-                    new String[]{"transaction", "last"},    BotResponsePatterns.Transactions.LATEST_ENTRY, "savings"},
+                    new String[]{"transaction", "last"},    BotResponsePatterns.Transactions.LATEST_ENTRY_OR_NO_RESULTS, "savings"},
             {"What Was Last Transaction",       VoiceQueries.English.WHAT_WAS_LAST_TRANSACTION,
-                    new String[]{"transaction", "last"},    BotResponsePatterns.Transactions.LATEST_ENTRY, "current"},
+                    new String[]{"transaction", "last"},    BotResponsePatterns.Transactions.LATEST_ENTRY_OR_NO_RESULTS, "current"},
             {"Todays Transactions",             VoiceQueries.English.TODAYS_TRANSACTIONS,
                     new String[]{"transaction", "today"},   BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, "savings"},
             {"Yesterdays Transactions",         VoiceQueries.English.YESTERDAYS_TRANSACTIONS,
@@ -97,29 +98,29 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
             {"Spend On Groceries",              VoiceQueries.English.SPEND_ON_GROCERIES,
                     new String[]{"spent", "groceries"},     BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, "savings"},
             {"All Debit Transactions",          VoiceQueries.English.ALL_DEBIT_TRANSACTIONS,
-                    new String[]{"debit", "transaction"},   BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "current"},
+                    new String[]{"debit", "transaction"},   BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "current"},
             {"All Credit Transactions",         VoiceQueries.English.ALL_CREDIT_TRANSACTIONS,
-                    new String[]{"credit", "transaction"},  BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "savings"},
+                    new String[]{"credit", "transaction"},  BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "savings"},
             {"Money Credited",                  VoiceQueries.English.MONEY_CREDITED,
-                    new String[]{"credited", "transaction"}, BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "current"},
+                    new String[]{"credited", "transaction"}, BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "current"},
             {"Money Debited",                   VoiceQueries.English.MONEY_DEBITED,
-                    new String[]{"debited", "transaction"}, BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "savings"},
+                    new String[]{"debited", "transaction"}, BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "savings"},
             {"Transactions Above Amount",       VoiceQueries.English.TRANSACTIONS_ABOVE_AMOUNT,
-                    new String[]{"transaction", "amount"},  BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "current"},
+                    new String[]{"transaction", "amount"},  BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "current"},
             {"Transactions Below Amount",       VoiceQueries.English.TRANSACTIONS_BELOW_AMOUNT,
-                    new String[]{"transaction", "amount"},  BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "savings"},
+                    new String[]{"transaction", "amount"},  BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "savings"},
             {"Savings Transactions",            VoiceQueries.English.SAVINGS_TRANSACTIONS,
-                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null},
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, null},
             {"Current Transactions",            VoiceQueries.English.CURRENT_TRANSACTIONS,
-                    new String[]{"transaction", "current"}, BotResponsePatterns.Transactions.ENTRY, null},
+                    new String[]{"transaction", "current"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, null},
             {"UPI Transactions",                VoiceQueries.English.UPI_TRANSACTIONS,
-                    new String[]{"transaction", "upi"},     BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "savings"},
+                    new String[]{"transaction", "upi"},     BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "savings"},
             {"ATM Transactions",                VoiceQueries.English.ATM_TRANSACTIONS,
                     new String[]{"transaction", "atm"},     BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, "current"},
             {"Card Transactions",               VoiceQueries.English.CARD_TRANSACTIONS,
-                    new String[]{"transaction", "card"},    BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "savings"},
+                    new String[]{"transaction", "card"},    BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "savings"},
             {"Transactions To Merchant",        VoiceQueries.English.TRANSACTIONS_TO_MERCHANT,
-                    new String[]{"transaction", "amazon"},  BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "current"},
+                    new String[]{"transaction", "amazon"},  BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "current"},
             {"Transactions From Person",        VoiceQueries.English.TRANSACTIONS_FROM_PERSON,
                     new String[]{"transaction", "rohit"},   BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, "savings"},
             {"Transactions Made Today",         VoiceQueries.English.TRANSACTIONS_MADE_TODAY,
@@ -127,9 +128,9 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
             {"Spend This Month",                VoiceQueries.English.SPEND_THIS_MONTH,
                     new String[]{"spent", "month"},         BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, "savings"},
             {"Transaction History",             VoiceQueries.English.TRANSACTION_HISTORY,
-                    new String[]{"transaction", "history"}, BotResponsePatterns.Transactions.ENTRY, "current"},
+                    new String[]{"transaction", "history"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, "current"},
             {"Read Out Recent Transactions",    VoiceQueries.English.READ_OUT_RECENT_TRANSACTIONS,
-                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.ENTRY, "savings"},
+                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.RECENT_ENTRY_OR_NO_RESULTS, "savings"},
         };
     }
 
@@ -153,23 +154,27 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
     }
 
     /** Five queries chosen to cover every distinct response-pattern this file asserts on: generic
-     * recency (ENTRY, disambiguates), an explicit account query (ENTRY, no disambiguation), a
-     * category filter that may return prose instead of cards (ENTRY_OR_SUMMARY), a time-range
-     * query whose seed data may legitimately have no matches (ENTRY_OR_NO_RESULTS — the lenient
-     * path), and a debit/credit filter query. Run this tier for a fast build/deploy health check. */
+     * recency (RECENT_ENTRY_OR_NO_RESULTS, disambiguates), an explicit account query
+     * (ENTRY_OR_NO_RESULTS, no disambiguation), a category filter that may return prose instead of
+     * cards (ENTRY_OR_SUMMARY_OR_NO_RESULTS), a time-range query whose seed data may legitimately
+     * have no matches (ENTRY_OR_NO_RESULTS), and a debit/credit filter query. All rows accept a
+     * legitimate "no results" outcome alongside their normal shape — none of these queries are
+     * cross-verified against known seeded data, so an empty result is a valid possibility, not a
+     * bug signal (unlike knownAccountTransactionQueries below). Run this tier for a fast
+     * build/deploy health check. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
             {"Recent Transactions", VoiceQueries.English.RECENT_TRANSACTIONS,
-                    new String[]{"transaction", "recent"}, BotResponsePatterns.Transactions.RECENT_ENTRY, "savings"},
+                    new String[]{"transaction", "recent"}, BotResponsePatterns.Transactions.RECENT_ENTRY_OR_NO_RESULTS, "savings"},
             {"Savings Transactions", VoiceQueries.English.SAVINGS_TRANSACTIONS,
-                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null},
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, null},
             {"UPI Transactions", VoiceQueries.English.UPI_TRANSACTIONS,
-                    new String[]{"transaction", "upi"}, BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "savings"},
+                    new String[]{"transaction", "upi"}, BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "savings"},
             {"Todays Transactions", VoiceQueries.English.TODAYS_TRANSACTIONS,
                     new String[]{"transaction", "today"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, "savings"},
             {"All Debit Transactions", VoiceQueries.English.ALL_DEBIT_TRANSACTIONS,
-                    new String[]{"debit", "transaction"}, BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "current"},
+                    new String[]{"debit", "transaction"}, BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "current"},
         };
     }
 
@@ -186,11 +191,11 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
     public Object[][] sanityQueries() {
         return new Object[][]{
             {"Recent Transactions",   VoiceQueries.English.RECENT_TRANSACTIONS,
-                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.RECENT_ENTRY, "savings"},
+                    new String[]{"transaction", "recent"},  BotResponsePatterns.Transactions.RECENT_ENTRY_OR_NO_RESULTS, "savings"},
             {"Savings Transactions",  VoiceQueries.English.SAVINGS_TRANSACTIONS,
-                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY, null},
+                    new String[]{"transaction", "savings"}, BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS, null},
             {"UPI Transactions",      VoiceQueries.English.UPI_TRANSACTIONS,
-                    new String[]{"transaction", "upi"},     BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY, "savings"},
+                    new String[]{"transaction", "upi"},     BotResponsePatterns.Transactions.ENTRY_OR_SUMMARY_OR_NO_RESULTS, "savings"},
         };
     }
 

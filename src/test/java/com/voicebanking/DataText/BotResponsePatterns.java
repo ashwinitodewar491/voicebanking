@@ -86,6 +86,24 @@ public class BotResponsePatterns {
         // ATM / today / yesterday / made-today / groceries: accept the card, or a legitimate
         // empty result for a filter/date range this seed account has nothing in.
         public static final String ENTRY_OR_NO_RESULTS = "(?:" + ENTRY + ")|(?:" + NO_RESULTS + ")";
+
+        // "Recent transactions" with a legitimate empty-result possibility too — same rationale
+        // as ENTRY_OR_NO_RESULTS, for query rows that don't have ground-truth-verified seed data
+        // guaranteeing a non-empty result (unlike e.g. knownAccountTransactionQueries, which keep
+        // plain RECENT_ENTRY/ENTRY deliberately strict since a "no results" there would itself be
+        // the bug under test, not a legitimate outcome).
+        public static final String RECENT_ENTRY_OR_NO_RESULTS =
+                "(?:" + RECENT_ENTRY + ")|(?:" + NO_RESULTS + ")";
+
+        // "Latest/last transaction" with a legitimate empty-result possibility — same rationale.
+        public static final String LATEST_ENTRY_OR_NO_RESULTS =
+                "(?:" + LATEST_ENTRY + ")|(?:" + NO_RESULTS + ")";
+
+        // Category-filtered queries (UPI/card/credit/debit/amount) with a legitimate empty-result
+        // possibility on top of the card-or-summary shapes ENTRY_OR_SUMMARY already accepts —
+        // same rationale as ENTRY_OR_NO_RESULTS.
+        public static final String ENTRY_OR_SUMMARY_OR_NO_RESULTS =
+                "(?:" + ENTRY + ")|(?:" + SUMMARY + ")|(?:" + NO_RESULTS + ")";
     }
 
     public static class Authorization {

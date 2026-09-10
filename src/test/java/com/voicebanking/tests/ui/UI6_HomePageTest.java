@@ -16,11 +16,23 @@ import com.voicebanking.pages.LanguagePage;
 import com.voicebanking.pages.OtpPage;
 import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
+import com.voicebanking.utils.NoResponseTracker;
 import com.voicebanking.utils.TtsUtil;
 
 import java.util.regex.Pattern;
 
 public class UI6_HomePageTest extends BasePage {
+
+    /** Matches the bot's generic session-start greeting — mirrors BaseVoiceTest#isGenericGreeting
+     * (not reusable here since this class extends BasePage, not BaseVoiceTest). */
+    private static final Pattern GENERIC_GREETING = Pattern.compile("Welcome.*How can I help you today");
+
+    /** Matches the bot's generic "I didn't understand" capability-reset fallback — mirrors
+     * BaseVoiceTest#isContextLostFallback, same reason this can't just call that method directly. */
+    private static final Pattern CONTEXT_LOST_FALLBACK =
+            Pattern.compile("(?i)didn.t understand that.*what would you like to do");
+
+    private static final int MAX_REASK_ATTEMPTS = 3;
 
     private String generatedWavPath;
 
@@ -216,6 +228,34 @@ public class UI6_HomePageTest extends BasePage {
         System.out.println("[Account Balance] Expected    : " + expectedQuery);
         System.out.println("[Account Balance] Transcribed : " + transcribed);
         System.out.println("[Account Balance] Bot response: " + botResponse);
+
+        // Re-asks on a session-start greeting/context-lost fallback/blank response, same recovery
+        // every other voice-query test class gets (see BaseVoiceTest#runVoiceQuery's identical
+        // loop) — this test previously asserted on the very first response with no retry at all,
+        // so a session drop right around the query (reconnected, but the bot's own dialogue state
+        // — or just the "Processing" stall — swallowed the real answer) failed the test outright
+        // instead of recovering the way every other voice test here already does.
+        // holdToSpeakWithRetry() itself recovers from a "Session Ended" banner before it re-speaks,
+        // so simply re-asking is enough to both reconnect and restore this single-shot query.
+        for (int reaskNum = 1;
+             reaskNum <= MAX_REASK_ATTEMPTS
+                     && (GENERIC_GREETING.matcher(botResponse).find()
+                        || CONTEXT_LOST_FALLBACK.matcher(botResponse).find()
+                        || botResponse.isBlank());
+             reaskNum++) {
+            if (botResponse.isBlank()) {
+                NoResponseTracker.recordOccurrence("Account Balance");
+            }
+            System.out.println("[Account Balance] WARN — got a generic greeting/fallback/empty response"
+                    + " instead of an answer (stuck Processing, or post-reconnect) — re-asking ("
+                    + reaskNum + " of " + MAX_REASK_ATTEMPTS + ")...");
+            homePage.holdToSpeakWithRetry(1000, 3, 10000);
+            homePage.waitForVoiceResponse(15000);
+            transcribed = homePage.getLastTranscribedText();
+            botResponse = homePage.getLastBotResponse();
+            System.out.println("[Account Balance] Re-ask " + reaskNum + " Transcribed : " + transcribed);
+            System.out.println("[Account Balance] Re-ask " + reaskNum + " Bot response: " + botResponse);
+        }
 
         Assert.assertTrue(homePage.isPageVisible(),
                 "Home page should remain visible after voice query");
