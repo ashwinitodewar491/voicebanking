@@ -9,7 +9,7 @@ import com.voicebanking.pages.WelcomePage;
 
 public class UI1_WelcomePageTest extends BasePage {
 
-    @Test(groups = {"ui", "regression"},
+    @Test(groups = {"ui", "regression", "smoke"},
             description = "Should display correct heading, subheading and phone label on welcome page")
     public void testWelcomePageContent() {
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());

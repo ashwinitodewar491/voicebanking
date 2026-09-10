@@ -8,6 +8,7 @@ public class TestResult {
     String fullName;
     String methodName;
     String paramLabel;
+    String description;
     double durationSeconds;
     Status status;
     String failureMessage;
@@ -20,7 +21,15 @@ public class TestResult {
         return dot == -1 ? className : className.substring(dot + 1);
     }
 
+    /** Prefers the test's own {@code @Test(description = ...)} text (looked up via reflection in
+     * {@link SurefireReportParser}, since Surefire's JUnit-format XML has no field for it) over
+     * the raw method name — a method like {@code testPitchShift35HzQueryStillAuthorized} is far
+     * less useful in a report than its actual description. Falls back to the method name (plus
+     * param label for data-driven rows) if no description was found. */
     String displayName() {
+        if (description != null && !description.isBlank()) {
+            return paramLabel != null ? description + " — " + paramLabel : description;
+        }
         return paramLabel != null ? methodName + " — " + paramLabel : methodName;
     }
 

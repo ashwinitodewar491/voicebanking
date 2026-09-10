@@ -1,7 +1,5 @@
 package com.voicebanking.pages;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.PlaywrightException;
@@ -90,12 +88,5 @@ public class WelcomePage {
 
     public void clickSendOtp() {
         page.locator(SEND_OTP_BTN).click();
-    }
-
-    public static String generateRandomPhone() {
-        int[] starts = {6, 7, 8, 9};
-        int start = starts[ThreadLocalRandom.current().nextInt(4)];
-        String rest = String.format("%09d", ThreadLocalRandom.current().nextInt(0, 1_000_000_000));
-        return start + rest;
     }
 }

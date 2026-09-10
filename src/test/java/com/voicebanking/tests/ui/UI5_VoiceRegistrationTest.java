@@ -5,8 +5,10 @@ import org.testng.annotations.Test;
 
 import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.LoadState;
+import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BasePage;
+import com.voicebanking.pages.HomePage;
 import com.voicebanking.pages.LanguagePage;
 import com.voicebanking.pages.OtpPage;
 import com.voicebanking.pages.VoiceRegistrationPage;
@@ -14,11 +16,21 @@ import com.voicebanking.pages.WelcomePage;
 
 public class UI5_VoiceRegistrationTest extends BasePage {
 
+    /** Reaches the voice-registration screen via the user menu's "Register your voice" option
+     * rather than relying on the once-ever onboarding auto-prompt — this suite is only allowed to
+     * use two fixed accounts (Aniket More / Rohit Mehta, see {@link Constants}), both already
+     * long past their one-time onboarding from prior runs today, so that auto-prompt will never
+     * show for either of them again. {@link HomePage#clickRegisterVoiceFromMenu()} opens the
+     * identical consent-checkbox/Start-Registration/Skip-for-Now UI either way (confirmed live —
+     * this is the same screen {@link com.voicebanking.tests.ui.UI11_VoiceRegistrationAuthTest} and
+     * {@link com.voicebanking.tests.ui.UI13_VoiceRegistrationNaturalVariationTest} force it open
+     * through for the same reason), so every assertion below still holds — only how the page is
+     * reached changed. */
     private VoiceRegistrationPage navigateToVoiceRegistrationPage() {
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();
         welcomePage.dismissPwaPopupIfPresent();
-        welcomePage.enterPhoneNumber(WelcomePage.generateRandomPhone());
+        welcomePage.enterPhoneNumber(Constants.CUSTOMER_C_PHONE);
         welcomePage.clickSendOtp();
 
         OtpPage otpPage = new OtpPage(page);
@@ -26,29 +38,35 @@ public class UI5_VoiceRegistrationTest extends BasePage {
         otpPage.enterOtp(OtpPage.getTestOtp());
         otpPage.clickContinue();
 
-        // Language page only appears on first login; wait up to 10s, skip if absent
-        LanguagePage languagePage = new LanguagePage(page);
+        VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
         try {
+            // Only possible if this account somehow hasn't onboarded yet — tolerated for
+            // completeness, not the expected path for either allowed account anymore.
+            LanguagePage languagePage = new LanguagePage(page);
             languagePage.waitForPageLoad();
             languagePage.selectEnglish();
             languagePage.clickContinue();
-        } catch (PlaywrightException ignored) {
-            // language page not present (returning user), continue
+            voicePage.waitForPageLoad();
+            voicePage.clickSkipForNow();
+        } catch (PlaywrightException notShowing) {
+            // Expected: onboarding already completed for this account in an earlier run.
         }
 
-        VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
+        HomePage homePage = new HomePage(page);
+        homePage.waitForPageLoad();
+        homePage.clickRegisterVoiceFromMenu();
         voicePage.waitForPageLoad();
         return voicePage;
     }
 
-    @Test(groups = {"ui", "regression"},
-            description = "Should display voice registration screen after language selection")
+    @Test(groups = {"ui", "regression", "smoke"},
+            description = "Should display voice registration screen when opened via the user menu")
     public void testVoiceRegistrationPageLoads() {
         VoiceRegistrationPage voicePage = navigateToVoiceRegistrationPage();
 
         Assert.assertTrue(
                 voicePage.isPageVisible(),
-                "Voice registration screen should be visible after language selection");
+                "Voice registration screen should be visible when opened via the user menu");
     }
 
     @Test(groups = {"ui", "regression"},
@@ -74,7 +92,7 @@ public class UI5_VoiceRegistrationTest extends BasePage {
 
         Assert.assertFalse(
                 voicePage.isStartButtonDisabled(),
-                "Start Registration button should be enabled after consent is checked");
+                "Start Registration button should be enabled after checking consent");
     }
 
     @Test(groups = {"ui", "regression"},

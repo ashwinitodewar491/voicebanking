@@ -54,7 +54,38 @@ public class SurefireReportParser {
         }
 
         splitNameAndParamLabel(r);
+        r.description = lookupTestDescription(r.className, r.methodName);
         return r;
+    }
+
+    /** Surefire's own TEST-*.xml (JUnit format, parsed above) has no field for TestNG's {@code
+     * @Test(description = ...)} — the actual richer test metadata TestNG tracks internally never
+     * makes it into that generic schema. Looks the annotation up directly via reflection instead,
+     * rather than depending on TestNG's own separate XML report's exact shape. Uses reflection
+     * (not a direct {@code org.testng.annotations.Test} import) because this class lives under
+     * src/main, which compiles without TestNG on its classpath (a test-scoped dependency) — this
+     * only needs TestNG present at the runtime this actually executes at (this report generator
+     * is invoked via exec:java with {@code classpathScope=test}, see pom.xml), not at compile
+     * time. Returns null (silently) if the class/method can't be found or has no description —
+     * {@link TestResult#displayName()} falls back to the method name either way. */
+    private static String lookupTestDescription(String className, String methodName) {
+        try {
+            Class<?> testClass = Class.forName(className);
+            @SuppressWarnings("unchecked")
+            Class<? extends java.lang.annotation.Annotation> testAnnotationClass =
+                    (Class<? extends java.lang.annotation.Annotation>) Class.forName("org.testng.annotations.Test");
+
+            for (java.lang.reflect.Method m : testClass.getDeclaredMethods()) {
+                if (!m.getName().equals(methodName)) continue;
+                java.lang.annotation.Annotation testAnnotation = m.getAnnotation(testAnnotationClass);
+                if (testAnnotation == null) continue;
+                Object value = testAnnotationClass.getMethod("description").invoke(testAnnotation);
+                return value != null ? value.toString() : null;
+            }
+        } catch (Exception ignored) {
+            // Class not on the classpath, method not found, or reflection failed — no description.
+        }
+        return null;
     }
 
     /** TestNG data-provider tests get a Surefire testcase name like

@@ -13,6 +13,7 @@ public class HomePage {
     private static final String LANGUAGE_BTN        = "[data-testid='home-language-btn']";
     private static final String USER_MENU_BTN       = "[data-testid='home-user-menu-btn']";
     private static final String UNREGISTER_VOICE_BTN = "[data-testid='home-menu-unregister-voice']";
+    private static final String REGISTER_VOICE_BTN   = "[data-testid='home-menu-register-voice']";
     private static final String BALANCE_TOGGLE_BTN  = "[data-testid='home-balance-toggle-btn']";
     private static final String TRANSACTIONS_BTN    = "[data-testid='home-transactions-btn']";
     private static final String HOLD_TO_SPEAK_BTN   = "[data-testid='listening-hold-to-speak-btn']";
@@ -111,9 +112,17 @@ public class HomePage {
 
     /**
      * Full teardown flow for an enrolled voiceprint: open the user menu, click "Remove your
-     * voice", then confirm on the red "Remove" button in the resulting dialog. Used to keep a
-     * test account re-enrollable across runs — see UI11_VoiceRegistrationAuthTest, which has no
-     * other way to reset a voice registration between test methods.
+     * voice", confirm on the red "Remove" button in the resulting dialog, then re-open the menu
+     * and verify the removal actually took effect — the menu item flips from "Remove your voice"
+     * ({@code home-menu-unregister-voice}) to "Register your voice" ({@code
+     * home-menu-register-voice}) once the account genuinely has no voiceprint. The confirm
+     * dialog closing only means the click was accepted, not that the backend has processed the
+     * removal yet, so a short wait is given before re-checking rather than trusting the dialog's
+     * disappearance alone. Throws (via the {@code waitFor} timeout) if the menu still shows
+     * "Remove your voice" after that — callers treat that as cleanup failure the same way any
+     * other exception here is already handled. Used to keep a test account re-enrollable across
+     * runs — see UI11_VoiceRegistrationAuthTest and UI13_VoiceRegistrationNaturalVariationTest,
+     * neither of which has any other way to reset a voice registration between test methods.
      */
     public void removeRegisteredVoice() {
         clickUserMenu();
@@ -135,6 +144,47 @@ public class HomePage {
         confirmBtn.waitFor(new Locator.WaitForOptions()
                 .setState(WaitForSelectorState.HIDDEN)
                 .setTimeout(10000));
+
+        // Give the backend a moment to actually persist the removal before re-checking the menu
+        // — the dialog closing confirms the click landed, not that the account's voiceprint
+        // state has flipped yet.
+        page.waitForTimeout(1500);
+
+        clickUserMenu();
+        Locator registerBtn = page.locator(REGISTER_VOICE_BTN);
+        registerBtn.waitFor(new Locator.WaitForOptions()
+                .setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(10000));
+        clickUserMenu(); // close the menu again, leaving Home in its normal resting state
+    }
+
+    /** True if the account currently has a voiceprint registered (menu offers "Remove your
+     * voice"), false if it doesn't (menu offers "Register your voice" instead). Opens the user
+     * menu to check, then closes it again, leaving Home in its normal resting state.
+     *
+     * <p>Needed because landing on Home right after login does <b>not</b> reliably mean the
+     * account is already registered — confirmed live that an unregistered account can land
+     * straight on Home without the app ever auto-prompting for registration. Callers that used to
+     * treat "no registration screen appeared" as "must already be registered" should check this
+     * instead. */
+    public boolean isVoiceRegistered() {
+        clickUserMenu();
+        boolean registered = page.locator(UNREGISTER_VOICE_BTN).isVisible();
+        clickUserMenu();
+        return registered;
+    }
+
+    /** Opens the user menu and clicks "Register your voice" — the same destination the app's own
+     * auto-prompt would otherwise navigate to, used when that auto-prompt didn't fire (see {@link
+     * #isVoiceRegistered()}'s javadoc) so registration can still be forced explicitly. Does not
+     * close the menu afterward, since clicking navigates away from Home entirely. */
+    public void clickRegisterVoiceFromMenu() {
+        clickUserMenu();
+        Locator registerBtn = page.locator(REGISTER_VOICE_BTN);
+        registerBtn.waitFor(new Locator.WaitForOptions()
+                .setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(5000));
+        registerBtn.click();
     }
 
     public void clickBalanceToggle() {

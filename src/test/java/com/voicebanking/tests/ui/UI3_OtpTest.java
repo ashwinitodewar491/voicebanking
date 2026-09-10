@@ -4,6 +4,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.microsoft.playwright.options.LoadState;
+import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BasePage;
 import com.voicebanking.pages.OtpPage;
@@ -15,7 +16,7 @@ public class UI3_OtpTest extends BasePage {
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();
         welcomePage.dismissPwaPopupIfPresent();
-        welcomePage.enterPhoneNumber(WelcomePage.generateRandomPhone());
+        welcomePage.enterPhoneNumber(Constants.CUSTOMER_C_PHONE);
         welcomePage.clickSendOtp();
 
         OtpPage otpPage = new OtpPage(page);
@@ -46,7 +47,7 @@ public class UI3_OtpTest extends BasePage {
                 "Continue button should be enabled after entering OTP");
     }
 
-    @Test(groups = {"ui", "regression"},
+    @Test(groups = {"ui", "regression", "smoke"},
             description = "Should proceed after clicking Continue with entered OTP")
     public void testContinueAfterOtpEntry() {
         OtpPage otpPage = navigateToOtpPage();

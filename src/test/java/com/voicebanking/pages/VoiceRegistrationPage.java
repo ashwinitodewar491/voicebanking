@@ -15,6 +15,7 @@ public class VoiceRegistrationPage {
     private static final String MIC_BTN           = "[data-testid='voice-registration-mic-btn']";
     private static final String SUBMIT_BTN        = "[data-testid='voice-registration-submit-btn']";
     private static final String START_BANKING_BTN = "[data-testid='voice-registration-start-banking-btn']";
+    private static final String PLAY_AUDIO_BTN    = "[data-testid='voice-registration-play-audio-btn']";
 
     // No data-testid on the recording-progress readout itself ("Recording...66%") — matched by
     // its leading text instead.
@@ -148,6 +149,46 @@ public class VoiceRegistrationPage {
 
     public boolean isStartBankingVisible() {
         return page.locator(START_BANKING_BTN).isVisible();
+    }
+
+    /** Waits for the current enrollment step to actually be ready — at minimum the mic button
+     * present — before touching anything else on that step ({@link #isImageLoaded()}, {@link
+     * #clickPlayImageDescription()}). Right after Start Registration or a Submit, the screen is
+     * still on its "Starting..." transition for a moment and nothing else has mounted yet. */
+    public void waitForRecordingScreenReady() {
+        page.locator(MIC_BTN).waitFor(
+                new Locator.WaitForOptions()
+                        .setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(30000));
+    }
+
+    /** Polls {@link #isImageLoaded()} instead of checking once — the image can still be mid-load
+     * for a brief moment right after the mic button itself becomes visible. */
+    public boolean waitForImageLoaded(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (isImageLoaded()) return true;
+            page.waitForTimeout(200);
+        }
+        return false;
+    }
+
+    /** Taps the speaker icon that reads the current enrollment image's description aloud via
+     * {@code window.speechSynthesis.speak()} — the actual text spoken is not exposed through any
+     * DOM attribute (the {@code <img>} has no alt text), so a caller that wants it must intercept
+     * {@code speechSynthesis.speak} itself (e.g. via an init script) before calling this. */
+    public void clickPlayImageDescription() {
+        page.locator(PLAY_AUDIO_BTN).click();
+    }
+
+    /** True once the current enrollment step's image has actually finished loading (not just
+     * present in the DOM) — {@code naturalWidth > 0} rules out a broken/still-loading image that
+     * {@code img.complete} alone wouldn't catch for a failed load. */
+    public boolean isImageLoaded() {
+        Object result = page.evaluate(
+                "() => { const img = document.querySelector('img'); "
+                + "return !!img && img.complete && img.naturalWidth > 0; }");
+        return Boolean.TRUE.equals(result);
     }
 
     public void clickStartBanking() {

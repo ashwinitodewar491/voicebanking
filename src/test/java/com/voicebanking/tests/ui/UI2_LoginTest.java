@@ -4,6 +4,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.microsoft.playwright.options.LoadState;
+import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BasePage;
 import com.voicebanking.pages.WelcomePage;
@@ -21,7 +22,7 @@ public class UI2_LoginTest extends BasePage {
             description = "Should accept a 10-digit phone number in the mobile input")
     public void testPhoneNumberInput() {
         WelcomePage welcomePage = openWelcomePage();
-        String phone = WelcomePage.generateRandomPhone();
+        String phone = Constants.CUSTOMER_C_PHONE;
 
         welcomePage.enterPhoneNumber(phone);
 
@@ -36,7 +37,7 @@ public class UI2_LoginTest extends BasePage {
     public void testSendOtpButtonEnabled() {
         WelcomePage welcomePage = openWelcomePage();
 
-        welcomePage.enterPhoneNumber(WelcomePage.generateRandomPhone());
+        welcomePage.enterPhoneNumber(Constants.CUSTOMER_C_PHONE);
 
         Assert.assertTrue(
                 welcomePage.isSendOtpButtonEnabled(),
@@ -89,11 +90,11 @@ public class UI2_LoginTest extends BasePage {
                 "Terms & Conditions link should point to /terms");
     }
 
-    @Test(groups = {"ui", "regression"},
+    @Test(groups = {"ui", "regression", "smoke"},
             description = "Should navigate away from welcome page after clicking Send OTP")
     public void testSendOtpClickNavigation() {
         WelcomePage welcomePage = openWelcomePage();
-        String phone = WelcomePage.generateRandomPhone();
+        String phone = Constants.CUSTOMER_C_PHONE;
 
         welcomePage.enterPhoneNumber(phone);
         welcomePage.clickSendOtp();

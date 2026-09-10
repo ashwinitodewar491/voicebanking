@@ -29,6 +29,16 @@ public class TtsUtil {
         return path;
     }
 
+    /** Same as {@link #generateWav(String, String)} but applies the given rate/pitch offset on
+     * top of the voice's baseline — same speaker, a different take (see {@link
+     * com.voicebanking.utils.tts.VoiceVariation}) rather than an identical replay. */
+    public static String generateWavWithVariation(String text, String voice, String rate, String pitch)
+            throws Exception {
+        String path = new EdgeTtsEngine().generate(text, voice, rate, pitch);
+        appendSilenceToWav(path, 3000);
+        return path;
+    }
+
     /**
      * Returns the duration of the WAV file in milliseconds by scanning its RIFF chunks.
      * A chunk scanner is used because SAPI inserts extra chunks (JUNK, LIST, fact) before

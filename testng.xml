@@ -44,4 +44,10 @@
         </classes>
     </test>
 
+    <test name="Voice Registration Natural Variation Tests">
+        <classes>
+            <class name="com.voicebanking.tests.ui.UI13_VoiceRegistrationNaturalVariationTest"/>
+        </classes>
+    </test>
+
 </suite>

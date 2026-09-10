@@ -294,9 +294,18 @@ public abstract class BaseVoiceTest {
             returningUser = true;
         }
 
-        VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
-        voicePage.waitForPageLoad();
-        voicePage.clickSkipForNow();
+        // The app no longer auto-shows this screen on every login once an account has skipped it
+        // once before — confirmed as an intentional app change, not a bug: registering later
+        // requires the user menu's own "Register your voice" option instead. This login flow
+        // never needs a real voiceprint (unlike UI11/UI13's own registration flows), so there's
+        // nothing to force here either way — just skip it if shown, do nothing if it isn't.
+        try {
+            VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
+            voicePage.waitForPageLoad();
+            voicePage.clickSkipForNow();
+        } catch (PlaywrightException notShowing) {
+            // Already effectively on Home — nothing to skip.
+        }
 
         HomePage homePage = new HomePage(page);
         homePage.waitForPageLoad();
