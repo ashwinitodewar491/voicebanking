@@ -13,14 +13,14 @@ on:
         description: 'Target environment'
         required: true
         type: choice
-        options: [stage, prod, dev]
+        options: [dev]
         default: dev
       suite:
         description: 'Test suite to run (TestNG group)'
         required: true
         type: choice
-        options: [smoke, regression, api, ui]
-        default: smoke
+        options: [sanity]
+        default: sanity
 
 jobs:
   test:
