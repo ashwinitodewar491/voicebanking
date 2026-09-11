@@ -1,6 +1,7 @@
 package com.voicebanking.tests.ui;
 
-import org.testng.Assert;
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
 import org.testng.annotations.Test;
 
 import com.microsoft.playwright.PlaywrightException;
@@ -64,9 +65,7 @@ public class UI5_VoiceRegistrationTest extends BasePage {
     public void testVoiceRegistrationPageLoads() {
         VoiceRegistrationPage voicePage = navigateToVoiceRegistrationPage();
 
-        Assert.assertTrue(
-                voicePage.isPageVisible(),
-                "Voice registration screen should be visible when opened via the user menu");
+        assertThat(voicePage.skipButton()).isVisible();
     }
 
     @Test(groups = {"ui", "regression"},
@@ -74,9 +73,7 @@ public class UI5_VoiceRegistrationTest extends BasePage {
     public void testStartButtonDisabledWithoutConsent() {
         VoiceRegistrationPage voicePage = navigateToVoiceRegistrationPage();
 
-        Assert.assertTrue(
-                voicePage.isStartButtonDisabled(),
-                "Start Registration button should be disabled when consent is not checked");
+        assertThat(voicePage.startButton()).isDisabled();
     }
 
     @Test(groups = {"ui", "regression"},
@@ -86,13 +83,8 @@ public class UI5_VoiceRegistrationTest extends BasePage {
 
         voicePage.checkConsent();
 
-        Assert.assertTrue(
-                voicePage.isConsentChecked(),
-                "Consent checkbox should be checked");
-
-        Assert.assertFalse(
-                voicePage.isStartButtonDisabled(),
-                "Start Registration button should be enabled after checking consent");
+        assertThat(voicePage.consentCheckbox()).isChecked();
+        assertThat(voicePage.startButton()).isEnabled();
     }
 
     @Test(groups = {"ui", "regression"},
@@ -101,14 +93,10 @@ public class UI5_VoiceRegistrationTest extends BasePage {
         VoiceRegistrationPage voicePage = navigateToVoiceRegistrationPage();
 
         voicePage.checkConsent();
-        Assert.assertFalse(
-                voicePage.isStartButtonDisabled(),
-                "Start Registration button should be enabled after checking consent");
+        assertThat(voicePage.startButton()).isEnabled();
 
         voicePage.uncheckConsent();
-        Assert.assertTrue(
-                voicePage.isStartButtonDisabled(),
-                "Start Registration button should be disabled again after unchecking consent");
+        assertThat(voicePage.startButton()).isDisabled();
     }
 
     @Test(groups = {"ui", "regression"},
@@ -120,8 +108,6 @@ public class UI5_VoiceRegistrationTest extends BasePage {
 
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
 
-        Assert.assertFalse(
-                voicePage.isPageVisible(),
-                "Voice registration screen should be dismissed after clicking Skip for Now");
+        assertThat(voicePage.skipButton()).isHidden();
     }
 }

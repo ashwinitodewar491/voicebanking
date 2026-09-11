@@ -1,9 +1,9 @@
 package com.voicebanking.tests.ui;
 
-import org.testng.Assert;
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
 import org.testng.annotations.Test;
 
-import com.microsoft.playwright.options.LoadState;
 import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BasePage;
@@ -26,10 +26,7 @@ public class UI2_LoginTest extends BasePage {
 
         welcomePage.enterPhoneNumber(phone);
 
-        Assert.assertEquals(
-                welcomePage.getPhoneInputValue(),
-                phone,
-                "Phone input should contain the entered number");
+        assertThat(welcomePage.phoneInput()).hasValue(phone);
     }
 
     @Test(groups = {"ui", "regression"},
@@ -39,9 +36,7 @@ public class UI2_LoginTest extends BasePage {
 
         welcomePage.enterPhoneNumber(Constants.CUSTOMER_C_PHONE);
 
-        Assert.assertTrue(
-                welcomePage.isSendOtpButtonEnabled(),
-                "Send OTP button should be enabled when phone number is entered");
+        assertThat(welcomePage.sendOtpButton()).isEnabled();
     }
 
     @Test(groups = {"ui", "regression"},
@@ -52,13 +47,8 @@ public class UI2_LoginTest extends BasePage {
         // Leave phone blank and click Send OTP to trigger validation
         welcomePage.clickSendOtp();
 
-        Assert.assertTrue(
-                welcomePage.isPhoneErrorVisible(),
-                "Validation error should appear when phone number is blank");
-        Assert.assertEquals(
-                welcomePage.getPhoneErrorText(),
-                "Please enter a valid 10-digit mobile number",
-                "Correct validation message should be shown for blank phone");
+        assertThat(welcomePage.phoneError()).isVisible();
+        assertThat(welcomePage.phoneError()).hasText("Please enter a valid 10-digit mobile number");
     }
 
     @Test(groups = {"ui", "regression"},
@@ -70,13 +60,8 @@ public class UI2_LoginTest extends BasePage {
         welcomePage.enterPhoneNumber("98765432");
         welcomePage.clickSendOtp();
 
-        Assert.assertTrue(
-                welcomePage.isPhoneErrorVisible(),
-                "Validation error should appear when phone number has fewer than 10 digits");
-        Assert.assertEquals(
-                welcomePage.getPhoneErrorText(),
-                "Please enter a valid 10-digit mobile number",
-                "Correct validation message should be shown for short phone number");
+        assertThat(welcomePage.phoneError()).isVisible();
+        assertThat(welcomePage.phoneError()).hasText("Please enter a valid 10-digit mobile number");
     }
 
     @Test(groups = {"ui", "regression"},
@@ -84,10 +69,8 @@ public class UI2_LoginTest extends BasePage {
     public void testLoginPageTermsAndConditions() {
         WelcomePage welcomePage = openWelcomePage();
 
-        Assert.assertTrue(welcomePage.isTermsLinkVisible(),
-                "Terms & Conditions link should be visible on the login page");
-        Assert.assertEquals(welcomePage.getTermsLinkHref(), "/terms",
-                "Terms & Conditions link should point to /terms");
+        assertThat(welcomePage.termsLink()).isVisible();
+        assertThat(welcomePage.termsLink()).hasAttribute("href", "/terms");
     }
 
     @Test(groups = {"ui", "regression", "smoke"},
@@ -99,11 +82,11 @@ public class UI2_LoginTest extends BasePage {
         welcomePage.enterPhoneNumber(phone);
         welcomePage.clickSendOtp();
 
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-
-        String currentUrl = page.url();
-        Assert.assertFalse(
-                currentUrl.endsWith("/welcome"),
-                "Should navigate away from /welcome after Send OTP. URL: " + currentUrl);
+        // Polls (default timeout) until the URL genuinely moves off /welcome, rather than reading
+        // page.url() once right after navigation starts — a single-shot read here was the actual
+        // cause of a flaky failure seen in a real dev-env run (navigation hadn't committed yet at
+        // the instant checked). A plain lambda predicate avoids needing a regex for a simple
+        // suffix check. A timeout here throws, which fails the test the same as a failed assertion.
+        page.waitForURL(url -> !url.endsWith("/welcome"));
     }
 }

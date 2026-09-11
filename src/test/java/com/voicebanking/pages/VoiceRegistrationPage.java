@@ -58,6 +58,12 @@ public class VoiceRegistrationPage {
         return page.locator(CONSENT_CHECKBOX).isChecked();
     }
 
+    // Locator accessors — for callers using Playwright's own assertThat(Locator)...(), which
+    // polls/retries until the assertion holds or times out, instead of a one-shot boolean read.
+    public Locator skipButton()       { return page.locator(SKIP_BTN); }
+    public Locator startButton()      { return page.locator(START_BTN); }
+    public Locator consentCheckbox()  { return page.locator(CONSENT_CHECKBOX); }
+
     public void clickStartRegistration() {
         page.locator(START_BTN).click();
     }

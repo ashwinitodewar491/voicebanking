@@ -1,6 +1,7 @@
 package com.voicebanking.tests.ui;
 
-import org.testng.Assert;
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
 import org.testng.annotations.Test;
 
 import com.microsoft.playwright.PlaywrightException;
@@ -61,9 +62,7 @@ public class UI4_LanguageTest extends BasePage {
     public void testLanguagePageLoads() {
         LanguagePage languagePage = navigateToLanguagePage();
 
-        Assert.assertTrue(
-                languagePage.isPageVisible(),
-                "Language selection screen should be visible when reopened from Home");
+        assertThat(languagePage.englishButton()).isVisible();
     }
 
     @Test(groups = {"ui", "regression"},
@@ -71,9 +70,7 @@ public class UI4_LanguageTest extends BasePage {
     public void testEnglishIsPreSelected() {
         LanguagePage languagePage = navigateToLanguagePage();
 
-        Assert.assertTrue(
-                languagePage.isEnglishSelected(),
-                "English should be selected on the language screen");
+        assertThat(languagePage.englishButton()).hasAttribute("aria-pressed", "true");
     }
 
     @Test(groups = {"ui", "regression"},
@@ -86,9 +83,7 @@ public class UI4_LanguageTest extends BasePage {
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
 
         HomePage homePage = new HomePage(page);
-        Assert.assertTrue(
-                homePage.isPageVisible(),
-                "Back button should return to Home when the language picker was reopened from there");
+        assertThat(homePage.holdToSpeakButton()).isVisible();
     }
 
     @Test(groups = {"ui", "regression", "smoke"},
@@ -99,11 +94,8 @@ public class UI4_LanguageTest extends BasePage {
         languagePage.selectEnglish();
         languagePage.clickContinue();
 
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-
-        String url = page.url();
-        Assert.assertFalse(
-                url.contains("/language"),
-                "Should navigate away from language screen after Continue. URL: " + url);
+        // Polls (via a plain predicate, no regex needed) until navigation actually moves past the
+        // language screen; a timeout here throws and fails the test, same as a failed assertion.
+        page.waitForURL(url -> !url.contains("/language"));
     }
 }

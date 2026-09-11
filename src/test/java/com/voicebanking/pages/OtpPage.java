@@ -43,6 +43,16 @@ public class OtpPage {
     public boolean isTermsLinkVisible()  { return page.locator(TERMS_LINK).isVisible(); }
     public String  getTermsLinkHref()    { return page.locator(TERMS_LINK).getAttribute("href"); }
 
+    // Locator accessors — for callers using Playwright's own assertThat(Locator)...(), which
+    // polls/retries until the assertion holds or times out, instead of a one-shot boolean read.
+    public Locator otpPage()       { return page.locator(OTP_INPUT_1); }
+    public Locator heading()       { return page.locator(HEADING); }
+    public Locator subheading()    { return page.locator(SUBHEADING); }
+    public Locator otpLabel()      { return page.locator(OTP_LABEL); }
+    public Locator otpError()      { return page.locator(OTP_ERROR_MSG); }
+    public Locator termsLink()     { return page.locator(TERMS_LINK); }
+    public Locator continueButton(){ return page.locator(CONTINUE_BTN); }
+
     public void enterOtp(String otp) {
         page.locator(OTP_INPUT_1).fill(String.valueOf(otp.charAt(0)));
         page.locator(OTP_INPUT_2).fill(String.valueOf(otp.charAt(1)));

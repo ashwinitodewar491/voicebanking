@@ -42,6 +42,17 @@ public class WelcomePage {
     public boolean isTermsLinkVisible()  { return page.locator(TERMS_LINK).isVisible(); }
     public String  getTermsLinkHref()    { return page.locator(TERMS_LINK).getAttribute("href"); }
 
+    // Locator accessors — for callers using Playwright's own assertThat(Locator)...(), which
+    // polls/retries until the assertion holds or times out, instead of a one-shot boolean read.
+    public Locator heading()         { return page.locator(HEADING); }
+    public Locator subheading()      { return page.locator(SUBHEADING); }
+    public Locator phoneLabel()      { return page.locator(PHONE_LABEL); }
+    public Locator phoneError()      { return page.locator(PHONE_ERROR_MSG); }
+    public Locator termsLink()       { return page.locator(TERMS_LINK); }
+    public Locator pwaNotNowButton() { return page.locator(PWA_NOT_NOW_BTN); }
+    public Locator sendOtpButton()   { return page.locator(SEND_OTP_BTN); }
+    public Locator phoneInput()      { return page.locator(PHONE_INPUT); }
+
     public boolean isPwaPopupVisible() {
         try {
             page.locator(PWA_NOT_NOW_BTN).waitFor(

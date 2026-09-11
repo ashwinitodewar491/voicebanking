@@ -1,9 +1,9 @@
 package com.voicebanking.tests.ui;
 
-import org.testng.Assert;
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
 import org.testng.annotations.Test;
 
-import com.microsoft.playwright.options.LoadState;
 import com.voicebanking.DataText.Constants;
 import com.voicebanking.DataText.Endpoints;
 import com.voicebanking.pages.BasePage;
@@ -29,9 +29,7 @@ public class UI3_OtpTest extends BasePage {
     public void testOtpPageLoads() {
         OtpPage otpPage = navigateToOtpPage();
 
-        Assert.assertTrue(
-                otpPage.isOtpPageVisible(),
-                "OTP input screen should be visible after clicking Send OTP");
+        assertThat(otpPage.otpPage()).isVisible();
     }
 
     @Test(groups = {"ui", "regression"},
@@ -42,9 +40,7 @@ public class UI3_OtpTest extends BasePage {
 
         otpPage.enterOtp(otp);
 
-        Assert.assertTrue(
-                otpPage.isContinueButtonEnabled(),
-                "Continue button should be enabled after entering OTP");
+        assertThat(otpPage.continueButton()).isEnabled();
     }
 
     @Test(groups = {"ui", "regression", "smoke"},
@@ -55,12 +51,9 @@ public class UI3_OtpTest extends BasePage {
         otpPage.enterOtp(OtpPage.generateRandomOtp());
         otpPage.clickContinue();
 
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-
-        String url = page.url();
-        Assert.assertFalse(
-                url.contains("/otp"),
-                "Should navigate away from OTP screen after clicking Continue. URL: " + url);
+        // Polls (via a plain predicate, no regex needed) until navigation actually moves past the
+        // OTP screen; a timeout here throws and fails the test, same as a failed assertion.
+        page.waitForURL(url -> !url.contains("/otp"));
     }
 
     @Test(groups = {"ui", "regression"},
@@ -70,11 +63,7 @@ public class UI3_OtpTest extends BasePage {
 
         otpPage.clickBack();
 
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-
-        Assert.assertTrue(
-                page.url().contains("/welcome"),
-                "Back button should return to /welcome page");
+        page.waitForURL(url -> url.contains("/welcome"));
     }
 
     @Test(groups = {"ui", "regression"},
@@ -82,12 +71,9 @@ public class UI3_OtpTest extends BasePage {
     public void testOtpPageContent() {
         OtpPage otpPage = navigateToOtpPage();
 
-        Assert.assertTrue(otpPage.isHeadingVisible(),
-                "'Verify OTP' heading should be visible on the OTP page");
-        Assert.assertTrue(otpPage.isSubheadingVisible(),
-                "'Enter the 4-digit code sent to your mobile' subheading should be visible");
-        Assert.assertTrue(otpPage.isOtpLabelVisible(),
-                "'Enter OTP' label should be visible on the OTP page");
+        assertThat(otpPage.heading()).isVisible();
+        assertThat(otpPage.subheading()).isVisible();
+        assertThat(otpPage.otpLabel()).isVisible();
     }
 
     @Test(groups = {"ui", "regression"},
@@ -97,11 +83,8 @@ public class UI3_OtpTest extends BasePage {
 
         otpPage.clickContinue();
 
-        Assert.assertTrue(otpPage.isOtpErrorVisible(),
-                "Validation error should appear when no OTP digits are entered");
-        Assert.assertEquals(otpPage.getOtpErrorText(),
-                "Please enter all 4 digits of your OTP",
-                "Correct validation message should be shown for blank OTP");
+        assertThat(otpPage.otpError()).isVisible();
+        assertThat(otpPage.otpError()).hasText("Please enter all 4 digits of your OTP");
     }
 
     @Test(groups = {"ui", "regression"},
@@ -112,11 +95,8 @@ public class UI3_OtpTest extends BasePage {
         otpPage.enterPartialOtp("123");
         otpPage.clickContinue();
 
-        Assert.assertTrue(otpPage.isOtpErrorVisible(),
-                "Validation error should appear when only 3 OTP digits are entered");
-        Assert.assertEquals(otpPage.getOtpErrorText(),
-                "Please enter all 4 digits of your OTP",
-                "Correct validation message should be shown for incomplete OTP");
+        assertThat(otpPage.otpError()).isVisible();
+        assertThat(otpPage.otpError()).hasText("Please enter all 4 digits of your OTP");
     }
 
     @Test(groups = {"ui", "regression"},
@@ -124,9 +104,7 @@ public class UI3_OtpTest extends BasePage {
     public void testOtpPageTermsAndConditions() {
         OtpPage otpPage = navigateToOtpPage();
 
-        Assert.assertTrue(otpPage.isTermsLinkVisible(),
-                "Terms & Conditions link should be visible on the OTP page");
-        Assert.assertEquals(otpPage.getTermsLinkHref(), "/terms",
-                "Terms & Conditions link should point to /terms");
+        assertThat(otpPage.termsLink()).isVisible();
+        assertThat(otpPage.termsLink()).hasAttribute("href", "/terms");
     }
 }

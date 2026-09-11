@@ -33,6 +33,10 @@ public class LanguagePage {
         return "true".equals(page.locator(LANG_EN).getAttribute("aria-pressed"));
     }
 
+    // Locator accessors — for callers using Playwright's own assertThat(Locator)...(), which
+    // polls/retries until the assertion holds or times out, instead of a one-shot boolean read.
+    public Locator englishButton() { return page.locator(LANG_EN); }
+
     public void selectEnglish() { page.locator(LANG_EN).click(); }
     public void selectHindi() { page.locator(LANG_HI).click(); }
     public void selectBengali() { page.locator(LANG_BN).click(); }

@@ -63,6 +63,16 @@ public class HomePage {
         return page.locator(HOLD_TO_SPEAK_BTN).isVisible();
     }
 
+    // Locator accessors — for callers using Playwright's own assertThat(Locator)...(), which
+    // polls/retries until the assertion holds or times out, instead of a one-shot boolean read.
+    public Locator holdToSpeakButton()  { return page.locator(HOLD_TO_SPEAK_BTN); }
+    public Locator balanceToggleButton(){ return page.locator(BALANCE_TOGGLE_BTN); }
+    public Locator transactionsButton() { return page.locator(TRANSACTIONS_BTN); }
+    public Locator languageButton()     { return page.locator(LANGUAGE_BTN); }
+    public Locator userMenuButton()     { return page.locator(USER_MENU_BTN); }
+    public Locator transactionsList()   { return page.locator(TRANSACTIONS_LIST); }
+    public Locator transactionItems()   { return page.locator(TRANSACTION_ITEM); }
+
     /** Returns true if a bot message (plain bubble or structured card) is currently present in
      * the chat area — used right after landing on Home to check whether the session's welcome
      * greeting actually rendered. Confirmed live that this can legitimately be false right after
