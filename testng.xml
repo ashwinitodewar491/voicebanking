@@ -50,4 +50,11 @@
         </classes>
     </test>
 
+    <test name="Voice Print Depth Tests">
+        <classes>
+            <class name="com.voicebanking.tests.ui.UI14_VoicePrintCrossAccountTest"/>
+            <class name="com.voicebanking.tests.ui.UI15_VoicePrintTransferAuthTest"/>
+        </classes>
+    </test>
+
 </suite>
