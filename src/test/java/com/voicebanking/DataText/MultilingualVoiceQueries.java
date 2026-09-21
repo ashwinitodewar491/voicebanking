@@ -34,5 +34,11 @@ public class MultilingualVoiceQueries {
         public static final String LOCALE = "mr";
 
         public static final String SAVINGS_BALANCE = "माझ्या बचत खात्यात किती शिल्लक आहे?";
+
+        // "Can I transfer money?" — generic transfer-initiation phrasing (no beneficiary/amount
+        // named), matching English's CAN_TRANSFER_MONEY. Added to probe whether the voice-auth
+        // bypass UI13's testMarathiQueryOutcomeObserved found for balance queries also reaches
+        // the higher-stakes transfer-money intent, not just a read-only balance leak.
+        public static final String TRANSFER_MONEY = "मी पैसे ट्रान्सफर करू शकतो का?";
     }
 }

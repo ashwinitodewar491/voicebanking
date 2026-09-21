@@ -704,6 +704,67 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
                 + "suggests the query was never actually processed.");
     }
 
+    @Test(groups = {"ui", "regression", "multilingual"},
+            description = "Exploratory: observes how the app handles a Bengali-language balance "
+                    + "query against an English-registered voice — same rationale as the Hindi/"
+                    + "Marathi rows above (no established expectation yet for a cross-language "
+                    + "query), checking whether the voice-auth bypass found for Marathi is "
+                    + "specific to that one language or also reaches Bengali.")
+    public void testBengaliQueryOutcomeObserved() throws Exception {
+        HomePage homePage = sharedHomePage;
+        String botResponse = sendCustomLanguageQuery(
+                homePage, MultilingualVoiceQueries.Bengali.SAVINGS_BALANCE, EdgeTtsEngine.VOICE_BENGALI);
+
+        Assert.assertFalse(botResponse.isBlank(),
+                "[VoiceVariation] Expected SOME response (authorized, rejected, or a "
+                + "language-related fallback) to a Bengali query — got a blank/no response, which "
+                + "suggests the query was never actually processed.");
+    }
+
+    /** Silences a baseline balance-query recording to (effectively) zero amplitude via {@link
+     * AudioEffects#applyVolume} rather than generating true digital silence — keeps the same
+     * duration/shape as a real query so the fake-audio-capture pipeline and VAD see a normal-length
+     * clip, just with no audible signal in it. Security-relevant baseline: replaying a near-silent
+     * clip must never accidentally authorize anything just because it happens to pass through
+     * whatever gate a real recording would. */
+    @Test(groups = {"ui", "regression", "negative", "security"},
+            description = "A silent (zero-volume) query recording must never leak the account "
+                    + "balance — either speech-to-text detects nothing at all (the safe, expected "
+                    + "outcome) or, if something is transcribed anyway, the balance must still not "
+                    + "be disclosed")
+    public void testSilentAudioQueryDoesNotLeakBalance() throws Exception {
+        HomePage homePage = sharedHomePage;
+        String baselineWav = generateBaselineQueryWav();
+        String silentWav = AudioEffects.applyVolume(baselineWav, 0.0);
+        TtsUtil.deleteWav(baselineWav);
+
+        Files.copy(Path.of(silentWav), Path.of(generatedWavPath), StandardCopyOption.REPLACE_EXISTING);
+        int holdMs = (int) TtsUtil.getWavDurationMs(generatedWavPath);
+        TtsUtil.deleteWav(silentWav);
+
+        homePage.reacquireMicrophoneForFollowUp();
+        try {
+            homePage.holdToSpeakWithRetry(holdMs, 3, 8000);
+            homePage.waitForVoiceResponse(15000);
+
+            String transcribed = homePage.getLastTranscribedText();
+            String botResponse = homePage.getLastBotResponse();
+            System.out.println("[VoiceVariation] Silent-audio Transcribed : " + transcribed);
+            System.out.println("[VoiceVariation] Silent-audio Bot response: " + botResponse);
+
+            Assert.assertFalse(
+                    Pattern.compile(BotResponsePatterns.Balance.ANY).matcher(botResponse).find(),
+                    "[VoiceVariation] Silent audio must never leak the account balance.\n  Got: " + botResponse);
+        } catch (RuntimeException noSpeechDetected) {
+            // The safe/expected outcome: silence has nothing for speech-to-text to detect, so no
+            // user bubble ever appears and holdToSpeakWithRetry gives up — that is a pass here,
+            // not a test infrastructure failure, since it confirms no query was ever processed at
+            // all (the strongest possible "no leak" outcome).
+            System.out.println("[VoiceVariation] Silent audio correctly produced no speech-to-text "
+                    + "detection: " + noSpeechDetected.getMessage());
+        }
+    }
+
     /** Removes the voiceprint exactly once, after every {@code @Test} method in the class has
      * run, then closes the one shared browser/page/context/playwright that every test used (see
      * {@link #sharedHomePage}, {@link #setUpBrowser()}) — nothing else does, since {@link

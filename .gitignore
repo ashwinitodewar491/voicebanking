@@ -12,3 +12,6 @@ extent-report/
 
 # Local API keys — never commit
 src/test/resources/local.properties
+
+# Test case tracking spreadsheet — lives outside the repo, tracked on shared drive, not git
+*.xlsx
