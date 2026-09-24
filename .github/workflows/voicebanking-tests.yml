@@ -1,11 +1,16 @@
 name: VoiceBanking Playwright Tests
 
-# Manual trigger only, mirroring the Jenkins pipeline's ENV/SUITE parameters (Jenkinsfile) —
-# not push/pull_request. UI10_TransferMoneyTest and friends complete real ₹1 transfers and
+# Manual trigger, mirroring the Jenkins pipeline's ENV/SUITE parameters (Jenkinsfile) — plus a
+# daily scheduled monitor run. UI10_TransferMoneyTest and friends complete real ₹1 transfers and
 # spend a limited live OTP-attempt budget against a real stage backend on every run (see the
-# class-level doc comment on UI10_TransferMoneyTest.java), so this must stay opt-in rather than
-# firing automatically on every commit. Add push/pull_request triggers only if that's actually
-# wanted, and probably scoped to a "smoke"-only, non-transfer subset if so.
+# class-level doc comment on UI10_TransferMoneyTest.java), so push/pull_request triggers are
+# still deliberately not added here — only workflow_dispatch (ad hoc, any env/suite) and this
+# schedule (fixed to stage + smoke, the safe/cheap daily health-check combination).
+#
+# The `schedule` trigger never supplies workflow_dispatch `inputs` — GitHub Actions only
+# populates the `inputs` context for a workflow_dispatch/workflow_call run — so the `env:` block
+# below falls back to stage/smoke via `|| 'stage'` / `|| 'smoke'` whenever this fires on a timer,
+# while manual runs keep using whatever the dispatch dropdown was set to.
 on:
   workflow_dispatch:
     inputs:
@@ -21,11 +26,20 @@ on:
         type: choice
         options: [sanity, smoke, regression]
         default: smoke
+  schedule:
+    # 6:00 AM IST daily. GitHub Actions cron is always UTC, and IST is UTC+5:30, so this is
+    # 00:30 UTC. Scheduled workflows only run on the default branch and can be delayed during
+    # periods of high GitHub Actions load — treat this as "around 6 AM IST," not exact.
+    - cron: '30 0 * * *'
 
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+
+    env:
+      RUN_ENV: ${{ inputs.env || 'stage' }}
+      RUN_SUITE: ${{ inputs.suite || 'smoke' }}
 
     steps:
       - name: Checkout
@@ -53,7 +67,7 @@ jobs:
         run: mvn -B exec:java -Dexec.mainClass="com.microsoft.playwright.CLI" -Dexec.args="install --with-deps chromium"
 
       - name: Run tests
-        run: mvn -B clean test -DtestGroups=${{ inputs.suite }} -Denv=${{ inputs.env }}
+        run: mvn -B clean test -DtestGroups=${{ env.RUN_SUITE }} -Denv=${{ env.RUN_ENV }}
 
       # maven-surefire-plugin's <testFailureIgnore>true</testFailureIgnore> (pom.xml) means
       # `mvn test` always exits 0 even with failed assertions — Jenkins reflects the real result
@@ -71,7 +85,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: extent-report-${{ inputs.env }}-${{ inputs.suite }}
+          name: extent-report-${{ env.RUN_ENV }}-${{ env.RUN_SUITE }}
           path: target/extent-report
           if-no-files-found: ignore
 
@@ -79,7 +93,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dashboard-report-${{ inputs.env }}-${{ inputs.suite }}
+          name: dashboard-report-${{ env.RUN_ENV }}-${{ env.RUN_SUITE }}
           path: target/dashboard-report
           if-no-files-found: ignore
 
@@ -87,7 +101,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports-${{ inputs.env }}-${{ inputs.suite }}
+          name: surefire-reports-${{ env.RUN_ENV }}-${{ env.RUN_SUITE }}
           path: target/surefire-reports
           if-no-files-found: ignore
 
@@ -95,7 +109,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots-${{ inputs.env }}-${{ inputs.suite }}
+          name: screenshots-${{ env.RUN_ENV }}-${{ env.RUN_SUITE }}
           path: target/screenshots
           if-no-files-found: ignore
 
@@ -103,6 +117,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: videos-${{ inputs.env }}-${{ inputs.suite }}
+          name: videos-${{ env.RUN_ENV }}-${{ env.RUN_SUITE }}
           path: target/videos
           if-no-files-found: ignore
