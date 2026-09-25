@@ -7,10 +7,13 @@ name: VoiceBanking Playwright Tests
 # still deliberately not added here — only workflow_dispatch (ad hoc, any env/suite) and this
 # schedule (fixed to stage + smoke, the safe/cheap daily health-check combination).
 #
-# The `schedule` trigger never supplies workflow_dispatch `inputs` — GitHub Actions only
-# populates the `inputs` context for a workflow_dispatch/workflow_call run — so the `env:` block
-# below falls back to stage/smoke via `|| 'stage'` / `|| 'smoke'` whenever this fires on a timer,
-# while manual runs keep using whatever the dispatch dropdown was set to.
+# The `schedule` trigger never supplies workflow_dispatch inputs. The newer `inputs` context is
+# documented as valid ONLY for workflow_dispatch/workflow_call — referencing it (as an earlier
+# version of this file did, via `inputs.env`/`inputs.suite`) on a schedule-triggered run isn't
+# safely defined and appears to silently break the run rather than just evaluate to nothing,
+# which is why the very first scheduled run never showed up. `github.event.inputs.*` is the
+# older, always-defined context (empty/null on non-dispatch events, no error) and is what the
+# `env:` block below uses instead, falling back to stage/smoke whenever this fires on a timer.
 on:
   workflow_dispatch:
     inputs:
@@ -38,8 +41,8 @@ jobs:
     timeout-minutes: 90
 
     env:
-      RUN_ENV: ${{ inputs.env || 'stage' }}
-      RUN_SUITE: ${{ inputs.suite || 'smoke' }}
+      RUN_ENV: ${{ github.event.inputs.env || 'stage' }}
+      RUN_SUITE: ${{ github.event.inputs.suite || 'smoke' }}
 
     steps:
       - name: Checkout
