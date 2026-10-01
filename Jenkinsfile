@@ -25,8 +25,20 @@ pipeline {
                     python3 -m edge_tts --version >/dev/null 2>&1 || python3 -m pip install --user --quiet edge-tts
                     python3 -m edge_tts --version
 
-                    command -v ffmpeg >/dev/null 2>&1 || { echo "ffmpeg is not installed on this agent"; exit 1; }
+                    # Install ffmpeg (static build) only if it isn't already on the agent.
+                    if command -v ffmpeg >/dev/null 2>&1; then
+                        echo "ffmpeg already installed - skipping install"
+                    else
+                        echo "ffmpeg not found - installing static build"
+                        cd /tmp
+                        curl -LO https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+                        tar xf ffmpeg-release-amd64-static.tar.xz
+                        sudo -n cp ffmpeg-*-amd64-static/ffmpeg ffmpeg-*-amd64-static/ffprobe /usr/local/bin/
+                        rm -rf ffmpeg-release-amd64-static.tar.xz ffmpeg-*-amd64-static
+                        cd "$WORKSPACE"
+                    fi
                     ffmpeg -version | head -1
+                    which ffmpeg
 
                     java -version
                     mvn -version
