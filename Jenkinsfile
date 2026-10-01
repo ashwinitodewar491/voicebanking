@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'voicebanking-automation' }
 
     parameters {
         choice(
@@ -9,7 +9,7 @@ pipeline {
         )
         choice(
             name: 'SUITE',
-            choices: ['smoke', 'regression'],
+            choices: ['smoke', 'regression', 'BasicSmoke'],
             description: 'Test suite to run'
         )
     }

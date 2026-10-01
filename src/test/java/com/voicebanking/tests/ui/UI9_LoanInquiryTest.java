@@ -273,6 +273,23 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
+    /** BasicSmoke: the single most basic loan query — see
+     * UI7_BalanceInquiryTest#basicSmokeQueries for what this group is. */
+    @DataProvider(name = "basicSmokeQueries")
+    public Object[][] basicSmokeQueries() {
+        return new Object[][]{
+            {"Loan Details", VoiceQueries.English.LOAN_DETAILS,
+                    new String[]{"loan"}, null, "home loan"},
+        };
+    }
+
+    @Test(dataProvider = "basicSmokeQueries", groups = {"ui", "BasicSmoke"},
+            description = "BasicSmoke: should answer 'Give me my loan details'")
+    public void testBasicSmokeQuery(String queryName, String query, String[] expectedKeywords,
+                                     String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
     /** One query per major loan category: named-type direct answer, precise-pattern assertion,
      * loan-agnostic disambiguation, and the nonexistent-type fallback — broader than smoke,
      * still fast. */

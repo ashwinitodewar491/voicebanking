@@ -17,6 +17,9 @@ mvn clean test -DtestGroups=smoke -Denv=prod
 # Run smoke suite against stage
 mvn clean test -DtestGroups=smoke -Denv=stage
 
+# Run the one-query-per-feature voice health check against stage
+mvn clean test -DtestGroups=BasicSmoke -Denv=stage
+
 # Run full regression against stage
 mvn clean test -DtestGroups=regression -Denv=stage
 
@@ -93,6 +96,7 @@ flowchart TD
 | Group | Tests | Purpose |
 |---|---|---|
 | `smoke` | API1, API2, API3, API6 + a fast subset from every UI class (UI7–UI11) | Quick sanity after any deploy |
+| `BasicSmoke` | 6 voice tests, one each: account balance (UI7), recent transactions (UI8), loan details (UI9), transfer money (UI10, real ₹1 transfer), voice registration (UI11), Marathi query (UI12) | Fastest one-per-feature voice health check |
 | `regression` | 21 API methods + all UI classes except UI12 (see note above) | Full regression |
 | `api` | 21 methods (all 9 APIs) | Run all API tests |
 | `ui` | UI1–UI12 | Run all UI tests, including UI12 |

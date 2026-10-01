@@ -27,7 +27,7 @@ on:
         description: 'Test suite to run (TestNG group)'
         required: true
         type: choice
-        options: [sanity, smoke, regression]
+        options: [sanity, smoke, regression, BasicSmoke]
         default: smoke
   schedule:
     # 6:00 AM IST daily. GitHub Actions cron is always UTC, and IST is UTC+5:30, so this is
