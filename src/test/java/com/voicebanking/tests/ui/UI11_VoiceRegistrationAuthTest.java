@@ -304,7 +304,7 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
         return botResponse;
     }
 
-    @Test(groups = {"ui", "regression", "smoke"},
+    @Test(groups = {"ui", "regression", "smoke", "BasicSmoke"},
             description = "Should authorize a balance query spoken in the same voice used to register")
     public void testPositiveVoiceMatchIsAuthorized() throws Exception {
         HomePage homePage = registerVoiceAndReachHome();

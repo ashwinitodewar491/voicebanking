@@ -127,6 +127,24 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
+    /** BasicSmoke: the single most basic transfer query — see
+     * UI7_BalanceInquiryTest#basicSmokeQueries for what this group is. Like every row in this
+     * class, it completes a real ₹1 transfer to Pooja Nair. */
+    @DataProvider(name = "basicSmokeQueries")
+    public Object[][] basicSmokeQueries() {
+        return new Object[][]{
+            {"Can I Transfer Money", VoiceQueries.English.CAN_TRANSFER_MONEY,
+                new String[]{"transfer", "success"}, null, "Pooja Nair"},
+        };
+    }
+
+    @Test(dataProvider = "basicSmokeQueries", groups = {"ui", "BasicSmoke"},
+            description = "BasicSmoke: should complete a transfer started with 'Can I transfer money'")
+    public void testBasicSmokeQuery(String queryName, String query, String[] expectedKeywords,
+            String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
     /**
      * Also recognizes transfer confirmation, the amount prompt, OTP requests,
      * and beneficiary disambiguation, so the transcription-retry loop stops
