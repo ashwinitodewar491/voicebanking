@@ -253,7 +253,7 @@ Voice test runs also record video via Playwright (`target/videos/*.webm`) — on
 
 Maven Surefire runs with `testFailureIgnore=true`, so `mvn clean test` always completes (exit 0) even when tests fail — this is what lets the dashboard step run after a failing suite instead of the build stopping at Surefire. Whether a run had failures is read from the report contents (or the `junit` step in Jenkins), not the Maven exit code.
 
-Jenkins publishes both reports as downloadable artifacts and as build-page links — **"Test Report"** (Extent) and **"Dashboard"** (dashboard report) — requires the HTML Publisher plugin.
+Jenkins keeps both reports as downloadable build artifacts (no extra plugins needed) — download `index.html` from the build's "Build Artifacts" section and open it locally.
 
 ---
 
