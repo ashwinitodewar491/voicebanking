@@ -19,10 +19,52 @@ pipeline {
                     set -e
                     export PATH="$HOME/.local/bin:$PATH"
 
+                    # Package manager for the installs below: apt (Ubuntu/Debian) or dnf/yum (Amazon Linux).
+                    if command -v apt-get >/dev/null 2>&1; then PKG="apt-get"
+                    elif command -v dnf >/dev/null 2>&1; then PKG="dnf"
+                    else PKG="yum"
+                    fi
+
+                    # Install python3 only if it isn't already on the agent.
+                    if command -v python3 >/dev/null 2>&1; then
+                        echo "python3 already installed - skipping install"
+                    else
+                        echo "python3 not found - installing with $PKG"
+                        [ "$PKG" = "apt-get" ] && sudo -n apt-get update -qq
+                        sudo -n $PKG install -y python3
+                    fi
                     python3 --version
+
+                    # Install pip only if it isn't already on the agent.
+                    if python3 -m pip --version >/dev/null 2>&1; then
+                        echo "pip already installed - skipping install"
+                    else
+                        echo "pip not found - installing with $PKG"
+                        [ "$PKG" = "apt-get" ] && sudo -n apt-get update -qq
+                        sudo -n $PKG install -y python3-pip
+                    fi
                     python3 -m pip --version
 
-                    python3 -m edge_tts --version >/dev/null 2>&1 || python3 -m pip install --user --quiet edge-tts
+                    # EdgeTtsEngine.java runs "python -m edge_tts", but most EC2 images only have
+                    # "python3" - add a "python" alias only if it's missing. /usr/local/bin so the
+                    # 'Run Tests' stage (and the test JVM) finds it too.
+                    if command -v python >/dev/null 2>&1; then
+                        echo "python already available - skipping alias"
+                    else
+                        echo "python not found - linking it to python3"
+                        sudo -n ln -sf "$(command -v python3)" /usr/local/bin/python
+                    fi
+                    python --version
+
+                    # Install edge-tts only if missing. Ubuntu 23.04+ blocks plain "pip install --user"
+                    # (externally-managed-environment), so retry with --break-system-packages there.
+                    if python3 -m edge_tts --version >/dev/null 2>&1; then
+                        echo "edge-tts already installed - skipping install"
+                    else
+                        echo "edge-tts not found - installing with pip"
+                        python3 -m pip install --user --quiet edge-tts \
+                            || python3 -m pip install --user --quiet --break-system-packages edge-tts
+                    fi
                     python3 -m edge_tts --version
 
                     # Install ffmpeg (static build) only if it isn't already on the agent.
