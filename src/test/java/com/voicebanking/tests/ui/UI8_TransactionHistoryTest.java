@@ -283,7 +283,7 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
     /** Beyond the shape-only pattern check every row already gets, verifies the response content
      * is internally consistent: the "recent transactions" family returns exactly 5 entries, the
      * single-latest-transaction family returns exactly 1, and — for whichever rows the bot answers
-     * with a "Total spent" summary — that total equals the sum of the entries listed alongside it.
+     * with a "Total spent" summary — that total equals the sum of the DEBIT entries listed alongside it.
      * These don't require knowing the seed data's true values, only that the counts/totals the bot
      * itself displays are self-consistent — a real cross-check we couldn't previously do without
      * visibility into the account's actual transaction data. */
@@ -303,7 +303,7 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         }
 
         Assert.assertTrue(totalMatchesSumOfEntries(botResponse),
-                "[" + queryName + "] 'Total spent' does not match the sum of the listed entries.\n"
+                "[" + queryName + "] 'Total spent' does not match the sum of the listed DEBIT entries.\n"
                 + "  Response: " + botResponse);
 
         return botResponse;

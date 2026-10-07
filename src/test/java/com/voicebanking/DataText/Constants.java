@@ -51,9 +51,6 @@ public final class Constants {
     // Account Balance
     public static final String EXPECTED_ACCOUNT_ID = "ACC202602260007";
     public static final String EXPECTED_MASKED_ACCOUNT = "XXXX0007";
-    // Live balance, drifts by -1.00 with every real-money API6 transfer test run — refresh as
-    // needed rather than treating as permanently fixed.
-    public static final double EXPECTED_ACCOUNT_BALANCE = 359472.00;
 
     // Customer A (Rohit Mehta)'s CURRENT account — SAVINGS is EXPECTED_ACCOUNT_ID above.
     public static final String CUSTOMER_A_CURRENT_ACCOUNT_ID = "ACC202602260008";

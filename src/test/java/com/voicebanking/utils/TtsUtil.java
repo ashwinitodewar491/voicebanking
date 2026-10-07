@@ -149,6 +149,23 @@ public class TtsUtil {
         return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array();
     }
 
+    /** Debug aid: when run with {@code -DkeepAudio=true}, saves a copy of {@code wavPath} as
+     * {@code target/kept-audio/<label>.wav} so the exact audio a test fed the fake mic can be
+     * listened to afterwards. No-op otherwise — normal runs still delete every WAV after use. */
+    public static void keepCopy(String wavPath, String label) {
+        if (!Boolean.getBoolean("keepAudio") || wavPath == null) return;
+        try {
+            java.nio.file.Path dir = java.nio.file.Path.of("target", "kept-audio");
+            java.nio.file.Files.createDirectories(dir);
+            java.nio.file.Path copy = dir.resolve(label.replaceAll("[^\\w.+-]", "_") + ".wav");
+            java.nio.file.Files.copy(java.nio.file.Path.of(wavPath), copy,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            System.out.println("[KeepAudio] Saved " + copy.toAbsolutePath());
+        } catch (Exception e) {
+            System.out.println("[KeepAudio] Could not save " + label + ": " + e.getMessage());
+        }
+    }
+
     /** Deletes the temporary WAV file. */
     public static void deleteWav(String wavPath) {
         if (wavPath != null) new File(wavPath).delete();

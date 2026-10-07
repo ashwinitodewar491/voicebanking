@@ -184,8 +184,13 @@ public class BotResponsePatterns {
         // You have the following loans: 1. (Home Loan), 2. (Education Loan)." (full stop, no
         // follow-up question) — so "which" isn't a reliable signal and was dropped; two named/coded
         // loan references is enough on its own to confirm the bot listed the real options.
+        // Since 2026-10-07 stage also (a) answers the car-loan query with just "You don't have a
+        // car loan." — no list at all — which is still a correct answer, so it's accepted as an
+        // alternative; and (b) writes loan types as enum codes ("1. (HOME_LOAN), 2.
+        // (EDUCATION_LOAN)"), so the type/"Loan" separator accepts an underscore as well as a space.
         public static final String LOAN_OPTIONS_PROMPT =
-                "(?i)(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Education|Personal) Loan)){2})";
+                "(?i)You don.t have a car loan"
+                + "|(?=.*\\bloan\\b)(?=(?:.*?(?:LN\\d+|(?:Home|Education|Personal)[ _]Loan)){2})";
 
         // "You don't have a car loan. Your active loan is a Personal Loan." — confirmed live for
         // Customer C (Aniket More, single active PERSONAL_LOAN). Distinct from LOAN_OPTIONS_PROMPT

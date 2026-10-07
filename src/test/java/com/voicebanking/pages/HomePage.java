@@ -2,6 +2,7 @@ package com.voicebanking.pages;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.voicebanking.utils.SessionEndedTracker;
@@ -116,8 +117,13 @@ public class HomePage {
         return page.locator(USER_MENU_BTN).isVisible();
     }
 
+    /** Scrolls back to the top first — after a few voice exchanges the chat grows and the page
+     * ends up scrolled down with the user-menu button out of reach, which made the voice-removal
+     * cleanup time out (confirmed live via screenshot, UI13 2026-10-07) and leave a stale
+     * voiceprint on the shared test account. */
     public void clickUserMenu() {
-        page.locator(USER_MENU_BTN).click();
+        page.evaluate("() => window.scrollTo(0, 0)");
+        page.locator(USER_MENU_BTN).click(new Locator.ClickOptions().setTimeout(10000));
     }
 
     /**
@@ -151,9 +157,20 @@ public class HomePage {
                 .setState(WaitForSelectorState.VISIBLE)
                 .setTimeout(5000));
         confirmBtn.click();
-        confirmBtn.waitFor(new Locator.WaitForOptions()
-                .setState(WaitForSelectorState.HIDDEN)
-                .setTimeout(10000));
+        // Wait on the dialog itself, not the button. If the backend rejects the delete, the app
+        // shows no error and simply leaves the dialog open (confirmed live 2026-10-07:
+        // DELETE /voiceprint/... -> 503 on stage), so say that plainly instead of letting the next
+        // menu click time out behind the still-open modal.
+        Locator confirmDialog = page.locator("[role='dialog'][aria-labelledby='remove-voice-confirm-title']");
+        try {
+            confirmDialog.waitFor(new Locator.WaitForOptions()
+                    .setState(WaitForSelectorState.HIDDEN)
+                    .setTimeout(15000));
+        } catch (PlaywrightException stillOpen) {
+            throw new IllegalStateException("Voice removal not confirmed: the 'Remove voice registration?' "
+                    + "dialog is still open 15s after clicking Remove — the backend most likely rejected "
+                    + "the DELETE /voiceprint request (check stage's voiceprint service).", stillOpen);
+        }
 
         // Give the backend a moment to actually persist the removal before re-checking the menu
         // — the dialog closing confirms the click landed, not that the account's voiceprint
