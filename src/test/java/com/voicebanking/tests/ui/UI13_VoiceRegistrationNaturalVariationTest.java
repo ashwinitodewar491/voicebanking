@@ -276,6 +276,8 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
             homePage.waitForPageLoad();
 
             if (homePage.isVoiceRegistered()) {
+                System.out.println("[VoiceVariation] Account was ALREADY registered at login — "
+                        + "skipping enrollment; tests will use whatever voiceprint is already on it.");
                 return homePage;
             }
 
@@ -298,6 +300,7 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
                     + description);
 
             String repWavPath = TtsUtil.generateWav(description, EdgeTtsEngine.VOICE);
+            TtsUtil.keepCopy(repWavPath, "UI13_enrollment_rep" + rep + "_" + EdgeTtsEngine.VOICE);
             Files.copy(Path.of(repWavPath), Path.of(generatedWavPath), StandardCopyOption.REPLACE_EXISTING);
             TtsUtil.deleteWav(repWavPath);
             recordAcceptedTake(voicePage, rep);
@@ -374,6 +377,7 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
                 + rate + ", pitch=" + pitch);
         String queryWavPath = TtsUtil.generateWavWithVariation(
                 VoiceQueries.English.ACCOUNT_BALANCE, voice, rate, pitch);
+        TtsUtil.keepCopy(queryWavPath, "UI13_query_" + voice + "_rate" + rate + "_pitch" + pitch);
         return sendPreparedQueryAudio(homePage, queryWavPath);
     }
 
@@ -655,6 +659,10 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
                     + "voice, not just a shifted version of the registered one")
     public void testDifferentMaleVoiceQueryIsRejected() throws Exception {
         HomePage homePage = sharedHomePage;
+        // If the voiceprint is gone (e.g. another run's cleanup on this shared account), the app
+        // has nothing to reject against — log it so a "balance leaked" failure can be told apart.
+        System.out.println("[VoiceVariation] Voice registered right before the male-voice query: "
+                + homePage.isVoiceRegistered());
         String botResponse = askBalanceWithVoice(homePage, EdgeTtsEngine.VOICE_EN_ALTERNATE, "+0%", "+0Hz");
 
         Assert.assertFalse(
@@ -773,17 +781,28 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
     @AfterClass(alwaysRun = true)
     public void removeVoiceRegistrationAfterAllTests() {
         try {
-            if (sharedHomePage != null && sharedHomePage.isVoiceRegistered()) {
-                sharedHomePage.removeRegisteredVoice();
-                System.out.println("[VoiceVariation] Final cleanup: voice registration removed "
-                        + "after all tests in this class.");
-            } else {
-                System.out.println("[VoiceVariation] Final cleanup: account was already "
-                        + "unregistered.");
+            for (int attempt = 1; attempt <= 2 && sharedHomePage != null; attempt++) {
+                try {
+                    if (sharedHomePage.isVoiceRegistered()) {
+                        sharedHomePage.removeRegisteredVoice();
+                        System.out.println("[VoiceVariation] Final cleanup: voice registration removed "
+                                + "after all tests in this class.");
+                    } else {
+                        System.out.println("[VoiceVariation] Final cleanup: account was already "
+                                + "unregistered.");
+                    }
+                    break;
+                } catch (Exception e) {
+                    System.out.println("[VoiceVariation] WARN — final cleanup (remove voice) attempt "
+                            + attempt + " failed: " + e.getMessage());
+                    // A failed cleanup leaves the voiceprint on the shared account, and the next
+                    // run then skips enrollment entirely — so retry once from a freshly loaded Home.
+                    if (attempt == 1) {
+                        page.reload();
+                        sharedHomePage.waitForPageLoad();
+                    }
+                }
             }
-        } catch (Exception e) {
-            System.out.println("[VoiceVariation] WARN — final cleanup (remove voice) failed: "
-                    + e.getMessage());
         } finally {
             if (page != null) page.close();
             if (context != null) context.close();

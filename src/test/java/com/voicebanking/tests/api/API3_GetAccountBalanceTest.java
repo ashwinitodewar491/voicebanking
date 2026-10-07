@@ -101,7 +101,12 @@ public class API3_GetAccountBalanceTest extends BaseApiPage {
                 Constants.ACTIVE_STATUS,
                 "Account status mismatch");
 
-        // Balance
+        // Balance — the live value changes with every real-money transfer test run, so only
+        // check that a valid balance is present, not what it is.
+        Assert.assertFalse(
+                data.get("balance").isNull(),
+                "Balance should have a value");
+
         Assert.assertTrue(
                 data.get("balance").isNumber(),
                 "Balance should be numeric");
@@ -109,12 +114,6 @@ public class API3_GetAccountBalanceTest extends BaseApiPage {
         Assert.assertTrue(
                 data.get("balance").asDouble() >= 0,
                 "Balance should not be negative");
-
-        Assert.assertEquals(
-                data.get("balance").asDouble(),
-                Constants.EXPECTED_ACCOUNT_BALANCE,
-                0.01,
-                "Balance mismatch");
 
         // Non-empty validations
         Assert.assertFalse(

@@ -812,18 +812,23 @@ public abstract class BaseVoiceTest {
         return amounts;
     }
 
+    /** Matches one DEBIT entry's amount — money going out, i.e. what "Total spent" adds up. */
+    private static final Pattern DEBIT_ENTRY_AMOUNT = Pattern.compile("-₹([\\d,]+(?:\\.\\d+)?)DEBIT");
+
     /** When a response includes a "Total spent₹X" summary line, verifies X equals the sum of every
-     * listed entry's amount — a content-correctness check that doesn't require knowing the seed
-     * data's true values in advance, only that the bot's own total is internally consistent with
-     * the entries it displayed alongside it. Returns true (nothing to check) when no total line is
-     * present, e.g. plain entry-list or prose-summary responses. */
+     * listed DEBIT entry's amount — a content-correctness check that doesn't require knowing the
+     * seed data's true values in advance, only that the bot's own total is internally consistent
+     * with the entries it displayed alongside it. CREDIT entries are money received, not spent, so
+     * they're excluded — confirmed live: a UPI response listing 10 debits and 7 credits showed
+     * "Total spent₹26,196.88", exactly the 10 debits' sum. Returns true (nothing to check) when no
+     * total line is present, e.g. plain entry-list or prose-summary responses. */
     protected boolean totalMatchesSumOfEntries(String botResponse) {
         Matcher totalMatcher = TOTAL_SPENT.matcher(botResponse);
         if (!totalMatcher.find()) return true;
         double total = parseAmount(totalMatcher.group(1));
 
         double sum = 0;
-        Matcher entryMatcher = TRANSACTION_ENTRY_AMOUNT.matcher(botResponse);
+        Matcher entryMatcher = DEBIT_ENTRY_AMOUNT.matcher(botResponse);
         while (entryMatcher.find()) {
             sum += parseAmount(entryMatcher.group(1));
         }

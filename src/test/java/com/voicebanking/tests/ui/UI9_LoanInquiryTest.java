@@ -73,8 +73,9 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
             {"Active Loans Any",               VoiceQueries.English.ACTIVE_LOANS_ANY,
                     new String[]{"loan"}, null, "education loan"},
 
-            // A nonexistent loan type — bot must list the real loans and ask, and these rows stop
-            // there (no follow-up: disambiguationAccount is null) to assert the fallback itself.
+            // A nonexistent loan type — bot must say there's no such loan (optionally listing the
+            // real loans), and these rows stop there (no follow-up: disambiguationAccount is null)
+            // to assert the fallback itself.
             {"Loan Type Details Education",    VoiceQueries.English.LOAN_TYPE_DETAILS,
                     null, BotResponsePatterns.Loans.LOAN_OPTIONS_PROMPT, null},
             {"Loan Type EMI What Education",   VoiceQueries.English.LOAN_TYPE_EMI_WHAT,
