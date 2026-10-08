@@ -23,6 +23,7 @@ import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
 import com.voicebanking.utils.NoResponseTracker;
 import com.voicebanking.utils.TtsUtil;
+import com.voicebanking.utils.VoiceEnrollment;
 import com.voicebanking.utils.tts.EdgeTtsEngine;
 
 import java.nio.file.Files;
@@ -53,9 +54,6 @@ import java.util.regex.Pattern;
  * goes through. No real money ever moves in this class.
  */
 public class UI15_VoicePrintTransferAuthTest extends BasePage {
-
-    private static final int ENROLLMENT_REPS = 3;
-    private static final int MAX_TAKES_PER_REP = 3;
 
     private String generatedWavPath;
 
@@ -115,7 +113,8 @@ public class UI15_VoicePrintTransferAuthTest extends BasePage {
     }
 
     /** Same as {@link UI11_VoiceRegistrationAuthTest#registerVoiceAndReachHome()} — logs in as
-     * Leena Kamat and completes the 3x voice-registration enrollment flow, then lands on Home. */
+     * Leena Kamat and completes the voice-registration enrollment flow (every image/question
+     * step, via {@link VoiceEnrollment}), then lands on Home. */
     private HomePage registerVoiceAndReachHome() throws Exception {
         String enrollWavPath = TtsUtil.generateWav(
                 VoiceQueries.English.VOICE_ENROLLMENT_PHRASE, EdgeTtsEngine.VOICE);
@@ -162,32 +161,14 @@ public class UI15_VoicePrintTransferAuthTest extends BasePage {
         voicePage.checkConsent();
         voicePage.clickStartRegistration();
 
-        for (int rep = 1; rep <= ENROLLMENT_REPS; rep++) {
-            recordAcceptedTake(voicePage, rep);
-            voicePage.clickSubmit();
-        }
+        // Image steps then question steps, until Start Banking — see VoiceEnrollment.
+        VoiceEnrollment.completeAllSteps(voicePage, generatedWavPath, EdgeTtsEngine.VOICE, "TransferAuth");
 
         voicePage.clickStartBanking();
 
         HomePage homePage = new HomePage(page);
         homePage.waitForPageLoad();
         return homePage;
-    }
-
-    private void recordAcceptedTake(VoiceRegistrationPage voicePage, int rep) throws Exception {
-        for (int take = 1; take <= MAX_TAKES_PER_REP; take++) {
-            System.out.println("[TransferAuth] Enrollment attempt " + rep + " of " + ENROLLMENT_REPS
-                    + " (take " + take + " of " + MAX_TAKES_PER_REP + ")...");
-
-            voicePage.tapMicAndRecord();
-
-            if (voicePage.waitForRecordingAccepted(5000)) return;
-
-            System.out.println("[TransferAuth] Recording not accepted — re-recording...");
-            voicePage.clickRerecord();
-        }
-        throw new RuntimeException("Recording rejected " + MAX_TAKES_PER_REP
-                + " times in a row for enrollment attempt " + rep + " — giving up");
     }
 
     private static final Pattern GENERIC_GREETING = Pattern.compile("Welcome.*How can I help you today");

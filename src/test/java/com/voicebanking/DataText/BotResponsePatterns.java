@@ -114,9 +114,12 @@ public class BotResponsePatterns {
         // but the assertion checking for this pattern still failed since "not authoriz" doesn't
         // match "Authorised" — a false test failure over spelling, not an app bug. The other
         // phrasings are kept as fallback coverage in case wording varies by scenario/build.
+        // A Marathi query gets the rejection in Marathi — "तुम्हाला परवानगी नाही." ("You don't have
+        // permission."), confirmed live on stage 2026-10-08 (UI15) — so "परवानगी नाही" is accepted too.
         public static final String VOICE_NOT_RECOGNIZED =
                 "(?i)(not authori[sz]|could not verify|couldn't verify|voice (does not|doesn't) match|"
-                + "voice not recogni[sz]ed|unable to authenticate|access denied|verification failed)";
+                + "voice not recogni[sz]ed|unable to authenticate|access denied|verification failed|"
+                + "परवानगी नाही)";
     }
 
     public static class Loans {

@@ -2,6 +2,7 @@ package com.voicebanking.pages;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.WaitForSelectorState;
 
@@ -16,6 +17,9 @@ public class VoiceRegistrationPage {
     private static final String SUBMIT_BTN        = "[data-testid='voice-registration-submit-btn']";
     private static final String START_BANKING_BTN = "[data-testid='voice-registration-start-banking-btn']";
     private static final String PLAY_AUDIO_BTN    = "[data-testid='voice-registration-play-audio-btn']";
+    // Question steps (added 2026-10: steps 3-6 of 6) show a random question to answer instead of
+    // an image to describe.
+    private static final String QUESTION_TEXT     = "[data-testid='voice-registration-question']";
 
     // No data-testid on the recording-progress readout itself ("Recording...66%") — matched by
     // its leading text instead.
@@ -86,21 +90,39 @@ public class VoiceRegistrationPage {
                         .setTimeout(30000));
         page.locator(MIC_BTN).click();
 
-        page.locator(RECORDING_PROGRESS).waitFor(
-                new Locator.WaitForOptions()
-                        .setState(WaitForSelectorState.VISIBLE)
-                        .setTimeout(8000));
+        try {
+            page.locator(RECORDING_PROGRESS).waitFor(
+                    new Locator.WaitForOptions()
+                            .setState(WaitForSelectorState.VISIBLE)
+                            .setTimeout(8000));
+        } catch (PlaywrightException notStarted) {
+            // Seen live (UI14, stage 2026-10-08): the first tap occasionally doesn't start
+            // recording at all — the step stays on "Tap to start speaking". Tap once more.
+            System.out.println("[VoiceRegistration] Recording didn't start after tapping the mic — tapping again...");
+            page.locator(MIC_BTN).click();
+            page.locator(RECORDING_PROGRESS).waitFor(
+                    new Locator.WaitForOptions()
+                            .setState(WaitForSelectorState.VISIBLE)
+                            .setTimeout(8000));
+        }
 
         waitForRecordingToComplete(20000);
     }
 
-    /** Polls until the "Recording...N%" readout disappears or reports 100%. */
+    /** Polls until the "Recording...N%" readout disappears or reports 100%. The text is read with
+     * a short timeout: the readout can vanish between the count check and the read, and an
+     * unbounded read then blocked for the full 30s default (seen live, UI15 2026-10-08). */
     private void waitForRecordingToComplete(int timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
             Locator progress = page.locator(RECORDING_PROGRESS);
             if (progress.count() == 0) return;
-            String text = progress.first().textContent();
+            String text;
+            try {
+                text = progress.first().textContent(new Locator.TextContentOptions().setTimeout(1000));
+            } catch (PlaywrightException gone) {
+                return;
+            }
             if (text != null && text.contains("100%")) return;
             page.waitForTimeout(300);
         }
@@ -147,10 +169,22 @@ public class VoiceRegistrationPage {
      */
     public void clickSubmit() {
         page.locator(SUBMIT_BTN).click();
-        page.locator(SUBMIT_BTN).waitFor(
-                new Locator.WaitForOptions()
-                        .setState(WaitForSelectorState.HIDDEN)
-                        .setTimeout(20000));
+        try {
+            page.locator(SUBMIT_BTN).waitFor(
+                    new Locator.WaitForOptions()
+                            .setState(WaitForSelectorState.HIDDEN)
+                            .setTimeout(20000));
+        } catch (PlaywrightException stillShowing) {
+            // Seen live (UI15, stage 2026-10-08): Submit greys out while uploading, then comes back
+            // as a clickable "Submit" and stays — the upload was dropped. Submit once more.
+            if (!page.locator(SUBMIT_BTN).isEnabled()) throw stillShowing;
+            System.out.println("[VoiceRegistration] Submit came back without moving on — submitting again...");
+            page.locator(SUBMIT_BTN).click();
+            page.locator(SUBMIT_BTN).waitFor(
+                    new Locator.WaitForOptions()
+                            .setState(WaitForSelectorState.HIDDEN)
+                            .setTimeout(20000));
+        }
     }
 
     public boolean isStartBankingVisible() {
@@ -195,6 +229,73 @@ public class VoiceRegistrationPage {
                 "() => { const img = document.querySelector('img'); "
                 + "return !!img && img.complete && img.naturalWidth > 0; }");
         return Boolean.TRUE.equals(result);
+    }
+
+    /** Waits for the current step's content to mount and reports its type: true for a question
+     * step (random question to answer), false for an image step (image to describe). Enrollment is
+     * currently 6 steps — 2 image steps, then 4 question steps — but callers shouldn't assume that
+     * order or count. */
+    public boolean waitForStepContentIsQuestion(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (page.locator(QUESTION_TEXT).isVisible()) return true;
+            if (isImageLoaded()) return false;
+            page.waitForTimeout(200);
+        }
+        return page.locator(QUESTION_TEXT).isVisible();
+    }
+
+    /** The question shown on a question step, e.g. "What would you cook if friends came over for
+     * dinner?". */
+    public String getQuestionText() {
+        return page.locator(QUESTION_TEXT).innerText().trim();
+    }
+
+    /** The "Step N of M" progress label, or "" if the screen doesn't show one. */
+    public String getStepLabel() {
+        Locator label = page.getByText(java.util.regex.Pattern.compile("^Step \\d+ of \\d+$"));
+        return label.count() > 0 ? label.first().innerText().trim() : "";
+    }
+
+    /** Taps the speaker icon and returns the text it reads aloud — the image description on an
+     * image step (not exposed anywhere in the DOM; the {@code <img>} has no alt text). Captured by
+     * wrapping {@code speechSynthesis.speak} at runtime, so callers need no init script. Returns
+     * null if nothing was spoken within {@code timeoutMs}. */
+    public String capturePlayAudioText(int timeoutMs) {
+        page.evaluate("() => {"
+                + "  window.__enrollSpoken = null;"
+                + "  if (!window.speechSynthesis || window.__enrollSpeakPatched) return;"
+                + "  const original = window.speechSynthesis.speak.bind(window.speechSynthesis);"
+                + "  window.speechSynthesis.speak = u => { window.__enrollSpoken = u.text; return original(u); };"
+                + "  window.__enrollSpeakPatched = true;"
+                + "}");
+        clickPlayImageDescription();
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            Object spoken = page.evaluate("() => window.__enrollSpoken");
+            if (spoken != null) {
+                // Only the text is needed — stop the read-aloud so it can't hold up the mic tap
+                // that follows (suspected cause of a recording that never started, UI14 2026-10-08).
+                page.evaluate("() => window.speechSynthesis && window.speechSynthesis.cancel()");
+                page.waitForTimeout(500);
+                return spoken.toString();
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
+    }
+
+    /** After a Submit, waits until either the next step's mic button or the final "Start Banking"
+     * screen appears. Returns true when enrollment is finished (Start Banking showing). */
+    public boolean waitForNextStepOrFinish(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (page.locator(START_BANKING_BTN).isVisible()) return true;
+            if (page.locator(MIC_BTN).isVisible()) return false;
+            page.waitForTimeout(300);
+        }
+        throw new IllegalStateException("Neither the next enrollment step nor Start Banking appeared within "
+                + timeoutMs + "ms after Submit");
     }
 
     public void clickStartBanking() {
