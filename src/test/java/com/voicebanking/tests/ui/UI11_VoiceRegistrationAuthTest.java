@@ -21,6 +21,7 @@ import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
 import com.voicebanking.utils.NoResponseTracker;
 import com.voicebanking.utils.TtsUtil;
+import com.voicebanking.utils.VoiceEnrollment;
 import com.voicebanking.utils.tts.EdgeTtsEngine;
 
 import java.nio.file.Files;
@@ -31,7 +32,8 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Covers voice-based authentication: enroll a voiceprint via the 3-repetition registration flow,
+ * Covers voice-based authentication: enroll a voiceprint via the registration flow (image and
+ * question steps — see {@link VoiceEnrollment}),
  * then verify a later balance query is authorized when spoken in the same voice and rejected
  * when spoken in a different one.
  *
@@ -56,9 +58,6 @@ import java.util.regex.Pattern;
  * is what {@link VoiceRegistrationPage#waitForRecordingAccepted(int)} polls for.
  */
 public class UI11_VoiceRegistrationAuthTest extends BasePage {
-
-    private static final int ENROLLMENT_REPS = 3;
-    private static final int MAX_TAKES_PER_REP = 3;
 
     private String generatedWavPath;
 
@@ -133,9 +132,9 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
     }
 
     /**
-     * Logs in as Leena Kamat (CIF202602260042, 9812341042) and completes the 3x
-     * voice-registration enrollment flow (consent → Start Registration → tap mic/speak/Submit
-     * x3), then clicks Start Banking to land on Home. Was previously a fresh random-phone
+     * Logs in as Leena Kamat (CIF202602260042, 9812341042) and completes the
+     * voice-registration enrollment flow (consent → Start Registration → every image/question
+     * step via {@link VoiceEnrollment}), then clicks Start Banking to land on Home. Was previously a fresh random-phone
      * registration, but stage no longer accepts unregistered numbers at the OTP step (confirmed
      * live: "Send OTP" never surfaces the OTP screen for a random number) — Leena Kamat is used
      * instead as a real, known account with no beneficiary/loan history to interfere. NOTE: this
@@ -202,39 +201,14 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
         voicePage.checkConsent();
         voicePage.clickStartRegistration();
 
-        for (int rep = 1; rep <= ENROLLMENT_REPS; rep++) {
-            recordAcceptedTake(voicePage, rep);
-            voicePage.clickSubmit();
-        }
+        // Image steps then question steps, until Start Banking — see VoiceEnrollment.
+        VoiceEnrollment.completeAllSteps(voicePage, generatedWavPath, EdgeTtsEngine.VOICE, "VoiceRegistration");
 
         voicePage.clickStartBanking();
 
         HomePage homePage = new HomePage(page);
         homePage.waitForPageLoad();
         return homePage;
-    }
-
-    /**
-     * Records one enrollment repetition. Reuses the single class-level WAV for every tap rather
-     * than swapping in fresh audio per take — this screen opens the microphone once and keeps
-     * that same stream alive across all 3 recording attempts (unlike the hold-to-speak
-     * balance-query flow, which opens a fresh stream per press). If a take is rejected, Re-record
-     * is clicked and retried against the same stream.
-     */
-    private void recordAcceptedTake(VoiceRegistrationPage voicePage, int rep) throws Exception {
-        for (int take = 1; take <= MAX_TAKES_PER_REP; take++) {
-            System.out.println("[VoiceRegistration] Enrollment attempt " + rep + " of " + ENROLLMENT_REPS
-                    + " (take " + take + " of " + MAX_TAKES_PER_REP + ")...");
-
-            voicePage.tapMicAndRecord();
-
-            if (voicePage.waitForRecordingAccepted(5000)) return;
-
-            System.out.println("[VoiceRegistration] Recording not accepted — re-recording...");
-            voicePage.clickRerecord();
-        }
-        throw new RuntimeException("Recording rejected " + MAX_TAKES_PER_REP
-                + " times in a row for enrollment attempt " + rep + " — giving up");
     }
 
     /** Matches the bot's generic session-start greeting, e.g. "Good afternoon, Welcome Karan

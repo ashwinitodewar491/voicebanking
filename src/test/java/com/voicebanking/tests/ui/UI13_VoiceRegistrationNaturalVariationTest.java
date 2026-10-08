@@ -24,6 +24,7 @@ import com.voicebanking.pages.WelcomePage;
 import com.voicebanking.utils.NoResponseTracker;
 import com.voicebanking.utils.ScreenshotUtil;
 import com.voicebanking.utils.TtsUtil;
+import com.voicebanking.utils.VoiceEnrollment;
 import com.voicebanking.utils.tts.AudioEffects;
 import com.voicebanking.utils.tts.EdgeTtsEngine;
 import com.voicebanking.utils.tts.VoiceVariation;
@@ -70,13 +71,10 @@ import java.util.regex.Pattern;
  * registration in a {@code finally} block anymore. The voiceprint is removed exactly once, by
  * {@link #removeVoiceRegistrationAfterAllTests()}, after every test in the class has run. This
  * matches how voice auth is actually used (enroll once, verify many times) and avoids paying for
- * a fresh 3-rep enrollment — the slowest, most failure-prone part of this whole flow — on every
+ * a fresh multi-step enrollment — the slowest, most failure-prone part of this whole flow — on every
  * single query variant.
  */
 public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
-
-    private static final int ENROLLMENT_REPS = 3;
-    private static final int MAX_TAKES_PER_REP = 3;
 
     /** Range for the positive test's query — small enough to still read as the same person on a
      * slightly different take. */
@@ -184,22 +182,6 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
                 + "    for (var i = 0; i < array.length; i++) { array[i] = 255; }"
                 + "  };"
                 + "})();");
-
-        // The registration screen's "Play image description" button reads a per-image
-        // description aloud via speechSynthesis.speak() — there's no DOM attribute exposing that
-        // text (the <img> itself has empty alt=""), so the only way to read it is to intercept
-        // the call itself, the same interception technique as the getUserMedia patch above.
-        // Confirmed live via manual DOM inspection before writing this.
-        page.addInitScript(
-                "(function() {"
-                + "  window.__lastImageDescription = null;"
-                + "  if (!window.speechSynthesis) return;"
-                + "  var originalSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);"
-                + "  window.speechSynthesis.speak = function(utterance) {"
-                + "    window.__lastImageDescription = utterance.text;"
-                + "    return originalSpeak(utterance);"
-                + "  };"
-                + "})();");
     }
 
     /** Logs in once and registers once for the whole class — every {@code @Test} method below
@@ -225,10 +207,10 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
         }
     }
 
-    /** Logs in as Leena Kamat and completes 3x voice-registration enrollment — each rep spoken
-     * as {@link EdgeTtsEngine#VOICE} actually describing that rep's on-screen image (captured
-     * live via {@link #captureImageDescription()}), instead of a fixed canned phrase unrelated
-     * to what's shown — then clicks Start Banking to land on Home. Otherwise mirrors {@link
+    /** Logs in as Leena Kamat and completes voice-registration enrollment — every step spoken as
+     * {@link EdgeTtsEngine#VOICE}, describing the on-screen image on image steps and answering the
+     * on-screen question on question steps (see {@link VoiceEnrollment}), instead of a fixed
+     * canned phrase unrelated to what's shown — then clicks Start Banking to land on Home. Otherwise mirrors {@link
      * UI11_VoiceRegistrationAuthTest#registerVoiceAndReachHome()} (same account, same
      * known-returning-user fallback, same reasons) — see that method's javadoc for why this
      * specific account is used.
@@ -290,68 +272,15 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
         voicePage.checkConsent();
         voicePage.clickStartRegistration();
 
-        for (int rep = 1; rep <= ENROLLMENT_REPS; rep++) {
-            voicePage.waitForRecordingScreenReady();
-            Assert.assertTrue(voicePage.waitForImageLoaded(5000),
-                    "[VoiceVariation] Enrollment rep " + rep + "'s image failed to load");
-
-            String description = captureImageDescription(voicePage);
-            System.out.println("[VoiceVariation] Enrollment rep " + rep + " image description: "
-                    + description);
-
-            String repWavPath = TtsUtil.generateWav(description, EdgeTtsEngine.VOICE);
-            TtsUtil.keepCopy(repWavPath, "UI13_enrollment_rep" + rep + "_" + EdgeTtsEngine.VOICE);
-            Files.copy(Path.of(repWavPath), Path.of(generatedWavPath), StandardCopyOption.REPLACE_EXISTING);
-            TtsUtil.deleteWav(repWavPath);
-            recordAcceptedTake(voicePage, rep);
-            voicePage.clickSubmit();
-        }
+        // Image steps (spoken image description) then question steps (spoken answer), until
+        // Start Banking — see VoiceEnrollment. With -DkeepAudio=true every step's audio is saved.
+        VoiceEnrollment.completeAllSteps(voicePage, generatedWavPath, EdgeTtsEngine.VOICE, "VoiceVariation");
 
         voicePage.clickStartBanking();
 
         HomePage homePage = new HomePage(page);
         homePage.waitForPageLoad();
         return homePage;
-    }
-
-
-    /** Taps the "Play image description" button and waits for the {@code speechSynthesis.speak()}
-     * interception (see {@link #setUpBrowser()}) to capture its text — that's the actual
-     * description of whichever image is currently on screen for this rep. Throws if nothing was
-     * captured within the timeout, rather than silently falling back to stale/empty text. */
-    private String captureImageDescription(VoiceRegistrationPage voicePage) {
-        page.evaluate("() => { window.__lastImageDescription = null; }");
-        voicePage.clickPlayImageDescription();
-
-        long deadline = System.currentTimeMillis() + 3000;
-        Object description = null;
-        while (System.currentTimeMillis() < deadline) {
-            description = page.evaluate("() => window.__lastImageDescription");
-            if (description != null) break;
-            page.waitForTimeout(100);
-        }
-        if (description == null) {
-            throw new RuntimeException("Failed to capture image description via "
-                    + "speechSynthesis.speak() interception — see setUpBrowser()'s init script");
-        }
-        return description.toString();
-    }
-
-    /** Same take/retry loop as {@link UI11_VoiceRegistrationAuthTest#recordAcceptedTake}. */
-    private void recordAcceptedTake(VoiceRegistrationPage voicePage, int rep) throws Exception {
-        for (int take = 1; take <= MAX_TAKES_PER_REP; take++) {
-            System.out.println("[VoiceVariation] Enrollment attempt " + rep + " of " + ENROLLMENT_REPS
-                    + " (take " + take + " of " + MAX_TAKES_PER_REP + ")...");
-
-            voicePage.tapMicAndRecord();
-
-            if (voicePage.waitForRecordingAccepted(5000)) return;
-
-            System.out.println("[VoiceVariation] Recording not accepted — re-recording...");
-            voicePage.clickRerecord();
-        }
-        throw new RuntimeException("Recording rejected " + MAX_TAKES_PER_REP
-                + " times in a row for enrollment attempt " + rep + " — giving up");
     }
 
     private static final Pattern GENERIC_GREETING = Pattern.compile("Welcome.*How can I help you today");

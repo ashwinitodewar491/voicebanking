@@ -22,6 +22,7 @@ import com.voicebanking.pages.VoiceRegistrationPage;
 import com.voicebanking.pages.WelcomePage;
 import com.voicebanking.utils.NoResponseTracker;
 import com.voicebanking.utils.TtsUtil;
+import com.voicebanking.utils.VoiceEnrollment;
 import com.voicebanking.utils.tts.EdgeTtsEngine;
 
 import java.nio.file.Files;
@@ -61,9 +62,6 @@ import java.util.regex.Pattern;
  * against his account start failing with a spurious "Not Authorised" the next time they run.
  */
 public class UI14_VoicePrintCrossAccountTest extends BasePage {
-
-    private static final int ENROLLMENT_REPS = 3;
-    private static final int MAX_TAKES_PER_REP = 3;
 
     private String generatedWavPath;
 
@@ -125,8 +123,9 @@ public class UI14_VoicePrintCrossAccountTest extends BasePage {
 
     /**
      * Logs into {@code phoneNumber} (clearing any prior session first, so this can enroll a
-     * second account in the same browser/page right after the first) and completes the 3x
-     * voice-registration enrollment flow using {@code enrollmentVoice}, then clicks Start Banking
+     * second account in the same browser/page right after the first) and completes the
+     * voice-registration enrollment flow (every image/question step, via {@link VoiceEnrollment})
+     * using {@code enrollmentVoice}, then clicks Start Banking
      * to land on Home. Generalizes {@link UI11_VoiceRegistrationAuthTest#registerVoiceAndReachHome()}
      * to an explicit phone/voice pair instead of a single hardcoded account, since this class needs
      * to enroll two distinct accounts with two distinct speakers in the same run.
@@ -192,33 +191,14 @@ public class UI14_VoicePrintCrossAccountTest extends BasePage {
         voicePage.checkConsent();
         voicePage.clickStartRegistration();
 
-        for (int rep = 1; rep <= ENROLLMENT_REPS; rep++) {
-            recordAcceptedTake(voicePage, rep);
-            voicePage.clickSubmit();
-        }
+        // Image steps then question steps, until Start Banking — see VoiceEnrollment.
+        VoiceEnrollment.completeAllSteps(voicePage, generatedWavPath, enrollmentVoice, "CrossAccount");
 
         voicePage.clickStartBanking();
 
         HomePage homePage = new HomePage(page);
         homePage.waitForPageLoad();
         return homePage;
-    }
-
-    /** Same take/retry loop as {@link UI11_VoiceRegistrationAuthTest#recordAcceptedTake}. */
-    private void recordAcceptedTake(VoiceRegistrationPage voicePage, int rep) throws Exception {
-        for (int take = 1; take <= MAX_TAKES_PER_REP; take++) {
-            System.out.println("[CrossAccount] Enrollment attempt " + rep + " of " + ENROLLMENT_REPS
-                    + " (take " + take + " of " + MAX_TAKES_PER_REP + ")...");
-
-            voicePage.tapMicAndRecord();
-
-            if (voicePage.waitForRecordingAccepted(5000)) return;
-
-            System.out.println("[CrossAccount] Recording not accepted — re-recording...");
-            voicePage.clickRerecord();
-        }
-        throw new RuntimeException("Recording rejected " + MAX_TAKES_PER_REP
-                + " times in a row for enrollment attempt " + rep + " — giving up");
     }
 
     private static final Pattern GENERIC_GREETING = Pattern.compile("Welcome.*How can I help you today");
