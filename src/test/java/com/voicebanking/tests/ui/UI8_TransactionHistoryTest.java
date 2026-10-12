@@ -185,6 +185,23 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
+    /** BasicSmoke: the single most basic transaction-history query — see
+     * UI7_BalanceInquiryTest#basicSmokeQueries for what this group is. */
+    @DataProvider(name = "basicSmokeQueries")
+    public Object[][] basicSmokeQueries() {
+        return new Object[][]{
+            {"Recent Transactions", VoiceQueries.English.RECENT_TRANSACTIONS,
+                    new String[]{"transaction", "recent"}, BotResponsePatterns.Transactions.RECENT_ENTRY_OR_NO_RESULTS, "savings"},
+        };
+    }
+
+    @Test(dataProvider = "basicSmokeQueries", groups = {"ui", "BasicSmoke"},
+            description = "BasicSmoke: should answer 'Show me my recent transactions'")
+    public void testBasicSmokeQuery(String queryName, String query, String[] expectedKeywords,
+                                     String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
     /** One query per major transaction-pattern category (generic recent, account-specific, and
      * category-filtered) — broader than smoke, still fast. */
     @DataProvider(name = "sanityQueries")

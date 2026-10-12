@@ -82,6 +82,23 @@ public class UI12_MultilingualVoiceQueryTest {
         };
     }
 
+    /** BasicSmoke: one Marathi query — see UI7_BalanceInquiryTest#basicSmokeQueries for what this
+     * group is. The app's language picker has no Marathi option (LanguagePage only knows en/hi/bn),
+     * so the account stays on English and only the speech is Marathi — the same setup
+     * UI13_VoiceRegistrationNaturalVariationTest#testMarathiQueryOutcomeObserved uses. */
+    @DataProvider(name = "basicSmokeQueries")
+    public Object[][] basicSmokeQueries() {
+        return new Object[][]{
+            {"Marathi Savings Balance", "en", MultilingualVoiceQueries.Marathi.SAVINGS_BALANCE, EdgeTtsEngine.VOICE_MARATHI},
+        };
+    }
+
+    @Test(dataProvider = "basicSmokeQueries", groups = {"ui", "BasicSmoke"},
+            description = "BasicSmoke: should process a Marathi voice query")
+    public void testBasicSmokeQuery(String queryName, String locale, String query, String voice) throws Exception {
+        runMultilingualQuery(queryName, locale, query, voice);
+    }
+
     /** TEMP — isolates exactly two locale-switch transitions in one class instance run: row 1
      * switches away from whatever locale the account currently has (English, if nothing else has
      * touched it since) to Hindi; row 2 then switches from Hindi (set by row 1, tracked via

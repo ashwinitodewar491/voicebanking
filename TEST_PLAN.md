@@ -146,7 +146,7 @@ Jenkins publishes results via the JUnit plugin (which reads the standard XML for
 target/surefire-reports/*.xml
 ```
 
-Two additional self-contained HTML reports are produced per run and archived/published as Jenkins build artifacts + HTML Publisher links (see [README.md](README.md) → Test Results and [QUICK_REFERENCE.md](QUICK_REFERENCE.md) → Test Results & Reports for details):
+Two additional self-contained HTML reports are produced per run and archived as Jenkins build artifacts (see [README.md](README.md) → Test Results and [QUICK_REFERENCE.md](QUICK_REFERENCE.md) → Test Results & Reports for details):
 
 | Report | Source | Output |
 |---|---|---|

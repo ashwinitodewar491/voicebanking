@@ -180,6 +180,23 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
+    /** BasicSmoke: the single most basic balance query — one row per feature across UI7–UI12 and
+     * UI11's voice-registration check, for the fastest possible end-to-end health check. */
+    @DataProvider(name = "basicSmokeQueries")
+    public Object[][] basicSmokeQueries() {
+        return new Object[][]{
+            {"Account Balance", VoiceQueries.English.ACCOUNT_BALANCE,
+                    new String[]{"balance", "account"}, BotResponsePatterns.Balance.ANY, "savings"},
+        };
+    }
+
+    @Test(dataProvider = "basicSmokeQueries", groups = {"ui", "BasicSmoke"},
+            description = "BasicSmoke: should answer 'What is my account balance'")
+    public void testBasicSmokeQuery(String queryName, String query, String[] expectedKeywords,
+                                     String assertionPattern, String disambiguationAccount) throws Exception {
+        runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
+    }
+
     /** One query per major balance-pattern category (savings-specific, current-specific, and
      * generic/either-account) — broader than smoke, still fast. */
     @DataProvider(name = "sanityQueries")

@@ -266,8 +266,7 @@ The dashboard report shows:
 After each pipeline run:
 - **Test trend graph** — JUnit plugin, visible on the job's main page
 - **Artifacts** — both `extent-report/index.html` and `dashboard-report/index.html` downloadable from the build page's "Build Artifacts" section
-- **"Test Report" link** — Extent HTML viewable in Jenkins (requires HTML Publisher plugin)
-- **"Dashboard" link** — dashboard HTML viewable in Jenkins (requires HTML Publisher plugin)
+- Download the report from Build Artifacts and open it locally — Jenkins' default security policy (CSP) blocks the reports' styles/scripts when viewed directly inside Jenkins
 - Build result is **UNSTABLE** (not FAILURE) when tests fail, since `testFailureIgnore=true` makes the `mvn` step itself always succeed — the `junit` step reading `target/surefire-reports/*.xml` is what flags failures to Jenkins
 
 ---
@@ -275,11 +274,7 @@ After each pipeline run:
 ## Jenkins Setup Checklist (DevOps)
 
 ### Plugins required
-| Plugin | Purpose |
-|---|---|
-| **HTML Publisher** | Publishes `target/extent-report/index.html` and `target/dashboard-report/index.html` as clickable Jenkins build links |
-
-Install at: **Manage Jenkins → Plugins → Available plugins** → search `HTML Publisher`
+None beyond Jenkins' standard suggested plugins (Pipeline, Git, JUnit). HTML reports are kept as plain build artifacts, so the HTML Publisher plugin is not needed.
 
 ### Jenkins Global Environment Variables
 None required — URLs are managed in `Endpoints.java`.
