@@ -33,26 +33,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * Every existing voice-match test ({@link UI11_VoiceRegistrationAuthTest}, {@link
- * UI13_VoiceRegistrationNaturalVariationTest}) gates a single intent: a read-only balance query.
- * None of them ever check whether voice-print authorization applies to <b>transferring money</b> —
- * the one action on this app that actually moves funds, and the one a voice-auth bypass would
- * matter most for. Separately, {@link UI13_VoiceRegistrationNaturalVariationTest#testMarathiQueryOutcomeObserved}
- * found that a Marathi-language balance query bypasses voice matching entirely and leaks the
- * balance despite using a completely unregistered voice/language. This class checks whether that
- * same bypass reaches transfer-money initiation too, which would be a materially more severe
- * finding than a read-only leak.
- *
- * <p>Uses Leena Kamat (Customer B, {@link Constants#CUSTOMER_B_PHONE}) — the same account {@link
- * UI11_VoiceRegistrationAuthTest} and {@link UI13_VoiceRegistrationNaturalVariationTest} already
- * use for voice-print testing, chosen there specifically for having no beneficiary/loan history to
- * interfere (see their javadocs). Her having no beneficiary means a transfer can never actually
- * complete here — deliberately fine, since every test below only cares whether the app's
- * <b>authorization gate</b> fires on the very first response to a generic, no-beneficiary-named
- * transfer query ({@link VoiceQueries.English#CAN_TRANSFER_MONEY}), not whether a real transfer
- * goes through. No real money ever moves in this class.
- */
+/** Checks whether voice-print authorization gates transfer initiation, including the Marathi bypass
+ * found in UI13. Uses Leena Kamat, who has no beneficiary, so no money ever moves. */
 public class UI15_VoicePrintTransferAuthTest extends BasePage {
 
     private String generatedWavPath;
@@ -68,8 +50,7 @@ public class UI15_VoicePrintTransferAuthTest extends BasePage {
         TtsUtil.deleteWav(generatedWavPath);
     }
 
-    /** Same browser/mic setup as {@link UI11_VoiceRegistrationAuthTest#setUpBrowser()} — see that
-     * method's javadoc for why the extra Chromium args and the two init scripts are needed. */
+    /** Same browser/mic setup as {@link UI11_VoiceRegistrationAuthTest#setUpBrowser()}. */
     @Override
     @BeforeMethod(alwaysRun = true)
     public void setUpBrowser() {
@@ -112,9 +93,7 @@ public class UI15_VoicePrintTransferAuthTest extends BasePage {
                 + "})();");
     }
 
-    /** Same as {@link UI11_VoiceRegistrationAuthTest#registerVoiceAndReachHome()} — logs in as
-     * Leena Kamat and completes the voice-registration enrollment flow (every image/question
-     * step, via {@link VoiceEnrollment}), then lands on Home. */
+    /** Logs in as Leena Kamat, enrolls via {@link VoiceEnrollment}, and lands on Home. */
     private HomePage registerVoiceAndReachHome() throws Exception {
         String enrollWavPath = TtsUtil.generateWav(
                 VoiceQueries.English.VOICE_ENROLLMENT_PHRASE, EdgeTtsEngine.VOICE);
@@ -176,11 +155,8 @@ public class UI15_VoicePrintTransferAuthTest extends BasePage {
             Pattern.compile("(?i)didn.t understand that.*what would you like to do");
     private static final int MAX_REASK_ATTEMPTS = 3;
 
-    /** Speaks {@code queryText} in {@code voice} and returns the bot's first response, retrying on
-     * a generic greeting/context-lost fallback/blank response the same way {@link
-     * UI11_VoiceRegistrationAuthTest#askBalanceWithVoice} does. Generalized to an arbitrary query
-     * text (not just the balance phrase) since this class probes transfer-money initiation in both
-     * English and Marathi. */
+    /** Speaks {@code queryText} in {@code voice} and returns the first response, re-asking on a
+     * greeting, fallback or blank reply. */
     private String askWithVoice(HomePage homePage, String queryText, String voice) throws Exception {
         String queryWavPath = TtsUtil.generateWav(queryText, voice);
         Files.copy(Path.of(queryWavPath), Path.of(generatedWavPath), StandardCopyOption.REPLACE_EXISTING);

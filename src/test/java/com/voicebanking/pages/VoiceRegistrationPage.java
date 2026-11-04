@@ -76,13 +76,8 @@ public class VoiceRegistrationPage {
         page.locator(SKIP_BTN).click();
     }
 
-    /**
-     * One recording take: tap the mic once (no hold), wait for the "Recording...N%" readout to
-     * appear (covers the app's ~3s get-ready delay before it actually starts capturing), then
-     * wait for it to run its fixed ~15s course. Does not decide whether the take was accepted —
-     * see {@link #waitForRecordingAccepted(int)} — since retrying a rejected take requires
-     * swapping in freshly generated audio first, which this page object has no TTS access to do.
-     */
+    /** Taps the mic and waits for one ~15s recording take to finish. Use
+     * {@link #waitForRecordingAccepted(int)} to check the result. */
     public void tapMicAndRecord() {
         page.locator(MIC_BTN).waitFor(
                 new Locator.WaitForOptions()
@@ -109,9 +104,7 @@ public class VoiceRegistrationPage {
         waitForRecordingToComplete(20000);
     }
 
-    /** Polls until the "Recording...N%" readout disappears or reports 100%. The text is read with
-     * a short timeout: the readout can vanish between the count check and the read, and an
-     * unbounded read then blocked for the full 30s default (seen live, UI15 2026-10-08). */
+    /** Polls until the recording readout disappears or reaches 100%. */
     private void waitForRecordingToComplete(int timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
@@ -128,11 +121,7 @@ public class VoiceRegistrationPage {
         }
     }
 
-    /**
-     * The app validates the recording asynchronously after the progress bar completes — polls
-     * for the "Recording not accepted" dialog heading. Returns false if it appears within
-     * {@code timeoutMs}, true (accepted) otherwise.
-     */
+    /** True if no "Recording not accepted" dialog appears within {@code timeoutMs}. */
     public boolean waitForRecordingAccepted(int timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
@@ -142,11 +131,7 @@ public class VoiceRegistrationPage {
         return true;
     }
 
-    /**
-     * Clicks the rejection dialog's own Re-record button — scoped to the container holding the
-     * "Recording not accepted" heading rather than any bare "Re-record" match, since the normal
-     * bottom action bar has its own Re-record button present at the same time.
-     */
+    /** Clicks Re-record inside the rejection dialog, not the bottom bar's Re-record. */
     public void clickRerecord() {
         Locator dialogRerecord = page.locator("div")
                 .filter(new Locator.FilterOptions().setHasText(NOT_ACCEPTED_HEADING))
@@ -159,14 +144,8 @@ public class VoiceRegistrationPage {
                         .setTimeout(20000));
     }
 
-    /**
-     * Clicks Submit, then waits for the Submit button itself to disappear before returning —
-     * confirming the current screen has actually torn down rather than just clicking and moving
-     * on. Without this, the next step's wait for the mic button (or Start Banking) could resolve
-     * against a stale, about-to-be-replaced element still momentarily present in the DOM during
-     * the transition, matching the transient-element behavior this app shows elsewhere (see
-     * HomePage's Session-Ended recovery comments for the same class of issue).
-     */
+    /** Clicks Submit and waits for the button to disappear, so the next step doesn't match stale
+     * elements. */
     public void clickSubmit() {
         page.locator(SUBMIT_BTN).click();
         try {
@@ -191,10 +170,7 @@ public class VoiceRegistrationPage {
         return page.locator(START_BANKING_BTN).isVisible();
     }
 
-    /** Waits for the current enrollment step to actually be ready — at minimum the mic button
-     * present — before touching anything else on that step ({@link #isImageLoaded()}, {@link
-     * #clickPlayImageDescription()}). Right after Start Registration or a Submit, the screen is
-     * still on its "Starting..." transition for a moment and nothing else has mounted yet. */
+    /** Waits for the current enrollment step's mic button. */
     public void waitForRecordingScreenReady() {
         page.locator(MIC_BTN).waitFor(
                 new Locator.WaitForOptions()
@@ -202,8 +178,7 @@ public class VoiceRegistrationPage {
                         .setTimeout(30000));
     }
 
-    /** Polls {@link #isImageLoaded()} instead of checking once — the image can still be mid-load
-     * for a brief moment right after the mic button itself becomes visible. */
+    /** Polls {@link #isImageLoaded()} for up to {@code timeoutMs}. */
     public boolean waitForImageLoaded(int timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
@@ -213,17 +188,12 @@ public class VoiceRegistrationPage {
         return false;
     }
 
-    /** Taps the speaker icon that reads the current enrollment image's description aloud via
-     * {@code window.speechSynthesis.speak()} — the actual text spoken is not exposed through any
-     * DOM attribute (the {@code <img>} has no alt text), so a caller that wants it must intercept
-     * {@code speechSynthesis.speak} itself (e.g. via an init script) before calling this. */
+    /** Taps the speaker icon that reads the image description aloud via speechSynthesis. */
     public void clickPlayImageDescription() {
         page.locator(PLAY_AUDIO_BTN).click();
     }
 
-    /** True once the current enrollment step's image has actually finished loading (not just
-     * present in the DOM) — {@code naturalWidth > 0} rules out a broken/still-loading image that
-     * {@code img.complete} alone wouldn't catch for a failed load. */
+    /** True once the step image has actually loaded ({@code naturalWidth > 0}). */
     public boolean isImageLoaded() {
         Object result = page.evaluate(
                 "() => { const img = document.querySelector('img'); "
@@ -231,10 +201,7 @@ public class VoiceRegistrationPage {
         return Boolean.TRUE.equals(result);
     }
 
-    /** Waits for the current step's content to mount and reports its type: true for a question
-     * step (random question to answer), false for an image step (image to describe). Enrollment is
-     * currently 6 steps — 2 image steps, then 4 question steps — but callers shouldn't assume that
-     * order or count. */
+    /** Waits for step content; true for a question step, false for an image step. */
     public boolean waitForStepContentIsQuestion(int timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
@@ -245,8 +212,7 @@ public class VoiceRegistrationPage {
         return page.locator(QUESTION_TEXT).isVisible();
     }
 
-    /** The question shown on a question step, e.g. "What would you cook if friends came over for
-     * dinner?". */
+    /** The question shown on a question step. */
     public String getQuestionText() {
         return page.locator(QUESTION_TEXT).innerText().trim();
     }
@@ -257,10 +223,8 @@ public class VoiceRegistrationPage {
         return label.count() > 0 ? label.first().innerText().trim() : "";
     }
 
-    /** Taps the speaker icon and returns the text it reads aloud — the image description on an
-     * image step (not exposed anywhere in the DOM; the {@code <img>} has no alt text). Captured by
-     * wrapping {@code speechSynthesis.speak} at runtime, so callers need no init script. Returns
-     * null if nothing was spoken within {@code timeoutMs}. */
+    /** Taps the speaker icon and returns the text spoken, captured by wrapping
+     * speechSynthesis.speak. Null on timeout. */
     public String capturePlayAudioText(int timeoutMs) {
         page.evaluate("() => {"
                 + "  window.__enrollSpoken = null;"

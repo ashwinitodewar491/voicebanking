@@ -17,13 +17,8 @@ import com.voicebanking.pages.WelcomePage;
 
 public class UI4_LanguageTest extends BasePage {
 
-    /** Reopens the language picker via the globe icon on Home rather than relying on the
-     * once-ever onboarding auto-prompt — this suite is only allowed to use two fixed accounts
-     * (Aniket More / Rohit Mehta, see {@link Constants}), both already long past their one-time
-     * onboarding from prior runs today, so that auto-prompt will never show for either of them
-     * again. {@link HomePage#clickLanguageButton()} opens the identical {@link LanguagePage} UI
-     * either way (already relied on this same way by {@code BaseVoiceTest#enforceEnglishLocale}),
-     * so every assertion below still holds — only how the page is reached changed. */
+    /** Opens the language picker from the Home globe icon, since the test accounts are past
+     * onboarding. */
     private LanguagePage navigateToLanguagePage() {
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();

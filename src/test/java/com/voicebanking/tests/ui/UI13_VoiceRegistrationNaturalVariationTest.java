@@ -36,90 +36,42 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * Same voice-authentication coverage as {@link UI11_VoiceRegistrationAuthTest}, but this class
- * puts the natural pitch/pace variation on the <b>query</b> side instead of enrollment.
- * Enrollment here uses {@link EdgeTtsEngine#VOICE} completely unvaried — byte-identical in shape
- * to UI11's own enrollment audio, one single voice, no offset. The later balance-query audio is
- * then synthesized as the same registered voice shifted by a rate/pitch offset (see {@link
- * VoiceVariation}):
- * <ul>
- *   <li>{@link #testPositiveVoiceMatchIsAuthorizedWithNaturalVariation()} uses a small offset
- *       ({@code SMALL_RATE_RANGE_PERCENT}/{@code SMALL_PITCH_RANGE_HZ}) meant to still read as
- *       the same person on a slightly different take, and asserts the app still authorizes it.
- *   <li>{@link #testNegativeVoiceMismatchIsRejectedWithNaturalVariation()} uses a fixed {@code
- *       +REJECTION_PITCH_HZ}Hz pitch shift — large enough that it should no longer match the
- *       enrolled voiceprint — and asserts the app rejects it with "Not authorized", the same
- *       response UI11 gets from querying with an entirely different edge-tts voice. This is
- *       testing the matcher's sensitivity boundary on a single underlying voice, not swapping to
- *       a different speaker.
- * </ul>
- *
- * <p>A completely separate file/class from UI11 by design, so that class and its existing
- * coverage are entirely untouched by this addition.
- *
- * <p>An earlier version of this class instead varied <i>enrollment</i> audio (either per-rep or
- * once per session) — per-rep variation was dropped after it reliably broke {@code
- * VoiceRegistrationPage}'s single persistent mic stream (see git history / earlier revisions of
- * this file for the root-cause writeup), and once-per-session enrollment variation was dropped
- * in favor of putting the variation on the query side instead, per direct instruction.
- *
- * <p><b>Registers once for the whole class, not once per test.</b> Every {@code @Test} method
- * calls {@link #registerVoiceAndReachHome()}, but only the first one TestNG happens to run
- * actually enrolls — every method after that finds the account already registered (via {@link
- * HomePage#isVoiceRegistered()}) and skips straight to Home, since no test removes the
- * registration in a {@code finally} block anymore. The voiceprint is removed exactly once, by
- * {@link #removeVoiceRegistrationAfterAllTests()}, after every test in the class has run. This
- * matches how voice auth is actually used (enroll once, verify many times) and avoids paying for
- * a fresh multi-step enrollment — the slowest, most failure-prone part of this whole flow — on every
- * single query variant.
- */
+/** Like {@link UI11_VoiceRegistrationAuthTest}, but enrolls with an unvaried voice and varies the
+ * query instead (rate/pitch offsets and audio effects) to probe the voice matcher's tolerance.
+ * Registers once for the whole class; the voiceprint is removed in
+ * {@link #removeVoiceRegistrationAfterAllTests()}. */
 public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
 
-    /** Range for the positive test's query — small enough to still read as the same person on a
-     * slightly different take. */
+    /** Rate range for the positive test's query: small enough to still sound like the same person. */
     private static final int SMALL_RATE_RANGE_PERCENT = 5;
     private static final int SMALL_PITCH_RANGE_HZ = 8;
 
-    /** Fixed pitch shift for the negative test's query — per direct instruction, a query this far
-     * off the enrolled voice's pitch is expected to be rejected. Live-confirmed across multiple
-     * runs that this hypothesis does NOT hold (the app still authorizes it) — the assertion is
-     * left as originally specified so that finding stays visible as a failing test rather than
-     * being quietly edited away. */
+    /** Pitch shift expected to be rejected. Live runs show the app still authorizes it; the failing
+     * assertion is kept on purpose. */
     private static final String REJECTION_PITCH_HZ = "+17Hz";
     private static final String REJECTION_RATE_PERCENT = "+0%";
 
-    /** Wider pitch shifts than {@link #REJECTION_PITCH_HZ}, probing whether a bigger deviation
-     * finds an actual rejection boundary the 17Hz case didn't. */
+    /** Wider pitch shifts, probing for a rejection boundary beyond 17Hz. */
     private static final String WIDE_PITCH_SHIFT_25HZ = "+25Hz";
     private static final String WIDE_PITCH_SHIFT_35HZ = "+35Hz";
 
-    /** Linear volume multipliers for {@link AudioEffects#applyVolume} — a quieter/louder delivery
-     * of the same words, not a different speaker. */
+    /** Volume multipliers for {@link AudioEffects#applyVolume}. */
     private static final double VOLUME_QUIETER_FACTOR = 0.6;
     private static final double VOLUME_LOUDER_FACTOR = 1.4;
 
-    /** Playback-speed multiplier for {@link AudioEffects#applyTempo} — within ffmpeg's single-pass
-     * atempo range [0.5, 2.0]; kept modest since this is meant to read as a faster-talking take of
-     * the same person, not an obviously sped-up recording. */
+    /** Tempo multiplier for {@link AudioEffects#applyTempo} (ffmpeg atempo range 0.5-2.0). */
     private static final double TEMPO_FASTER_FACTOR = 1.15;
 
-    /** Shelf-EQ gains for {@link AudioEffects#applyToneShift} simulating a duller/muffled
-     * recording (bass boosted, treble cut) — e.g. weak mic placement or speaking away from the
-     * device, not a different speaker. */
+    /** Bass boost / treble cut simulating a muffled recording. */
     private static final int MUFFLED_BASS_GAIN_DB = 6;
     private static final int MUFFLED_TREBLE_GAIN_DB = -6;
 
-    /** Pink-noise amplitude for {@link AudioEffects#applyBackgroundNoise} — a subtle, constant
-     * hiss under clearly-intelligible speech (a real room), not overpowering noise. */
+    /** Pink-noise amplitude for a subtle background hiss. */
     private static final double BACKGROUND_NOISE_AMPLITUDE = 0.03;
 
     private String generatedWavPath;
 
-    /** The one login/registration session every {@code @Test} method shares — set up once by
-     * {@link #registerOnceForAllTests()} and reused for every query, exactly like a real user
-     * who registers their voice once and then asks several different things without logging out
-     * in between. */
+    /** Home page for the single login/registration session shared by every test. */
     private HomePage sharedHomePage;
 
     @BeforeClass(alwaysRun = true)
@@ -133,15 +85,8 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
         TtsUtil.deleteWav(generatedWavPath);
     }
 
-    /** Same browser/mic setup as {@link UI11_VoiceRegistrationAuthTest#setUpBrowser()} — see
-     * that method's javadoc for why the extra Chromium args and the two init scripts
-     * (window.__micStreams tracking, AnalyserNode stub) are needed.
-     *
-     * <p>Runs once for the whole class ({@code @BeforeClass}, not {@code @BeforeMethod}) — every
-     * {@code @Test} method shares this one browser/page instance instead of getting its own, so
-     * the login/registration session below survives across all of them. {@code
-     * dependsOnMethods = "setAudioFile"} guarantees {@link #generatedWavPath} is ready first;
-     * TestNG does not otherwise order multiple {@code @BeforeClass} methods in one class. */
+    /** Same browser/mic setup as {@link UI11_VoiceRegistrationAuthTest#setUpBrowser()}, run once per
+     * class so all tests share one session. */
     @Override
     @BeforeClass(alwaysRun = true, dependsOnMethods = "setAudioFile")
     public void setUpBrowser() {
@@ -184,21 +129,14 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
                 + "})();");
     }
 
-    /** Logs in once and registers once for the whole class — every {@code @Test} method below
-     * reuses {@link #sharedHomePage} to send its own query rather than logging in and registering
-     * itself. Runs after {@link #setUpBrowser()} ({@code dependsOnMethods}) since it needs {@code
-     * page} to already exist. */
+    /** Logs in and registers once for the whole class. */
     @BeforeClass(alwaysRun = true, dependsOnMethods = "setUpBrowser")
     public void registerOnceForAllTests() throws Exception {
         sharedHomePage = registerVoiceAndReachHome();
     }
 
-    /** Screenshots on failure like {@link com.voicebanking.pages.BasePage#tearDown} normally
-     * would, but deliberately does <b>not</b> close the browser/page/context — all 9 {@code
-     * @Test} methods in this class share one continuous login/registration session (see {@link
-     * #sharedHomePage}), so tearing anything down after an individual method would end that
-     * shared session early. Actual teardown happens once, in {@link
-     * #removeVoiceRegistrationAfterAllTests()}, after every test in the class has run. */
+    /** Screenshots on failure but keeps the shared session open; teardown happens in
+     * {@link #removeVoiceRegistrationAfterAllTests()}. */
     @Override
     @AfterMethod(alwaysRun = true)
     public void tearDown(ITestResult result) {
@@ -207,20 +145,9 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
         }
     }
 
-    /** Logs in as Leena Kamat and completes voice-registration enrollment — every step spoken as
-     * {@link EdgeTtsEngine#VOICE}, describing the on-screen image on image steps and answering the
-     * on-screen question on question steps (see {@link VoiceEnrollment}), instead of a fixed
-     * canned phrase unrelated to what's shown — then clicks Start Banking to land on Home. Otherwise mirrors {@link
-     * UI11_VoiceRegistrationAuthTest#registerVoiceAndReachHome()} (same account, same
-     * known-returning-user fallback, same reasons) — see that method's javadoc for why this
-     * specific account is used.
-     *
-     * <p>Deliberately does <b>not</b> force a mic-stream reacquire between reps the way an
-     * earlier version of this class did (see git history) — that hack was what corrupted rep 2's
-     * audio there. The app itself transitions to a new image after each Submit, and that's a
-     * strong signal its own React lifecycle re-arms the mic for the new step already; this
-     * relies on that instead of fighting it. Confirmed live whether that hypothesis holds — see
-     * the try-run this was validated against. */
+    /** Logs in as Leena Kamat, enrolls with {@link EdgeTtsEngine#VOICE} via {@link VoiceEnrollment},
+     * and lands on Home. Mirrors
+     * {@link UI11_VoiceRegistrationAuthTest#registerVoiceAndReachHome()}. */
     private HomePage registerVoiceAndReachHome() throws Exception {
         // Placeholder content only — real per-rep audio is generated once each image is on
         // screen and its description captured, below. This just needs to be a valid non-empty
@@ -287,19 +214,14 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
     private static final Pattern CONTEXT_LOST_FALLBACK =
             Pattern.compile("(?i)didn.t understand that.*what would you like to do");
 
-    /** Every query in this class asks {@link VoiceQueries.English#ACCOUNT_BALANCE} — a
-     * transcription missing "balance" means STT misheard the word (observed live: a small
-     * +3%/-5Hz shift got heard as "Bats?"), not that voice-auth rejected anything. Retried the
-     * same way a generic-greeting/context-lost fallback is, so a pitch/rate shift that's fine for
-     * voice-matching doesn't fail the test over an unrelated STT hiccup. */
+    /** STT check for the balance query; a miss is retried as an STT hiccup, not treated as a
+     * voice-auth result. */
     private static final Pattern STT_HEARD_BALANCE = Pattern.compile("(?i)balance");
 
     private static final int MAX_REASK_ATTEMPTS = 3;
 
-    /** Balance query spoken in {@code voice} (always {@link EdgeTtsEngine#VOICE} — the registered
-     * voice — in every test here; a different edge-tts voice is never used, see class javadoc)
-     * with the given rate/pitch offset applied on top. Otherwise mirrors {@link
-     * UI11_VoiceRegistrationAuthTest#askBalanceWithVoice}. */
+    /** Balance query in {@code voice} with a rate/pitch offset. Mirrors
+     * {@link UI11_VoiceRegistrationAuthTest#askBalanceWithVoice}. */
     private String askBalanceWithVoice(HomePage homePage, String voice, String rate, String pitch)
             throws Exception {
         System.out.println("[VoiceVariation] Query audio — voice=" + voice + " (unchanged), rate="
@@ -310,11 +232,8 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
         return sendPreparedQueryAudio(homePage, queryWavPath);
     }
 
-    /** Same query text and send/verify/retry flow as {@link #askBalanceWithVoice}, but for a
-     * caller that has already produced its own WAV — e.g. one of {@link AudioEffects}'s
-     * post-processing filters (band-pass, tempo, volume, tone) applied on top of a plain baseline
-     * synthesis, simulating a channel/device/delivery difference rather than a rate/pitch offset
-     * at the synthesis stage. Takes ownership of {@code queryWavPath} (deletes it once copied). */
+    /** Like {@link #askBalanceWithVoice} but for a pre-made WAV (e.g. from {@link AudioEffects}).
+     * Deletes {@code queryWavPath} once copied. */
     private String sendPreparedQueryAudio(HomePage homePage, String queryWavPath) throws Exception {
         Files.copy(Path.of(queryWavPath), Path.of(generatedWavPath), StandardCopyOption.REPLACE_EXISTING);
         int holdMs = (int) TtsUtil.getWavDurationMs(generatedWavPath);
@@ -356,12 +275,8 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
         return botResponse;
     }
 
-    /** Sends an arbitrary {@code text}/{@code voice} query and returns the bot's response — unlike
-     * {@link #askBalanceWithVoice}, this does <b>not</b> retry on a missing "balance" in the
-     * transcription, since that check only makes sense for the English balance phrase. Still
-     * retries on a generic greeting/context-lost fallback/blank response, since those indicate a
-     * stuck session regardless of query language. Used for the cross-language exploratory tests,
-     * where there's no established "correct" transcription to check against. */
+    /** Sends an arbitrary query and returns the response. Re-asks on a greeting, fallback or blank
+     * reply, but doesn't check the transcription. */
     private String sendCustomLanguageQuery(HomePage homePage, String text, String voice) throws Exception {
         String queryWavPath = TtsUtil.generateWav(text, voice);
         Files.copy(Path.of(queryWavPath), Path.of(generatedWavPath), StandardCopyOption.REPLACE_EXISTING);
@@ -444,10 +359,7 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
                 + botResponse);
     }
 
-    /** Generates the baseline balance-query WAV (registered voice, no rate/pitch offset) that
-     * each acoustic-dimension test below runs its own {@link AudioEffects} filter on top of —
-     * these tests are isolating one channel/delivery dimension at a time, not combining it with a
-     * synthesis-level rate/pitch shift too. */
+    /** Baseline balance-query WAV (registered voice, no offset) for the audio-effect tests. */
     private String generateBaselineQueryWav() throws Exception {
         return TtsUtil.generateWav(VoiceQueries.English.ACCOUNT_BALANCE, EdgeTtsEngine.VOICE);
     }
@@ -658,12 +570,7 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
                 + "suggests the query was never actually processed.");
     }
 
-    /** Silences a baseline balance-query recording to (effectively) zero amplitude via {@link
-     * AudioEffects#applyVolume} rather than generating true digital silence — keeps the same
-     * duration/shape as a real query so the fake-audio-capture pipeline and VAD see a normal-length
-     * clip, just with no audible signal in it. Security-relevant baseline: replaying a near-silent
-     * clip must never accidentally authorize anything just because it happens to pass through
-     * whatever gate a real recording would. */
+    /** A near-silent query recording must never authorize anything. */
     @Test(groups = {"ui", "regression", "negative", "security"},
             description = "A silent (zero-volume) query recording must never leak the account "
                     + "balance — either speech-to-text detects nothing at all (the safe, expected "
@@ -702,11 +609,7 @@ public class UI13_VoiceRegistrationNaturalVariationTest extends BasePage {
         }
     }
 
-    /** Removes the voiceprint exactly once, after every {@code @Test} method in the class has
-     * run, then closes the one shared browser/page/context/playwright that every test used (see
-     * {@link #sharedHomePage}, {@link #setUpBrowser()}) — nothing else does, since {@link
-     * #tearDown} deliberately skips it per-method to keep the session alive across tests. Reuses
-     * the still-live {@link #sharedHomePage} session directly rather than logging in again. */
+    /** Removes the voiceprint once after all tests, then closes the shared browser. */
     @AfterClass(alwaysRun = true)
     public void removeVoiceRegistrationAfterAllTests() {
         try {

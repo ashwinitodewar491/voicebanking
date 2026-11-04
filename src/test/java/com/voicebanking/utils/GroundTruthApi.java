@@ -8,14 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Thin typed wrapper around {@link APIClient} for fetching the ground-truth values the voice UI
- * suite cross-checks bot responses against — the same backend the API1..API10 test classes
- * already call, just reused here from the UI test side (see
- * com.voicebanking.tests.ui.base.BaseVoiceTest#groundTruth()). Constructed against {@link
- * Endpoints#getGroundTruthApiBaseUrl()} — see that method's javadoc for why it deliberately
- * avoids prod except on an explicit -Denv=prod.
- */
+/** Typed wrapper around {@link APIClient} for the ground-truth values UI tests cross-check against. */
 public class GroundTruthApi {
 
     private final APIClient apiClient;
@@ -24,8 +17,7 @@ public class GroundTruthApi {
         this.apiClient = new APIClient(baseUrl);
     }
 
-    /** One loan from the Loan Summary API — see API10_GetLoanSummaryListTest for the confirmed
-     * response shape this is built from. */
+    /** One loan from the Loan Summary API. */
     public static class LoanRecord {
         public final String accountId;
         public final String loanType;
@@ -48,8 +40,7 @@ public class GroundTruthApi {
         }
     }
 
-    /** Loan Overdue API response for one loan account — see API9_GetLoanOverdueDetailsTest for
-     * the confirmed response shape this is built from. */
+    /** Loan Overdue API response for one loan. */
     public static class OverdueRecord {
         public final double nextInstallmentAmount;
         public final String nextDueDate;
@@ -64,8 +55,7 @@ public class GroundTruthApi {
         }
     }
 
-    /** One page of the Transactions List API — see API5_GetTransactionsListTest for the
-     * confirmed response shape this is built from. */
+    /** One page of the Transactions List API. */
     public static class TransactionsPage {
         public final int totalElements;
         public final List<Double> amounts;
@@ -81,9 +71,7 @@ public class GroundTruthApi {
         }
     }
 
-    /** Every loan for {@code customerId} — empty (not null) for a customer with none, e.g. Leena
-     * Kamat (CIF202602260042), matching the API's own "success with no data" shape for a
-     * customer that has no loans. */
+    /** All loans for {@code customerId}; empty if there are none. */
     public List<LoanRecord> loanSummary(String customerId) throws Exception {
         Map<String, String> body = new HashMap<>();
         body.put("customerId", customerId);
@@ -99,8 +87,7 @@ public class GroundTruthApi {
         return loans;
     }
 
-    /** Overdue/EMI details for one loan account (the LN-code, e.g. "LN10005") — typically the
-     * {@code accountId} of a {@link LoanRecord} already fetched via {@link #loanSummary}. */
+    /** Overdue/EMI details for a loan account id, e.g. "LN10005". */
     public OverdueRecord loanOverdue(String loanAccountId) throws Exception {
         Map<String, String> body = new HashMap<>();
         body.put("accountId", loanAccountId);
@@ -120,8 +107,7 @@ public class GroundTruthApi {
         return response.get("data").get("balance").asDouble();
     }
 
-    /** Transactions for {@code accountId} up to {@code toDate} (yyyy-MM-dd), one large page —
-     * matches the shape API5_GetTransactionsListTest already validates. */
+    /** Transactions for {@code accountId} up to {@code toDate} (yyyy-MM-dd). */
     public TransactionsPage transactions(String accountId, String toDate) throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("accountId", accountId);

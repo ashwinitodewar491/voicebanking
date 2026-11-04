@@ -40,9 +40,7 @@ public class HomePage {
     private int botBubblesBefore = 0;
     private int containersBefore = 0;
 
-    /** Which voice query is currently in flight — set by the test layer (see {@link
-     * #setCurrentQueryName}) purely so a "Session Ended" occurrence can be logged against the
-     * query that was running when it happened, for {@link SessionEndedTracker}'s detail log. */
+    /** Query in flight, used only to label Session Ended occurrences in {@link SessionEndedTracker}. */
     private String currentQueryName = "unknown";
 
     public HomePage(Page page) {
@@ -74,20 +72,13 @@ public class HomePage {
     public Locator transactionsList()   { return page.locator(TRANSACTIONS_LIST); }
     public Locator transactionItems()   { return page.locator(TRANSACTION_ITEM); }
 
-    /** Returns true if a bot message (plain bubble or structured card) is currently present in
-     * the chat area — used right after landing on Home to check whether the session's welcome
-     * greeting actually rendered. Confirmed live that this can legitimately be false right after
-     * a locale switch (the chat area is cleared and no fresh greeting is posted), so this is an
-     * observation to track, not something safe to assert unconditionally true everywhere. */
+    /** True if any bot message is present. Can legitimately be false right after a locale switch. */
     public boolean isWelcomeMessageVisible() {
         return page.locator(BOT_BUBBLE).count() > 0 || page.locator(BOT_CONTAINER).count() > 0;
     }
 
-    /** Polls for {@link #isWelcomeMessageVisible()} up to {@code timeoutMs} instead of checking
-     * once — a one-shot check right after {@link #waitForPageLoad()} reads ABSENT almost every
-     * time even when a greeting is genuinely about to render, since it hasn't had any time to
-     * stream in yet (confirmed live: an instant check read 15/15 and 18/18 ABSENT across two full
-     * runs). Returns true as soon as a message appears, false if the deadline passes first. */
+    /** Polls {@link #isWelcomeMessageVisible()} for up to {@code timeoutMs}; a one-shot check right
+     * after load is almost always too early. */
     public boolean waitForWelcomeMessage(int timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
@@ -117,29 +108,14 @@ public class HomePage {
         return page.locator(USER_MENU_BTN).isVisible();
     }
 
-    /** Scrolls back to the top first — after a few voice exchanges the chat grows and the page
-     * ends up scrolled down with the user-menu button out of reach, which made the voice-removal
-     * cleanup time out (confirmed live via screenshot, UI13 2026-10-07) and leave a stale
-     * voiceprint on the shared test account. */
+    /** Scrolls to the top first, since a long chat can push the user-menu button out of reach. */
     public void clickUserMenu() {
         page.evaluate("() => window.scrollTo(0, 0)");
         page.locator(USER_MENU_BTN).click(new Locator.ClickOptions().setTimeout(10000));
     }
 
-    /**
-     * Full teardown flow for an enrolled voiceprint: open the user menu, click "Remove your
-     * voice", confirm on the red "Remove" button in the resulting dialog, then re-open the menu
-     * and verify the removal actually took effect — the menu item flips from "Remove your voice"
-     * ({@code home-menu-unregister-voice}) to "Register your voice" ({@code
-     * home-menu-register-voice}) once the account genuinely has no voiceprint. The confirm
-     * dialog closing only means the click was accepted, not that the backend has processed the
-     * removal yet, so a short wait is given before re-checking rather than trusting the dialog's
-     * disappearance alone. Throws (via the {@code waitFor} timeout) if the menu still shows
-     * "Remove your voice" after that — callers treat that as cleanup failure the same way any
-     * other exception here is already handled. Used to keep a test account re-enrollable across
-     * runs — see UI11_VoiceRegistrationAuthTest and UI13_VoiceRegistrationNaturalVariationTest,
-     * neither of which has any other way to reset a voice registration between test methods.
-     */
+    /** Removes the enrolled voiceprint via the user menu, then verifies the menu flips to "Register
+     * your voice". Throws if the removal didn't take effect. */
     public void removeRegisteredVoice() {
         clickUserMenu();
 
@@ -185,15 +161,8 @@ public class HomePage {
         clickUserMenu(); // close the menu again, leaving Home in its normal resting state
     }
 
-    /** True if the account currently has a voiceprint registered (menu offers "Remove your
-     * voice"), false if it doesn't (menu offers "Register your voice" instead). Opens the user
-     * menu to check, then closes it again, leaving Home in its normal resting state.
-     *
-     * <p>Needed because landing on Home right after login does <b>not</b> reliably mean the
-     * account is already registered — confirmed live that an unregistered account can land
-     * straight on Home without the app ever auto-prompting for registration. Callers that used to
-     * treat "no registration screen appeared" as "must already be registered" should check this
-     * instead. */
+    /** True if the account has a voiceprint (menu offers "Remove your voice"). Landing on Home after
+     * login does not imply registration. */
     public boolean isVoiceRegistered() {
         clickUserMenu();
         boolean registered = page.locator(UNREGISTER_VOICE_BTN).isVisible();
@@ -201,10 +170,8 @@ public class HomePage {
         return registered;
     }
 
-    /** Opens the user menu and clicks "Register your voice" — the same destination the app's own
-     * auto-prompt would otherwise navigate to, used when that auto-prompt didn't fire (see {@link
-     * #isVoiceRegistered()}'s javadoc) so registration can still be forced explicitly. Does not
-     * close the menu afterward, since clicking navigates away from Home entirely. */
+    /** Opens the user menu and clicks "Register your voice", for when the app doesn't auto-prompt
+     * registration. */
     public void clickRegisterVoiceFromMenu() {
         clickUserMenu();
         Locator registerBtn = page.locator(REGISTER_VOICE_BTN);
@@ -229,11 +196,8 @@ public class HomePage {
     private static final java.util.regex.Pattern CURRENCY_AMOUNT
             = java.util.regex.Pattern.compile("^₹[\\d,]+(?:\\.\\d+)?$");
 
-    /**
-     * Checked as "does not look like a real amount" rather than for a specific mask glyph
-     * (e.g. bullet dots) — the app's masking character isn't guaranteed and this avoids
-     * hardcoding one.
-     */
+    /** Checks that the balance doesn't look like a real amount, rather than matching a specific mask
+     * glyph. */
     public boolean isBalanceMasked() {
         return !CURRENCY_AMOUNT.matcher(getBalanceValueText()).matches();
     }
@@ -251,11 +215,8 @@ public class HomePage {
         return page.locator(BALANCE_TOGGLE_BTN).getAttribute("aria-label");
     }
 
-    /**
-     * Viewing Recent Transactions requires ending the active voice-listening session first:
-     * clicking the transactions button reveals a close ("X") icon, which opens an "End Session"
-     * confirmation — only after confirming does the transaction list actually render.
-     */
+    /** Opens Recent Transactions, which requires ending the active voice session first (X, then End
+     * Session). */
     public void openRecentTransactions() {
         clickRecentTransactions();
 
@@ -308,36 +269,14 @@ public class HomePage {
         pressAndHold(durationMs);
     }
 
-    /**
-     * Waits for the bot's welcome bubble, then holds the mic button for {@code maxHoldMs} ms
-     * and polls for a user-bubble after release. Retries up to {@code maxAttempts} times,
-     * skipping any attempt where the bot is still in "Speaking" state after a 3-second wait.
-     * <p>
-     * Recovers from a "Session Ended" state, if one is already present, before doing anything
-     * else — {@link #pressAndHold} also does this recovery, but only later in this method's own
-     * flow, after {@code botBubblesBefore}/{@code containersBefore}/{@code bubblesBefore} would
-     * already have been snapshotted below. A recovery can reset the chat area to a fresh
-     * conversation, so a snapshot taken before it reflects a state that no longer exists —
-     * {@link #waitForVoiceResponse} would then be comparing against the wrong baseline,
-     * either never seeing the count rise past a now-irrelevant pre-recovery number (missing a
-     * genuine reply entirely) or crediting this turn with content left over from the reconnect
-     * itself. Recovering first means the snapshot below is always taken against whatever
-     * conversation state this turn will actually run in.
-     */
+    /** Holds the mic to speak, retrying up to {@code maxAttempts} times. Recovers from Session Ended
+     * before snapshotting bubble counts so the response baseline is correct. */
     public void holdToSpeakWithRetry(int maxHoldMs, int maxAttempts, int sttPollMs) {
         holdToSpeakWithRetry(maxHoldMs, maxAttempts, sttPollMs, true);
     }
 
-    /**
-     * Same as {@link #holdToSpeakWithRetry(int, int, int)}, but {@code waitForExistingWelcomeBubble}
-     * controls whether it first waits for a bot bubble that's already there. That wait assumes a
-     * greeting bubble is already sitting in the chat — true for a normal Home landing, but false
-     * right after switching locale via the globe icon: confirmed visually (see
-     * UI12_MultilingualVoiceQueryTest) that a locale switch clears the chat area and does not post
-     * a fresh greeting, so every switch row was hanging the full 15s here waiting for a bubble that
-     * was never coming, regardless of how long a settle wait preceded this call. Callers that just
-     * switched locale should pass {@code false}.
-     */
+    /** Pass {@code waitForExistingWelcomeBubble = false} right after a locale switch, which clears
+     * the chat without posting a new greeting. */
     public void holdToSpeakWithRetry(int maxHoldMs, int maxAttempts, int sttPollMs, boolean waitForExistingWelcomeBubble) {
         recoverFromSessionEndedIfPresent();
 
@@ -394,10 +333,7 @@ public class HomePage {
         throw new RuntimeException("Speech-to-text not detected after " + maxAttempts + " attempts");
     }
 
-    /**
-     * Returns true if the UI is showing a "Speaking" state indicator — checked via
-     * {@code data-state}, CSS class, or visible leaf-element text.
-     */
+    /** True if the UI shows a "Speaking" state. */
     private boolean isBotSpeaking() {
         try {
             return (Boolean) page.evaluate(
@@ -418,10 +354,7 @@ public class HomePage {
         }
     }
 
-    /**
-     * Returns true if the UI is showing a "Listening" state indicator — checked via
-     * {@code data-state}, CSS class, or visible leaf-element text.
-     */
+    /** True if the UI shows a "Listening" state. */
     private boolean isSystemListening() {
         try {
             return (Boolean) page.evaluate(
@@ -442,10 +375,7 @@ public class HomePage {
         }
     }
 
-    /**
-     * Polls every 300 ms until the bot is no longer Speaking or the system is Listening.
-     * Returns true if ready within {@code maxWaitMs}, false on timeout.
-     */
+    /** Polls until the bot stops Speaking or starts Listening; false on timeout. */
     private boolean waitForListeningOrTimeout(int maxWaitMs) {
         long deadline = System.currentTimeMillis() + maxWaitMs;
         while (System.currentTimeMillis() < deadline) {
@@ -463,11 +393,7 @@ public class HomePage {
         return false;
     }
 
-    /**
-     * Waits for the hold-to-speak button to be interactive by checking {@code disabled},
-     * {@code aria-disabled}, and {@code pointer-events:none}. Falls back to a fixed delay
-     * if the app does not expose those attributes.
-     */
+    /** Waits for the hold-to-speak button to become interactive, falling back to a fixed delay. */
     private void waitForButtonReady(int maxWaitMs, int fallbackMs) {
         try {
             page.waitForFunction(
@@ -487,33 +413,8 @@ public class HomePage {
         }
     }
 
-    /**
-     * Waits for a new bot response — plain-text bubble or structured card — to appear after this
-     * turn's query <em>and actually have content</em>, by polling until either {@link #BOT_BUBBLE}'s
-     * or {@link #BOT_CONTAINER}'s count exceeds its pre-turn snapshot ({@code botBubblesBefore} /
-     * {@code containersBefore}) AND {@link #getLastBotResponse()} returns non-blank text.
-     * <p>
-     * An earlier version indexed a specific element via {@code Locator.nth(count).waitFor(...)}.
-     * That turned out to be unreliable: a single structured-card reply (e.g. a transaction list)
-     * can itself contain nested {@code div}s that also match the {@code BOT_CONTAINER} selector
-     * (each transaction line's own flex wrapper, for instance), so the count doesn't necessarily
-     * advance by exactly one per turn. {@code nth(containersBefore)} could then point past where
-     * the genuinely new reply actually landed, timing out even though the reply had rendered
-     * correctly and was visible on screen. Polling for "did the count increase at all" fixed that,
-     * but on its own was still too eager: the app appears to insert an empty reply container as
-     * soon as it starts responding and stream the actual text into it afterward, so a
-     * count-only check could return the instant that empty placeholder appears — moments before
-     * its text streams in — leaving {@link #getLastBotResponse()} to read blank. That looked like
-     * "no response" in the test even though the response was genuinely on screen a second later
-     * (visible in the failure screenshot, taken immediately after). Requiring non-blank content
-     * before returning closes that gap.
-     * <p>
-     * A short settle pause ({@link #RESPONSE_SETTLE_MS}) runs after non-blank content is first
-     * detected, before this method returns control to the caller. Non-blank isn't necessarily
-     * final — a streamed reply can still be mid-stream at that instant — and without a pause the
-     * very next query could start (and its own response get captured) while this turn's text is
-     * still being appended to, letting one query's response bleed into the next one's read.
-     */
+    /** Pause after a new reply first has content, since a streamed reply may still be appending text
+     * and could bleed into the next query's read. */
     private static final int RESPONSE_SETTLE_MS = 1200;
 
     public void waitForVoiceResponse(int timeoutMs) {
@@ -532,17 +433,8 @@ public class HomePage {
         // finishes rendering moments after this deadline shouldn't be double-penalized here too.
     }
 
-    /**
-     * Stops every MediaStreamTrack handed out via getUserMedia so far (tracked by the init
-     * script installed in BaseVoiceTest.setUpBrowserWithAudio). If the app opens the mic once
-     * and reuses that same stream for every hold-to-speak press, overwriting the WAV file for a
-     * follow-up utterance has no effect — Chromium keeps replaying whatever the *original*
-     * stream buffered. Stopping the tracks here forces the app to request a fresh stream on the
-     * next press, which should make Chromium's fake audio device pick up the file as it
-     * currently is on disk. Safe to call even if the app never re-requests the mic — the ended
-     * track just means the button won't be able to record, which the following {@link
-     * #speakFollowUp} call will surface as a failure rather than silently misbehaving.
-     */
+    /** Stops every tracked mic track so the app re-acquires the fake mic and picks up the swapped
+     * WAV file. */
     public void reacquireMicrophoneForFollowUp() {
         try {
             page.evaluate(
@@ -556,16 +448,8 @@ public class HomePage {
         }
     }
 
-    /**
-     * Speaks a disambiguation follow-up (e.g. "savings") after the bot has asked the user
-     * to choose an account. Waits for the Chromium audio loop to cycle before pressing,
-     * then applies the Speaking-state guard before sending.
-     * <p>
-     * Recovers from a "Session Ended" state first, before snapshotting counts — see {@link
-     * #holdToSpeakWithRetry}'s javadoc for why taking the snapshot before a recovery (which
-     * {@link #pressAndHold} would otherwise only run later in this method's own flow) leaves it
-     * comparing against a baseline that no longer reflects the actual conversation.
-     */
+    /** Speaks a follow-up reply (e.g. "savings") after a disambiguation prompt. Recovers from
+     * Session Ended before snapshotting counts. */
     public void speakFollowUp(int preWaitMs, int holdMs, int sttPollMs) {
         recoverFromSessionEndedIfPresent();
 
@@ -599,10 +483,7 @@ public class HomePage {
         throw new RuntimeException("Follow-up speech-to-text not detected");
     }
 
-    /**
-     * Scrolls the button into view (to avoid a null bounding box when it is off-screen),
-     * then holds the mouse down for {@code holdMs} ms and releases.
-     */
+    /** Scrolls the button into view, then holds the mouse down for {@code holdMs} ms. */
     private void pressAndHold(int holdMs) {
         recoverFromSessionEndedIfPresent();
         Locator btn = page.locator(HOLD_TO_SPEAK_BTN);
@@ -619,27 +500,9 @@ public class HomePage {
 
     private static final int SESSION_RECOVERY_ATTEMPTS = 3;
 
-    /**
-     * The live bot occasionally ends the conversation session mid-flow (observed during
-     * multi-turn transfer follow-ups), replacing the chat screen with a "Session Ended" message
-     * and leaving the hold-to-speak button unusable — {@code scrollIntoViewIfNeeded()} then hangs
-     * for its full timeout waiting for a button that won't become interactive on its own. The
-     * documented recovery is a two-click sequence: click hold-to-speak once to trigger a
-     * reconnect (shows a "Connecting" indicator), wait for that to clear, then click hold-to-speak
-     * a second time before the normal press-and-hold gesture actually records the query.
-     * <p>
-     * Every detected occurrence is recorded via {@link SessionEndedTracker}, regardless of
-     * whether recovery below succeeds — that count is a run-wide environment-stability signal
-     * (target/session-ended-count.txt, surfaced in the dashboard), independent of whether this
-     * particular test ultimately passes or fails.
-     * <p>
-     * Public (not just used internally by {@link #pressAndHold}) so callers can also recover
-     * right after reading a response, not only right before speaking the next query. A session can
-     * end during or immediately after the current turn's answer — by the time the caller checks
-     * {@link #isPageVisible()}, the ordinary hold-to-speak button may already be gone, replaced by
-     * this screen's own "Hold to reconnect" control. {@code pressAndHold}'s recovery only runs when
-     * the *next* query tries to speak, too late to save that check.
-     */
+    /** If the Session Ended screen is up, records it in {@link SessionEndedTracker} and reconnects
+     * (click reconnect, wait through Connecting, click again). Public so callers can recover right
+     * after reading a response. */
     public void recoverFromSessionEndedIfPresent() {
         if (!isSessionEnded()) return;
 
@@ -675,10 +538,8 @@ public class HomePage {
                 + " reconnect attempts — giving up.");
     }
 
-    /** Retries {@link #trustedClickButton(String)} a few times with a short wait between
-     * attempts — the button can be transiently absent from the DOM mid-re-render (e.g. while the
-     * "Session Ended" sheet is being torn down) rather than genuinely gone, so a single miss
-     * isn't reliable evidence that it never comes back. */
+    /** Retries {@link #trustedClickButton(String)}, since the button can briefly vanish during a
+     * re-render. */
     private boolean clickButtonWithRetry(String testIdSelector, int maxAttempts, int waitMs) {
         for (int i = 1; i <= maxAttempts; i++) {
             if (trustedClickButton(testIdSelector)) return true;
@@ -687,35 +548,9 @@ public class HomePage {
         return false;
     }
 
-    /**
-     * Clicks the hold-to-speak button via a real, OS-trusted mouse click at its on-screen
-     * coordinates, obtained through a raw (non-blocking) {@code getBoundingClientRect()} call
-     * rather than Playwright's {@code Locator.click()}/{@code boundingBox()} — both of those wait
-     * on Playwright's normal actionability resolution (attached/visible/stable/unobscured), and
-     * that wait was silently hanging for the full default timeout (~30 s) against this button
-     * while the "Session Ended" sheet's animated waveform overlay is up, even though the button is
-     * visibly rendered and DOM-queryable.
-     * <p>
-     * An earlier version dispatched a synthetic {@code MouseEvent} via {@code page.evaluate()} to
-     * sidestep that hang. That resolved instantly, but a script-dispatched DOM event has {@code
-     * isTrusted: false} — Chromium's WebRTC/microphone reinitialization on reconnect needs a
-     * trusted user gesture to actually take effect, so the click could visually register (button
-     * state changes, a "Connecting" indicator appears) without the audio pipeline actually coming
-     * back, leaving the run stuck in a state that looked recovered but wasn't — matching a case
-     * where automation hung mid-session and only a real manual click on the button un-stuck it.
-     * {@link Page#mouse()} dispatches genuine trusted input through the browser's DevTools
-     * protocol, the same as real user input, without going through {@code Locator}'s actionability
-     * checks — avoiding both the hang and the trust problem.
-     * <p>
-     * Returns false if the button isn't in the DOM, or has zero size, at the moment checked.
-     * <p>
-     * Takes a CSS selector rather than being hardcoded to one button — the "Session Ended" screen's
-     * reconnect control is a genuinely different element ({@code data-testid="listening-reconnect-btn"},
-     * text "Hold to reconnect") from the ordinary hold-to-speak button
-     * ({@code data-testid="listening-hold-to-speak-btn"}), confirmed against the live DOM. It only
-     * relabels back to "Hold to speak" — same testid as the ordinary button — once actually
-     * reconnected, so the recovery sequence must click the reconnect-specific selector first.
-     */
+    /** Clicks the element with a trusted mouse event at its on-screen coordinates. Avoids
+     * Playwright's actionability wait (which hangs under the Session Ended overlay) while still
+     * counting as a user gesture for mic reinit. False if the element is missing or zero-sized. */
     private boolean trustedClickButton(String selector) {
         try {
             Object point = page.evaluate(
@@ -743,20 +578,8 @@ public class HomePage {
         }
     }
 
-    /**
-     * Returns true if the chat screen is showing a "Session Ended" message.
-     * <p>
-     * Checks for {@link #HOLD_TO_RECONNECT_BTN} rather than matching the English phrase "session
-     * ended" in the page's text. That text check (an even earlier version checked a single leaf
-     * element's own text, widened to the whole body's innerText after that missed a real
-     * occurrence whose heading was split across sibling spans) still silently never matched at
-     * all for a Hindi/Bengali session — confirmed live via UI12_MultilingualVoiceQueryTest: the
-     * screen showed "सत्र समाप्त", not "session ended", so recovery was a no-op for every
-     * non-English session drop despite the reconnect screen genuinely being up. The reconnect
-     * button's data-testid is the same locale-independent hook regardless of which language is
-     * showing on screen — the same reasoning HOLD_TO_SPEAK_BTN itself already relies on to work
-     * correctly across locales.
-     */
+    /** True if the Session Ended screen is up, detected via the locale-independent reconnect button
+     * rather than English text. */
     public boolean isSessionEnded() {
         try {
             return page.locator(HOLD_TO_RECONNECT_BTN).isVisible();
@@ -782,9 +605,7 @@ public class HomePage {
         }
     }
 
-    /** Waits until a "Connecting" indicator has appeared and then cleared, or gives up after
-     * {@code maxWaitMs} — some reconnects may resolve too quickly for a 300 ms poll to ever
-     * observe the indicator at all, so a full timeout without ever seeing it is not an error. */
+    /** Waits for a Connecting indicator to appear and clear; never seeing it is not an error. */
     private void waitThroughConnecting(int maxWaitMs) {
         long deadline = System.currentTimeMillis() + maxWaitMs;
         boolean sawConnecting = false;
@@ -804,12 +625,8 @@ public class HomePage {
         return items.count() > 0 ? items.last().textContent().trim() : "";
     }
 
-    /**
-     * Some bot replies (e.g. transaction lists) render as a structured card instead of a plain
-     * .whitespace-pre-line bubble. In that case no new BOT_BUBBLE element appears, so checking
-     * "any BOT_BUBBLE exists" would silently return a stale earlier bubble. Comparing against
-     * botBubblesBefore detects whether a genuinely new plain-text bubble was added before trusting it.
-     */
+    /** Latest bot reply: a new plain-text bubble if one appeared since the snapshot, otherwise the
+     * last structured card. */
     public String getLastBotResponse() {
         Locator items = page.locator(BOT_BUBBLE);
         if (items.count() > botBubblesBefore) return items.last().textContent().trim();

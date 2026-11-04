@@ -12,35 +12,21 @@ import java.util.regex.Matcher;
 
 public class UI7_BalanceInquiryTest extends BaseVoiceTest {
 
-    /** Default identity for the generic voiceQueries/smokeQueries/sanityQueries rows — the known
-     * dual-account (savings + current) customer, Rohit Mehta (CIF202602260005), confirmed to
-     * resolve explicit CURRENT-balance queries correctly. Also used as CUSTOMER_A_PHONE below —
-     * he's the only one of the three known accounts with both a savings and a current account. */
+    /** Rohit Mehta, the dual-account (savings + current) customer used by default. */
     private static final String BALANCE_INQUIRY_CUSTOMER_PHONE = "9898989898";
 
-    /** Customer A (Rohit Mehta, CIF202602260005) — dual account: savings + current. Same identity
-     * as BALANCE_INQUIRY_CUSTOMER_PHONE; kept as a separate named constant since
-     * knownAccountBalanceQueries targets it explicitly by name. */
+    /** Customer A (Rohit Mehta, CIF202602260005): savings + current. */
     private static final String CUSTOMER_A_PHONE = "9898989898";
     /** Customer B (Leena Kamat, CIF202602260042) — savings only, no loan, no beneficiary. */
     private static final String CUSTOMER_B_PHONE = "9812341042";
 
-    /** All balance-inquiry rows are independent conversational turns against the same account —
-     * safe to run in one continuous session instead of a fresh browser/login per row. Cuts this
-     * class from ~55 logins (one per data-provider row) down to ~3: one shared login covering every
-     * voiceQueries/smokeQueries/sanityQueries row, one switch to Customer A for
-     * knownAccountBalanceQueries' two Customer-A rows, and one switch to Customer B for its one
-     * Customer-B row. */
+    /** Rows are independent turns on the same account, so they share one session. */
     @Override
     protected boolean useSharedSession() {
         return true;
     }
 
-    /** Overrides the shared base's random-new-user default: uses a known seeded customer with BOTH
-     * a savings and a current account instead of a freshly registered random customer. A random new
-     * registration may be provisioned with only a savings account, which would fail every
-     * CURRENT-balance assertion in this class regardless of session mode, since there'd be no
-     * current account for the bot to report. */
+    /** A dual-account seeded customer, so CURRENT-balance assertions have an account to report on. */
     @Override
     protected String getLoginPhoneNumber() {
         return BALANCE_INQUIRY_CUSTOMER_PHONE;
@@ -151,12 +137,8 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Five queries chosen to cover every distinct code path in this file's assertion patterns
-     * rather than just one happy path: generic phrasing disambiguating to savings, generic
-     * phrasing disambiguating to current (the opposite direction), an explicit savings-only
-     * query (no disambiguation, SAVINGS pattern), an explicit current-only query (no
-     * disambiguation, CURRENT pattern), and a short imperative phrasing style distinct from the
-     * question-form rows above it. Run this tier for a fast build/deploy health check. */
+    /** Fast health-check tier: savings/current disambiguation, explicit savings, explicit current,
+     * and an imperative phrasing. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
@@ -201,11 +183,8 @@ public class UI7_BalanceInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Account-to-customer mapping is known statically, so each row names its account explicitly
-     * (SAVINGS_BALANCE / CURRENT_BALANCE) and never triggers the disambiguation follow-up — no
-     * need to guess or loop over possibilities. {@code accountId}/{@code accountType} (new columns
-     * beyond the generic voiceQueries shape) are what {@link #testKnownAccountBalance} cross-checks
-     * the spoken balance against, via the ground-truth Account Balance API. */
+    /** Rows name their account explicitly (no disambiguation); the spoken balance is cross-checked
+     * against the Account Balance API. */
     @DataProvider(name = "knownAccountBalanceQueries")
     public Object[][] knownAccountBalanceQueries() {
         return new Object[][]{

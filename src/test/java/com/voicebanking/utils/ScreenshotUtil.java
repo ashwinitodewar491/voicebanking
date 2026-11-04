@@ -12,9 +12,7 @@ public final class ScreenshotUtil {
     private ScreenshotUtil() {
     }
 
-    /** Captures a screenshot to target/screenshots/ when {@code result} is a failure, naming it
-     * after the test class, its first parameter (or method name), and a timestamp. No-op on
-     * success, a null/closed page, or if the capture itself throws. */
+    /** Saves a screenshot to target/screenshots/ on failure; no-op otherwise. */
     public static void captureOnFailure(Page page, ITestResult result) {
         if (result.getStatus() != ITestResult.FAILURE || page == null || page.isClosed()) return;
         try {
@@ -32,12 +30,7 @@ public final class ScreenshotUtil {
         }
     }
 
-    /** Captures a screenshot right now, unconditionally — for the exact instant an assertion is
-     * about to fail, rather than waiting for @AfterMethod teardown. By teardown time the app may
-     * have already self-recovered from a transient state (e.g. a dropped-then-reconnected voice
-     * session), making a teardown-only screenshot show a healthy page even though the assertion
-     * genuinely failed moments earlier. Filenamed the same way as captureOnFailure but suffixed
-     * "_atFailure" so the two are easy to tell apart when both exist for the same failure. */
+    /** Saves a screenshot immediately (suffixed "_atFailure"), before the app can self-recover. */
     public static void captureNow(Page page, String testClassSimpleName, String label) {
         if (page == null || page.isClosed()) return;
         try {

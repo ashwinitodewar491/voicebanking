@@ -59,11 +59,8 @@ public class LanguagePage {
         };
     }
 
-    /** Waits for {@code locale}'s button to actually report {@code aria-pressed="true"} —
-     * {@link #selectByLocale} only fires the click event and returns immediately, it doesn't wait
-     * for the app to register the selection. Call this before {@link #clickContinue()} so
-     * continuing doesn't race ahead of a selection that hasn't taken effect yet, which otherwise
-     * can carry the previous locale forward silently. */
+    /** Waits until {@code locale}'s button reports {@code aria-pressed="true"}; call before
+     * {@link #clickContinue()}. */
     public void waitForLocaleSelected(String locale) {
         page.locator(testIdFor(locale) + "[aria-pressed='true']").waitFor(
                 new Locator.WaitForOptions()

@@ -16,36 +16,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.regex.Pattern;
 
-/**
- * Customer A (Rohit Mehta, CIF202602260005, 9898989898) has two loans — Home Loan (LN10005,
- * active) and Education Loan (LN20005, closed) — confirmed live. "Car loan" is not one of them;
- * it's used deliberately in two rows as a negative test of the bot's fallback: named a loan type
- * that doesn't exist, the bot should list the real loans and ask which one, matching
- * BotResponsePatterns.Loans.LOAN_OPTIONS_PROMPT.
- * All 69 phrasings are active. Loan-agnostic queries (no type named) answer the disambiguation
- * follow-up alternating Home/Education via the mic-reacquire fix in BaseVoiceTest. Most {loan type}
- * queries assert on keywords only — the exact response format is confirmed for EMI, interest,
- * outstanding, and next-EMI-due (upgraded to a precise pattern); everything else is exploratory.
- * Rows that assume an *active* loan (EMI due date, min amount due, etc.) may need a second look
- * now that the second loan (Education) is closed rather than active — flag any new failures there
- * for a closer look at whether the bot's response differs for a closed loan.
- */
+/** Loan queries for Rohit Mehta (Home Loan LN10005 active, Education Loan LN20005 closed). "Car
+ * loan" rows are a negative test: the bot should list the real loans instead. */
 public class UI9_LoanInquiryTest extends BaseVoiceTest {
 
-    /** All loan-inquiry rows are independent conversational turns against the same customer's two
-     * loans — safe to run in one continuous session instead of a fresh browser/login per row, the
-     * same reasoning UI7 (balance) already uses. Cuts a 76-row regression run from ~76 logins down
-     * to effectively one.
-     * <p>
-     * Unlike UI7's balance queries, though, this class's follow-up flows are themselves
-     * stateful — "which loan?" and "what would you like to know?" disambiguation, and {@link
-     * #walkLoanDetailCategories} walking all 7 detail categories in one conversation. UI8
-     * (transaction history) hit a real cross-row contamination bug from shared sessions once
-     * before (a category filter from one query stuck around and silently answered several later,
-     * unrelated queries) and stayed on fresh-login-per-row specifically because of it. If loan
-     * regression runs start seeing responses that look like they're answering a *previous* row's
-     * question instead of the current one, that's the first thing to suspect — revert this
-     * override before investigating further. */
+    /** Rows are independent turns, so they share one session. If responses start answering a
+     * previous row's question, revert this override first. */
     @Override
     protected boolean useSharedSession() {
         return true;
@@ -244,13 +220,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Five queries chosen to cover every distinct loan-flow category and both real loans for
-     * this customer: a named-type keyword query (Home), a precise-pattern query confirmed via
-     * manual testing (Outstanding, Education — different loan than the row above), the
-     * loan-agnostic disambiguation flow (no type named, resolves to Home), the nonexistent-type
-     * fallback (bot lists real loans instead of answering), and a second precise-pattern category
-     * (Next EMI Due, Education) distinct from Outstanding. Run this tier for a fast build/deploy
-     * health check. */
+    /** Fast health-check tier covering each loan-flow category and both loans. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
@@ -298,28 +268,8 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Negative/positive-case cross-verification: {@code expectedLoanCount} is independently
-     * confirmed against the Loan Summary API itself (not just assumed) before the voice query
-     * even runs, so a real seed-data change would fail loudly here instead of a row silently
-     * asserting the wrong thing forever.
-     * <p>
-     * Customer B (Leena Kamat, CIF202602260042) has no loans at all — expectedKeywords stays a
-     * loose check since the bot's "no loans" wording isn't confirmed, and there's no loan-detail
-     * prompt to walk either way. Customer C (Aniket More, CIF202602260041) has one active
-     * PERSONAL_LOAN — confirmed live to use the same "What would you like to know about your
-     * Personal Loan?" phrasing as Home/Education, so {@link BotResponsePatterns.Loans} covers
-     * "Personal" in every alternation and this row gets the full {@link
-     * #walkLoanDetailCategories} cross-verification (EMI, tenure, interest rate, outstanding,
-     * sanctioned amount, next EMI due) for free — nothing further to wire up here.
-     * <p>
-     * The Home/Personal EMI-transactions rows render the same structured transaction-card format
-     * as ordinary account transactions (confirmed: "bot container with 5 entries") — reuses
-     * {@link BotResponsePatterns.Transactions#ENTRY} rather than inventing a loan-specific pattern,
-     * same as UI8_TransactionHistoryTest's own rows do for the account side. The Car row instead
-     * hits the negative case: asked against Customer C (single active Personal Loan, not Customer
-     * A's two), the bot's nonexistent-type fallback names its one active loan directly instead of
-     * listing/asking "which" — confirmed live verbatim as "You don't have a car loan. Your active
-     * loan is a Personal Loan." — see {@link BotResponsePatterns.Loans#SINGLE_ACTIVE_LOAN_FALLBACK}. */
+    /** Cross-verified rows: {@code expectedLoanCount} is checked against the Loan Summary API before
+     * the query runs. Covers Leena (no loans) and Aniket (one Personal Loan). */
     @DataProvider(name = "knownAccountLoanQueries")
     public Object[][] knownAccountLoanQueries() {
         return new Object[][]{
@@ -355,10 +305,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, null, phoneNumber);
     }
 
-    /** Also recognizes loan disambiguation and the loan-detail-category prompt, so the
-     * transcription-retry loop stops re-playing the original query's audio once the bot has
-     * already moved to "which loan?" or "what would you like to know?" — otherwise a retry
-     * risks being misheard as an answer to that question instead of the one intended. */
+    /** Also stops retrying on loan disambiguation and the loan-detail prompt. */
     @Override
     protected boolean shouldStopRetrying(String botResponse) {
         return super.shouldStopRetrying(botResponse)
@@ -366,25 +313,8 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
                 || isLoanDetailPrompt(botResponse);
     }
 
-    /** A generic "give me loan details" query can land in one of several places depending on
-     * how many loans this customer actually has and how much the bot needs to ask to narrow
-     * down the answer — so each stage below only engages when its own prompt is actually seen,
-     * never assumed, and a single-loan customer who gets a direct answer straight away simply
-     * skips both stages untouched:
-     * <p>
-     * Stage 1 — "which loan?" (only when the query named no type AND the customer has more
-     * than one loan; reuses disambiguationAccount's slot as "what to say if asked"). Rows that
-     * want to assert this prompt itself (e.g. an invalid loan type) pass disambiguationAccount
-     * as null, which skips this stage entirely.
-     * <p>
-     * Stage 2 — "what would you like to know about your X loan?" (asked once the loan itself
-     * is known, either named directly by the query or just resolved by stage 1) — walks every
-     * detail category the bot claims to support in {@link BotResponsePatterns.Loans#LOAN_DETAIL_OPTIONS_PROMPT},
-     * asserting each in turn.
-     * <p>
-     * The final check in runVoiceQuery reuses the row's own assertionPattern / expectedKeywords
-     * rather than a hardcoded pattern, since the right answer depends on what was actually
-     * asked (EMI, interest, outstanding, ...). */
+    /** Handles "which loan?" (answered with disambiguationAccount; null skips it), then "what would
+     * you like to know?" (walks every detail category). */
     @Override
     protected String handleAdditionalFollowUp(String queryName, String query, String botResponse,
                                                String disambiguationAccount, HomePage homePage) throws Exception {
@@ -451,28 +381,15 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         return followUpResponse;
     }
 
-    /** Every detail category the "what would you like to know about your X loan?" prompt
-     * claims to support, in the order confirmed live. "Loan amount" is last since, unlike the
-     * other six, its response pattern ({@link BotResponsePatterns.Loans#LOAN_AMOUNT}) is an
-     * inferred guess rather than a confirmed live response — if this one fails, that pattern is
-     * the first place to check. */
+    /** Detail categories offered by the loan-detail prompt. "Loan amount"'s pattern is inferred, not
+     * confirmed live. */
     private static final String[] LOAN_DETAIL_CATEGORIES = {
             "EMI", "Tenure", "Pending tenure", "Interest rate", "Outstanding amount",
             "Next EMI due date", "Loan amount"
     };
 
-    /** Walks every category in {@link #LOAN_DETAIL_CATEGORIES} in the same conversation, one at
-     * a time, asserting each response against the exact format confirmed live for that category
-     * (see BotResponsePatterns.Loans) — only the amount/rate/date/month value itself varies per
-     * account. Every category gets asserted internally regardless, but the response returned to
-     * the caller (whose own final assertion checks it again, against the row's own pattern) is
-     * whichever category the row's query actually named — not simply whichever was walked last.
-     * That matters for a row like "Next EMI Due Education", which expects its own final check
-     * (NEXT_EMI_DUE) to pass: a live STT mishearing can turn that query into something the bot
-     * doesn't recognize as naming a specific detail, landing here via the generic prompt even
-     * though the row itself is not generic — confirmed live. Falls back to the last category
-     * walked for rows that genuinely are generic (e.g. "Loan Details", which names no category
-     * and only expects a loose keyword match, so it doesn't matter which one comes back). */
+    /** Walks every detail category in one conversation, asserting each, and returns the response for
+     * the category the row's query named (or the last one for generic rows). */
     private String walkLoanDetailCategories(String queryName, String query, String promptResponse,
                                              HomePage homePage) throws Exception {
         java.util.Map<String, String> responsesByCategory = new java.util.LinkedHashMap<>();
@@ -548,13 +465,8 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         return responseMatchingQuery(queryName, responsesByCategory);
     }
 
-    /** Picks the response for whichever category the row's queryName actually names, checked in
-     * order from most to least specific (e.g. "pending"/"remaining" before the bare "tenure"
-     * they're both a kind of, "next emi due" before the bare "emi" it contains) so a name like
-     * "Next EMI Due Education" resolves to "Next EMI due date" rather than accidentally matching
-     * "EMI" first. Falls back to the last category walked when nothing in the name points at a
-     * specific one — true generic-query rows land here, and any of the (already individually
-     * asserted) responses satisfies their own loose keyword check. */
+    /** Picks the response for the category named in {@code queryName}, most specific first; falls
+     * back to the last one walked. */
     private String responseMatchingQuery(String queryName, java.util.Map<String, String> responsesByCategory) {
         String q = queryName.toLowerCase();
 
@@ -582,15 +494,8 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         };
     }
 
-    /** Resolves the {@link GroundTruthApi.LoanRecord} the loan-detail prompt is talking about, by
-     * matching the loan type named in the prompt text (see {@link
-     * BotResponsePatterns.Loans#LOAN_DETAIL_OPTIONS_PROMPT}) against the current customer's Loan
-     * Summary. Returns null — rather than throwing — when the customer isn't one of the known,
-     * mapped seeded customers ({@link #currentCustomerId()}), or the API doesn't return a loan of
-     * the named type; either way {@link #crossCheckLoanDetail} just skips the numeric check for
-     * that row instead of failing the whole walk, so the existing pattern-shape assertions above
-     * (which already run regardless) remain the only requirement for customers this cross-check
-     * doesn't cover yet. */
+    /** The loan named in the detail prompt, from the Loan Summary API; null if the customer or loan
+     * type isn't known. */
     private GroundTruthApi.LoanRecord resolveLoanRecord(String promptResponse) throws Exception {
         String customerId = currentCustomerId();
         if (customerId == null) {
@@ -613,14 +518,8 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
         return null;
     }
 
-    /** Extracts the numeric/text value the bot actually spoke for {@code category} and asserts it
-     * matches the ground-truth Loan Summary/Overdue APIs for {@code loan} — the real
-     * cross-verification this class was missing, on top of the shape-only pattern check the
-     * caller already ran. A null {@code loan} (unresolvable customer/loan type — see {@link
-     * #resolveLoanRecord}) skips the numeric check entirely rather than failing; "Next EMI due
-     * date" further skips when the loan is CLOSED, since a closed loan's own bot response is the
-     * literal string "N/A" (a legitimate
-     * answer, not a date to fetch from Loan Overdue). */
+    /** Cross-checks the spoken value for {@code category} against the Loan Summary/Overdue APIs.
+     * Skipped if {@code loan} is null, or for next-EMI-due on a closed loan. */
     private void crossCheckLoanDetail(String queryName, String category, String response,
                                        GroundTruthApi.LoanRecord loan) throws Exception {
         if (loan == null) {
@@ -676,9 +575,7 @@ public class UI9_LoanInquiryTest extends BaseVoiceTest {
                 + "  Response : " + response);
     }
 
-    /** Returns true when the bot response is asking the user to choose between loans. Deliberately
-     * loose — observed phrasings vary ("You have the following loans: ...", "I can see multiple
-     * loan accounts for you: ...") but all include "which loan". */
+    /** True if the bot is asking which loan (every phrasing includes "which loan"). */
     private boolean isLoanDisambiguation(String response) {
         return response.toLowerCase().contains("which loan");
     }

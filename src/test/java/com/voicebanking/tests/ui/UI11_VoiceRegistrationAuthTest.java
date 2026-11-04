@@ -31,32 +31,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * Covers voice-based authentication: enroll a voiceprint via the registration flow (image and
- * question steps — see {@link VoiceEnrollment}),
- * then verify a later balance query is authorized when spoken in the same voice and rejected
- * when spoken in a different one.
- *
- * <p>Logs in as Leena Kamat (9812341042) rather than a fresh random-phone registration — stage
- * currently rejects unregistered numbers before the OTP screen even loads, which this whole flow
- * depends on. Each test method enrolls her voice fresh via {@link #registerVoiceAndReachHome},
- * then removes it again in a {@code finally} block ({@link #removeVoiceRegistration}) via the
- * app's own "Remove your voice" menu action, so the next method/run starts from an unregistered
- * state again.
- *
- * <p>{@link #registerVoiceAndReachHome} does <b>not</b> treat "the registration screen didn't
- * appear" as proof of already being registered — confirmed as an intentional app change, not a
- * bug: once a user has skipped registration once, the app stops auto-prompting for it on every
- * login, and registering later requires going through the user menu's own "Register your voice"
- * option instead. So that method checks {@link HomePage#isVoiceRegistered()} directly and, if the
- * account genuinely has no voiceprint yet, forces registration via {@link
- * HomePage#clickRegisterVoiceFromMenu()} rather than assuming.
- *
- * <p>Re-record/Submit are always both present after a take completes regardless of quality — the
- * app additionally shows a "Recording not accepted" dialog on top of that bar, but only when a
- * take genuinely fails its quality check, so that dialog's heading (not Re-record's mere presence)
- * is what {@link VoiceRegistrationPage#waitForRecordingAccepted(int)} polls for.
- */
+/** Voice authentication: enrolls Leena Kamat's voiceprint, then checks a balance query is authorized
+ * in the same voice and rejected in a different one. The voiceprint is removed after each test. */
 public class UI11_VoiceRegistrationAuthTest extends BasePage {
 
     private String generatedWavPath;
@@ -72,16 +48,8 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
         TtsUtil.deleteWav(generatedWavPath);
     }
 
-    /**
-     * Overrides BasePage's launcher: that one is missing {@code --use-fake-ui-for-media-stream}
-     * (it was only ever exercised with a JS-level getUserMedia mock, never real fake-audio-capture
-     * — see UI6_HomePageTest's speechMockScript usage), so a genuine getUserMedia() call here hits
-     * Chromium's native permission flow and fails with "Could not access the microphone" even
-     * though the context already grants the "microphone" permission. This mirrors
-     * BaseVoiceTest.setUpBrowserWithAudio's fuller arg list, plus the same window.__micStreams
-     * tracker {@code reacquireMicrophoneForFollowUp()} relies on to force a fresh stream when the
-     * on-disk WAV is swapped from the enrollment phrase to the post-registration balance query.
-     */
+    /** Adds the Chromium fake-media args and mic-stream tracker needed for real fake-audio capture,
+     * which BasePage's launcher lacks. */
     @Override
     @BeforeMethod(alwaysRun = true)
     public void setUpBrowser() {
@@ -131,23 +99,9 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
                 + "})();");
     }
 
-    /**
-     * Logs in as Leena Kamat (CIF202602260042, 9812341042) and completes the
-     * voice-registration enrollment flow (consent → Start Registration → every image/question
-     * step via {@link VoiceEnrollment}), then clicks Start Banking to land on Home. Was previously a fresh random-phone
-     * registration, but stage no longer accepts unregistered numbers at the OTP step (confirmed
-     * live: "Send OTP" never surfaces the OTP screen for a random number) — Leena Kamat is used
-     * instead as a real, known account with no beneficiary/loan history to interfere. NOTE: this
-     * permanently enrolls her voiceprint on stage; there's currently no known way (API or UI) to
-     * remove/reset it afterward, so repeat runs against her account may behave like a returning,
-     * already-registered user rather than re-enrolling — see the class Javadoc.
-     *
-     * <p>Regenerates the enrollment phrase into {@code generatedWavPath} first — that path is a
-     * single class-level file shared with {@link #askBalanceWithVoice}, which overwrites it
-     * in-place with a balance-query recording. Since both test methods in this class share that
-     * one file, whichever method runs second would otherwise launch enrollment against the first
-     * method's leftover balance-query audio instead of the enrollment phrase.
-     */
+    /** Logs in as Leena Kamat, enrolls her voice (via the menu if the app doesn't auto-prompt), and
+     * lands on Home. Regenerates the enrollment WAV first since the file is shared with
+     * {@link #askBalanceWithVoice}. */
     private HomePage registerVoiceAndReachHome() throws Exception {
         String enrollWavPath = TtsUtil.generateWav(
                 VoiceQueries.English.VOICE_ENROLLMENT_PHRASE, EdgeTtsEngine.VOICE);
@@ -211,33 +165,18 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
         return homePage;
     }
 
-    /** Matches the bot's generic session-start greeting, e.g. "Good afternoon, Welcome Karan
-     * Malhotra, I can help you review your recent transactions or check your account
-     * balances.How can I help you today?" — mirrors BaseVoiceTest#isGenericGreeting (not reusable
-     * here since this class extends BasePage, not BaseVoiceTest — see this class's own doc comment
-     * on {@link #setUpBrowser} for why). Observed live replacing the real answer in
-     * {@link #askBalanceWithVoice} the same way BaseVoiceTest's re-ask loop was built to recover
-     * from: a reconnect re-establishes the session but the query spoken right after it gets
-     * swallowed by the bot's own session-start greeting instead of being answered. */
+    /** The bot's generic session-start greeting (copy of BaseVoiceTest's; this class extends
+     * BasePage). */
     private static final Pattern GENERIC_GREETING = Pattern.compile("Welcome.*How can I help you today");
 
-    /** Matches the bot's generic "I didn't understand" capability-reset fallback — mirrors
-     * BaseVoiceTest#isContextLostFallback, same reason this can't just call that method directly. */
+    /** The bot's "didn't understand" fallback (copy of BaseVoiceTest's). */
     private static final Pattern CONTEXT_LOST_FALLBACK =
             Pattern.compile("(?i)didn.t understand that.*what would you like to do");
 
     private static final int MAX_REASK_ATTEMPTS = 3;
 
-    /**
-     * Swaps the on-disk WAV to "What is my account balance" spoken in {@code voice}, forces the
-     * app to request a fresh mic stream so it actually picks up the swapped file, then holds to
-     * speak and returns the bot's response. Re-asks with the same audio, up to
-     * {@link #MAX_REASK_ATTEMPTS} times, on a generic greeting/context-lost fallback/blank
-     * response — same recovery BaseVoiceTest#runVoiceQuery uses, needed here because this single
-     * shot had none: confirmed live via testPositiveVoiceMatchIsAuthorized failing on a stuck
-     * session-start greeting ("Good afternoon, Welcome Leena Kamat...How can I help you today?")
-     * instead of the balance, which a same-audio retry recovers from.
-     */
+    /** Speaks the balance query in {@code voice} and returns the response, re-asking up to
+     * {@link #MAX_REASK_ATTEMPTS} times on a greeting, fallback or blank reply. */
     private String askBalanceWithVoice(HomePage homePage, String voice) throws Exception {
         String queryWavPath = TtsUtil.generateWav(VoiceQueries.English.ACCOUNT_BALANCE, voice);
         Files.copy(Path.of(queryWavPath), Path.of(generatedWavPath), StandardCopyOption.REPLACE_EXISTING);
@@ -320,14 +259,8 @@ public class UI11_VoiceRegistrationAuthTest extends BasePage {
         }
     }
 
-    /**
-     * Cleans up Leena Kamat's voiceprint via the "Remove your voice" flow (user menu → Remove
-     * your voice → confirm Remove) so the next run of this class re-enrolls fresh instead of
-     * hitting the returning-user branch in {@link #registerVoiceAndReachHome}. Runs in a
-     * {@code finally} block so it still fires when the test's own assertions fail — otherwise a
-     * failing run would leave the account registered and break every subsequent run. Swallows its
-     * own failures rather than masking the real test result with an unrelated cleanup error.
-     */
+    /** Removes the voiceprint so the next run enrolls fresh. Swallows its own errors so they don't
+     * mask the test result. */
     private void removeVoiceRegistration(HomePage homePage) {
         try {
             homePage.removeRegisteredVoice();

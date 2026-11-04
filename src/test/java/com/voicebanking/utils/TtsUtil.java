@@ -10,11 +10,8 @@ import java.nio.ByteOrder;
 
 public class TtsUtil {
 
-    /**
-     * Generates a WAV file for the given text and appends 3 seconds of PCM silence.
-     * The trailing silence gives the Pipecat VAD enough quiet audio after speech to
-     * reliably trigger STT before the button is released.
-     */
+    /** Generates a WAV for {@code text} with 3s of trailing silence so the VAD triggers STT before
+     * release. */
     public static String generateWav(String text) throws Exception {
         String path = TtsFactory.create().generate(text);
         appendSilenceToWav(path, 3000);
@@ -29,9 +26,7 @@ public class TtsUtil {
         return path;
     }
 
-    /** Same as {@link #generateWav(String, String)} but applies the given rate/pitch offset on
-     * top of the voice's baseline — same speaker, a different take (see {@link
-     * com.voicebanking.utils.tts.VoiceVariation}) rather than an identical replay. */
+    /** Same as {@link #generateWav(String, String)} with a rate/pitch offset. */
     public static String generateWavWithVariation(String text, String voice, String rate, String pitch)
             throws Exception {
         String path = new EdgeTtsEngine().generate(text, voice, rate, pitch);
@@ -39,11 +34,7 @@ public class TtsUtil {
         return path;
     }
 
-    /**
-     * Returns the duration of the WAV file in milliseconds by scanning its RIFF chunks.
-     * A chunk scanner is used because SAPI inserts extra chunks (JUNK, LIST, fact) before
-     * the data chunk, making a fixed byte offset unreliable.
-     */
+    /** WAV duration in ms, found by scanning the RIFF chunks. */
     public static long getWavDurationMs(String wavPath) throws Exception {
         try (RandomAccessFile raf = new RandomAccessFile(wavPath, "r")) {
             raf.seek(12);
@@ -78,11 +69,7 @@ public class TtsUtil {
         }
     }
 
-    /**
-     * Rewrites the WAV as a clean minimal file (RIFF → fmt → data) with {@code silenceMs}
-     * of zero-valued PCM appended. A full rewrite is used because SAPI writes extra chunks
-     * after the data chunk; patching in place would overwrite them and corrupt the file.
-     */
+    /** Rewrites the WAV as a minimal RIFF file with {@code silenceMs} of silence appended. */
     private static void appendSilenceToWav(String wavPath, int silenceMs) throws Exception {
         int sampleRate = 0, channels = 0, bitsPerSample = 0;
         byte[] pcmData = null;
@@ -149,9 +136,8 @@ public class TtsUtil {
         return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array();
     }
 
-    /** Debug aid: when run with {@code -DkeepAudio=true}, saves a copy of {@code wavPath} as
-     * {@code target/kept-audio/<label>.wav} so the exact audio a test fed the fake mic can be
-     * listened to afterwards. No-op otherwise — normal runs still delete every WAV after use. */
+    /** With {@code -DkeepAudio=true}, copies the WAV to {@code target/kept-audio/<label>.wav} for
+     * debugging. */
     public static void keepCopy(String wavPath, String label) {
         if (!Boolean.getBoolean("keepAudio") || wavPath == null) return;
         try {
@@ -166,7 +152,6 @@ public class TtsUtil {
         }
     }
 
-    /** Deletes the temporary WAV file. */
     public static void deleteWav(String wavPath) {
         if (wavPath != null) new File(wavPath).delete();
     }

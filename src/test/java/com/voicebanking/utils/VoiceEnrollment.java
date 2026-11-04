@@ -8,20 +8,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 
-/**
- * Walks the whole voice-enrollment flow, from the first recording step to the "Start Banking"
- * screen — shared by every class that enrolls a voiceprint (UI11, UI13, UI14, UI15).
- *
- * <p>Enrollment is currently 6 steps (confirmed live on stage, 2026-10-08): steps 1-2 show an
- * image to describe, steps 3-6 show a random question to answer. Rather than hardcoding that, this
- * keeps recording steps until Start Banking appears, and decides what to say per step:
- * <ul>
- *   <li>Image step — the image's own description, read off the speaker button.</li>
- *   <li>Question step — a natural answer to the question on screen (see {@link #answerFor}).</li>
- * </ul>
- * Each step's speech is generated in {@code voice} and copied over the browser's fake-mic file
- * ({@code --use-file-for-fake-audio-capture}) right before recording that step.
- */
+/** Walks voice enrollment from the first recording step to the Start Banking screen, speaking each
+ * step's image description or an answer to its question. */
 public final class VoiceEnrollment {
 
     /** Safety stop — well above today's 6 steps, so a flow that never finishes fails clearly. */
@@ -90,12 +78,7 @@ public final class VoiceEnrollment {
                 + " times in a row for enrollment " + label + " — giving up");
     }
 
-    /**
-     * A natural, few-sentence spoken answer to an enrollment question. The questions are picked at
-     * random by the app, so this matches on topic keywords (covering every question seen live so
-     * far) and falls back to a general everyday-life answer. The app doesn't check what the answer
-     * says — it's capturing the voice — but answering on-topic keeps the recording realistic.
-     */
+    /** A natural spoken answer to an enrollment question, matched on topic keywords. */
     static String answerFor(String question) {
         String q = question.toLowerCase(Locale.ROOT);
         if (q.matches(".*\\bbreakfast\\b.*")) {

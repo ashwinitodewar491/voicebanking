@@ -35,16 +35,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Abstract base for all voice-based UI tests. Handles browser lifecycle and the core voice query flow.
- * <p>
- * {@code @Listeners} registers {@link TestListener} directly on the class, not just via
- * testng.xml's suite-level {@code <listener>} tag — that tag is silently skipped by Maven
- * Surefire whenever a run is scoped with {@code -Dtest=SomeClass} (which every run in this
- * project's day-to-day use has been), since that flag makes Surefire build its own ad-hoc suite
- * instead of using testng.xml at all. Without this, {@link TestListener#onFinish} — and so
- * {@link com.voicebanking.utils.SessionEndedTracker#writeToDisk()} and the ExtentReports HTML —
- * never ran for any {@code -Dtest=} invocation; confirmed live by target/session-ended-count.txt
- * and target/extent-report/ both being absent after a full run that did hit a session drop. */
+/** Base class for voice UI tests: browser lifecycle and the core voice query flow.
+ * {@code @Listeners} is declared here because Surefire ignores testng.xml's listeners when run with
+ * {@code -Dtest=...}. */
 @Listeners(TestListener.class)
 public abstract class BaseVoiceTest {
 
@@ -54,23 +47,14 @@ public abstract class BaseVoiceTest {
     protected Page page;
     protected String currentAudioPath;
 
-    /** The audio file path the running browser was launched with, in {@link #useSharedSession()}
-     * mode. Fixed for the lifetime of the browser — each query's WAV is copied onto this path
-     * rather than the browser being relaunched against a new one. */
+    /** Fixed fake-mic WAV path in shared-session mode; each query's audio is copied onto it. */
     private String sessionAudioPath;
     private boolean sessionInitialized = false;
 
-    /** Phone number of whichever seeded customer is currently logged in — set by every {@link
-     * #login} call, in shared-session mode or not. Null until the first login. Protected (not
-     * just used internally) so a follow-up flow that needs ground-truth data for the current
-     * customer — e.g. UI9's loan-detail walk — can resolve it via {@link #currentCustomerId()}
-     * without every call site having to thread customerId through separately. */
+    /** Phone number of the currently logged-in customer; null before the first login. */
     protected String loggedInPhoneNumber;
 
-    /** Lazily-created {@link GroundTruthApi} client — one per test class instance, reused across
-     * every row/attempt rather than opening a new HTTP client per call. Against {@link
-     * Endpoints#getGroundTruthApiBaseUrl()} — never prod unless -Denv=prod is explicit; see that
-     * method's own javadoc. */
+    /** Lazily created ground-truth API client, reused across rows. */
     private GroundTruthApi groundTruthApi;
 
     protected GroundTruthApi groundTruth() {
@@ -80,33 +64,20 @@ public abstract class BaseVoiceTest {
         return groundTruthApi;
     }
 
-    /** Maps {@link #loggedInPhoneNumber} to its known seeded customerId via {@link
-     * Constants#CUSTOMER_ID_BY_PHONE} — null if nobody's logged in yet, or the phone isn't one of
-     * the mapped known customers (e.g. a fresh random registration). */
+    /** Seeded customerId for the logged-in phone, or null if unknown. */
     protected String currentCustomerId() {
         return loggedInPhoneNumber == null ? null : Constants.CUSTOMER_ID_BY_PHONE.get(loggedInPhoneNumber);
     }
 
 
-    /**
-     * Opt-in for test classes whose data-provider rows can safely share one browser/login session
-     * across the whole class instead of each row paying for its own browser launch and full login
-     * (phone → OTP → language → skip voice-reg). Safe for classes where every row is an
-     * independent conversational turn against the same account (e.g. balance inquiry phrasings) —
-     * not for rows that need a guaranteed-clean, unused account. Default false preserves the
-     * original per-method isolation for every other subclass.
-     */
+    /** Override to return true to share one browser/login across all rows. Only safe when rows are
+     * independent turns on the same account. */
     protected boolean useSharedSession() {
         return false;
     }
 
-    /**
-     * Generates a WAV file for the test query, then either launches a fresh Chromium browser with
-     * {@code --use-file-for-fake-audio-capture} pointing at that file (default, one per test
-     * method), or — in {@link #useSharedSession()} mode — copies the new query's audio onto the
-     * already-running session's fixed audio path and forces the app to re-acquire the microphone,
-     * reusing the same browser and login across every row in the class.
-     */
+    /** Generates the query WAV and launches a browser with it as the fake mic, or in shared-session
+     * mode copies it onto the running session's audio path. */
     @BeforeMethod(alwaysRun = true)
     public void setUpBrowserWithAudio(Object[] params) throws Exception {
         String query = (String) params[1];
@@ -181,12 +152,7 @@ public abstract class BaseVoiceTest {
         });
     }
 
-    /**
-     * Captures a screenshot on test failure. In {@link #useSharedSession()} mode the browser stays
-     * open for the next row (torn down once in {@link #tearDownSharedSession()} instead); otherwise
-     * closes all browser resources, deletes the temporary WAV file, and paces consecutive launches
-     * with a short sleep.
-     */
+    /** Screenshots on failure. Closes the browser unless in shared-session mode. */
     @AfterMethod(alwaysRun = true)
     public void tearDown(ITestResult result) throws InterruptedException {
         ScreenshotUtil.captureOnFailure(page, result);
@@ -219,12 +185,7 @@ public abstract class BaseVoiceTest {
         TtsUtil.deleteWav(sessionAudioPath);
     }
 
-    /**
-     * Phone number used to log in before speaking the query. Defaults to Rohit Mehta
-     * (CIF202602260005, {@link Constants#EXPECTED_CUSTOMER_MOBILE}) — a known seeded customer with
-     * real account/loan/beneficiary history to assert against, rather than a fresh random
-     * registration with no history. Override to log in as a different seeded customer instead.
-     */
+    /** Login phone number; defaults to Rohit Mehta, a seeded customer with real history. */
     protected String getLoginPhoneNumber() {
         return Constants.EXPECTED_CUSTOMER_MOBILE;
     }
@@ -235,16 +196,8 @@ public abstract class BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount, getLoginPhoneNumber());
     }
 
-    /**
-     * Logs in as {@code phoneNumber} and returns the resulting home page. In
-     * {@link #useSharedSession()} mode, a call for the same phone number already logged into the
-     * running session is a no-op that just hands back a fresh {@link HomePage} wrapper over the
-     * existing page — only the very first call, or a call naming a different identity than the one
-     * currently logged in (e.g. switching to a known seeded customer), goes through the full
-     * navigate → OTP → language → skip-voice-reg flow. The session is never ended proactively here
-     * — only {@link HomePage}'s own reactive recovery (triggered when the live bot itself reports
-     * "Session Ended") ends and reconnects a session, never a deliberate reset between queries.
-     */
+    /** Logs in as {@code phoneNumber}; in shared-session mode, a no-op if already logged in as that
+     * number. */
     private HomePage ensureLoggedIn(String phoneNumber) throws Exception {
         if (useSharedSession() && phoneNumber.equals(loggedInPhoneNumber)) {
             return new HomePage(page);
@@ -252,11 +205,7 @@ public abstract class BaseVoiceTest {
         return login(phoneNumber);
     }
 
-    /**
-     * Runs the full navigate → OTP → language → skip-voice-reg login flow for {@code phoneNumber}.
-     * Called by {@link #ensureLoggedIn(String)} the first time a session logs in, or whenever it
-     * switches to a different identity than the one currently logged in.
-     */
+    /** Full login flow: navigate, OTP, language, skip voice registration. */
     private HomePage login(String phoneNumber) throws Exception {
         // A prior login in this same browser context (shared-session mode, or simply a repeat call)
         // leaves an auth cookie/localStorage session behind. Navigating to /welcome while still
@@ -318,16 +267,8 @@ public abstract class BaseVoiceTest {
         return homePage;
     }
 
-    /**
-     * Every test in this class asserts against English bot responses, but a returning user's
-     * locale isn't reset by this login flow — it persists server-side per-account (confirmed via
-     * UI12_MultilingualVoiceQueryTest, which switches this exact same account, e.g. 9898989898 /
-     * Rohit Mehta, to Hindi/Bengali and back). If a multilingual run left this account on a
-     * non-English locale, every English-only assertion here would silently run against the wrong
-     * language instead of failing loudly with a clear cause. The first-time-onboarding branch in
-     * {@link #login} already explicitly selects English, so this only needs to run for a returning
-     * user, where the language page is skipped entirely and nothing else here checks it.
-     */
+    /** Switches a returning user back to English, since locale persists server-side and UI12 may
+     * have changed it. */
     private void enforceEnglishLocale(HomePage homePage, LanguagePage languagePage) {
         homePage.clickLanguageButton();
         languagePage.waitForPageLoad();
@@ -355,27 +296,17 @@ public abstract class BaseVoiceTest {
         homePage.waitForPageLoad();
     }
 
-    /** The {@link HomePage} instance {@link #runVoiceQuery} used for the query currently/most
-     * recently in flight. {@link HomePage#getLastBotResponse()} distinguishes a genuinely new
-     * plain-text bubble from a structured card (e.g. a transaction list) via an instance field
-     * tracked across the conversation ({@code botBubblesBefore}) — a freshly constructed {@code
-     * new HomePage(page)} has none of that history, and silently returns stale/wrong text for any
-     * response that renders as a card. Reusing this exact instance (not a fresh wrapper) is what
-     * {@link #lastBotResponse()} depends on to read correctly. */
+    /** HomePage used for the latest query; reused because {@link HomePage#getLastBotResponse()}
+     * depends on its tracked state. */
     private HomePage lastHomePage;
 
-    /** The bot's response text as of right now — for a caller that needs to inspect/extract from
-     * it after {@link #runVoiceQuery} already ran and asserted the shape-level pattern itself
-     * (e.g. cross-checking the spoken number against a ground-truth API). {@code runVoiceQuery}
-     * stays {@code void} rather than threading a return value through every call site just for
-     * this. */
+    /** Bot response for the latest query, for callers that inspect it after {@link #runVoiceQuery}. */
     protected String lastBotResponse() {
         return lastHomePage.getLastBotResponse();
     }
 
     /** Same as {@link #runVoiceQuery(String, String, String[], String, String)} but logs in as
-     * an explicit phone number instead of {@link #getLoginPhoneNumber()} — for data-provider rows
-     * that exercise a specific known seeded customer rather than the class-wide default. */
+     * {@code phoneNumber}. */
     protected void runVoiceQuery(String queryName, String query, String[] expectedKeywords,
                                   String assertionPattern, String disambiguationAccount,
                                   String phoneNumber) throws Exception {
@@ -573,12 +504,8 @@ public abstract class BaseVoiceTest {
         System.out.println("[" + queryName + "] PASS");
     }
 
-    /** Asserts {@code condition}, capturing a screenshot at this exact instant first if it's
-     * about to fail. Teardown's own captureOnFailure runs later — after the exception has
-     * propagated out of the test method and TestNG has invoked @AfterMethod — so by then a
-     * transient failure (e.g. a dropped-then-reconnected voice session) may have already
-     * self-recovered, making that screenshot show a healthy page even though the assertion
-     * genuinely failed moments earlier. This captures the state as it actually was. */
+    /** Asserts {@code condition}, screenshotting immediately on failure since the app may
+     * self-recover before teardown. */
     private void assertOrCapture(boolean condition, String queryName, String message) {
         if (!condition) {
             ScreenshotUtil.captureNow(page, getClass().getSimpleName(), queryName);
@@ -586,40 +513,22 @@ public abstract class BaseVoiceTest {
         Assert.assertTrue(condition, message);
     }
 
-    /** Returns true when {@code botResponse} already indicates a recognized in-flow state that
-     * the transcription-retry loop should stop trying to power through — see the call site in
-     * {@link #runVoiceQuery(String, String, String[], String, String, String)} for why replaying
-     * the original query's audio at that point is actively risky rather than merely wasteful.
-     * Default covers account disambiguation, since that's shared by UI7/UI8. A test class adding
-     * its own recognized states (loan disambiguation, transfer confirmation, ...) should call
-     * {@code super.shouldStopRetrying(botResponse)} too, not replace it. */
+    /** True if the response is a recognized in-flow state (e.g. account disambiguation) where
+     * replaying the query would be risky. Overrides should call super. */
     protected boolean shouldStopRetrying(String botResponse) {
         return isAccountDisambiguation(botResponse);
     }
 
-    /** Matches the bot's generic session-start greeting, e.g. "Good afternoon, Welcome Karan
-     * Malhotra, I can help you review your recent transactions or check your account
-     * balances.How can I help you today?" — observed replacing the real answer specifically as
-     * the first response right after a mid-query reconnect. "How can I help you today" is the
-     * fixed closer across every greeting observed regardless of time-of-day/name, so that's the
-     * anchor, not the dynamic name/time-of-day portion. */
+    /** The bot's generic session-start greeting, sometimes returned instead of an answer right after
+     * a reconnect. */
     private static final Pattern GENERIC_GREETING = Pattern.compile("Welcome.*How can I help you today");
 
     protected boolean isGenericGreeting(String botResponse) {
         return GENERIC_GREETING.matcher(botResponse).find();
     }
 
-    /** Matches the bot's generic "I didn't understand" capability-reset fallback, e.g. "Sorry, I
-     * didn't understand that. I can help with things like checking your balance, recent
-     * transactions, or transferring money. What would you like to do?" — observed replacing the
-     * expected answer to a follow-up (account/loan disambiguation, OTP, ...) after the bot silently
-     * lost the conversation's dialogue state mid-flow, confirmed live for UI8's transaction-history
-     * follow-ups. Distinct from both {@link #isGenericGreeting} (session-start greeting after a
-     * reconnect) and {@link com.voicebanking.pages.HomePage#isSessionEnded} (an explicit "Session
-     * Ended" banner) — this fallback shows neither, so without this check {@link
-     * #reestablishIntentIfSessionEnded} never fires and a follow-up keeps getting sent into a
-     * context-less conversation until retries are exhausted. "Sorry, I didn't understand that" and
-     * "What would you like to do" are the fixed anchors; the capability list in between varies. */
+    /** The bot's "Sorry, I didn't understand that... What would you like to do?" fallback, shown
+     * when it silently loses dialogue state. */
     private static final Pattern CONTEXT_LOST_FALLBACK =
             Pattern.compile("(?i)didn.t understand that.*what would you like to do");
 
@@ -627,49 +536,24 @@ public abstract class BaseVoiceTest {
         return CONTEXT_LOST_FALLBACK.matcher(botResponse).find();
     }
 
-    /** Cap on re-asking the same query after a post-reconnect greeting/empty response — see the
-     * re-ask loop in {@link #runVoiceQuery(String, String, String[], String, String, String)}. */
+    /** Max re-asks after a greeting or empty response. */
     private static final int MAX_REASK_ATTEMPTS = 3;
 
-    /** How long to wait for the bot's reply before treating it as stuck — raised from an earlier
-     * 15 s after live runs showed genuine (non-stuck) replies still arriving past that mark,
-     * particularly for date-range and filtered transaction queries. */
+    /** How long to wait for a bot reply before treating it as stuck; 15s proved too short for some
+     * queries. */
     private static final int BOT_RESPONSE_TIMEOUT_MS = 30000;
 
-    /** Extension point — see call site in {@link #runVoiceQuery(String, String, String[], String,
-     * String, String)}. Override in a test class to handle a follow-up prompt specific to that
-     * class's feature; return {@code botResponse} unchanged when there's nothing to do. {@code
-     * query} is the original query text — needed by {@link #reestablishIntentIfSessionEnded} if
-     * the override's own follow-up loop hits a session drop. */
+    /** Hook for class-specific follow-up prompts; return {@code botResponse} unchanged if there's
+     * nothing to do. */
     protected String handleAdditionalFollowUp(String queryName, String query, String botResponse,
                                                String disambiguationAccount, HomePage homePage) throws Exception {
         return botResponse;
     }
 
-    /**
-     * If the bot's chat has dropped into a "Session Ended" state, or the bot's dialogue state was
-     * silently lost without ever showing that banner (see {@link #isContextLostFallback}), before
-     * a follow-up answer is about to be spoken, reconnects (when there's actually a "Session
-     * Ended" screen to reconnect from) and re-speaks the ORIGINAL query first, rather than sending
-     * the bare follow-up (e.g. "savings") straight into a context-less conversation. A reconnect
-     * restores the WebRTC session but not the bot's own dialogue state — without this, a follow-up
-     * spoken right after context is lost gets treated as a brand-new, standalone query instead of
-     * an answer to whatever it was asked (account/loan disambiguation, transfer confirmation,
-     * ...), producing an unrelated generic response instead of the expected one. Confirmed live
-     * two ways: "today's transactions" → session drop → "savings" alone got answered with generic
-     * savings-account-types marketing copy instead of the transaction list; and (UI8, no "Session
-     * Ended" banner at all) a transaction-history follow-up answered with the "Sorry, I didn't
-     * understand that... What would you like to do?" capability-reset fallback instead of the
-     * transaction list.
-     * <p>
-     * Call this at the start of each follow-up attempt, before overwriting {@code
-     * currentAudioPath} with the follow-up's own audio — once overwritten, the original query
-     * text is still available as {@code query} for regeneration, but the file itself is gone.
-     * <p>
-     * Returns the bot's response after re-establishing intent (which should be the original
-     * disambiguation/confirmation prompt reappearing) if a lost-context state was found and
-     * recovered, or {@code currentBotResponse} unchanged if no recovery was needed.
-     */
+    /** If the session ended or the bot lost context before a follow-up, reconnects and re-speaks the
+     * original query so the follow-up isn't treated as a new standalone query. Call before
+     * overwriting the audio file. Returns the new response, or {@code currentBotResponse} if no
+     * recovery was needed. */
     protected String reestablishIntentIfSessionEnded(HomePage homePage, String queryName, String query,
                                                        String currentBotResponse) throws Exception {
         boolean sessionEnded = homePage.isSessionEnded();
@@ -698,29 +582,16 @@ public abstract class BaseVoiceTest {
         return restoredResponse;
     }
 
-    /**
-     * Returns the pattern the bot's response should match after the user picks {@code
-     * followUpAccount} in response to an account-disambiguation prompt. Defaults to the
-     * SAVINGS/CURRENT balance patterns, since that's what UI7's balance queries expect — a balance
-     * response explicitly names which account it's for ("The balance in your SAVINGS account
-     * is..."). Not every feature works that way: a transaction-history response is just a list of
-     * entries with no per-account wording to distinguish, so UI8 overrides this to check the
-     * generic transaction-entry shape instead, regardless of which account was picked.
-     */
+    /** Expected pattern after answering account disambiguation with {@code followUpAccount}.
+     * Defaults to the balance patterns; UI8 overrides it. */
     protected String getDisambiguationExpectedPattern(String followUpAccount) {
         return "current".equalsIgnoreCase(followUpAccount)
                 ? BotResponsePatterns.Balance.CURRENT
                 : BotResponsePatterns.Balance.SAVINGS;
     }
 
-    /** Returns true when every word in {@code expected} appears in {@code transcribed}
-     * (case-insensitive). Numbers are normalized to digits first — STT is inconsistent about
-     * rendering a spoken number as the word ("one") or the digit ("1"), sometimes doing either
-     * for the exact same audio, so comparing raw text made a perfectly correct transcription
-     * fail whenever it didn't happen to pick the same form as the expected text. Currency amounts
-     * are normalized the same way: STT sometimes renders "10000 rupees" as "₹10,000" — correct,
-     * just a different notation for the same amount — so a leading ₹/Rs./INR marker is treated as
-     * the word "rupees" before comparison, rather than requiring both forms to literally match. */
+    /** True if every word of {@code expected} is in {@code transcribed}, ignoring case and
+     * normalizing number words and currency notation. */
     protected boolean transcriptionContainsExpectedWords(String transcribed, String expected) {
         String cleanTranscribed = normalizeNumberWords(normalizeCurrency(transcribed).toLowerCase());
         String[] expectedWords  = normalizeNumberWords(normalizeCurrency(expected).toLowerCase())
@@ -731,8 +602,7 @@ public abstract class BaseVoiceTest {
         return true;
     }
 
-    /** Replaces a ₹/Rs./INR currency marker with the word "rupees" so "₹10,000" and "10000 rupees"
-     * normalize to the same words, then strips everything but letters, digits, and spaces. */
+    /** Normalizes ₹/Rs./INR to "rupees" and strips punctuation. */
     private String normalizeCurrency(String text) {
         return text.replaceAll("(?i)₹|\\bRs\\.?\\b|\\bINR\\b", " rupees ")
                 .replaceAll("[^a-zA-Z0-9 ]", "");
@@ -746,8 +616,7 @@ public abstract class BaseVoiceTest {
             java.util.Map.entry("eight", "8"), java.util.Map.entry("nine", "9"),
             java.util.Map.entry("ten", "10"));
 
-    /** Replaces spelled-out digits 0–10 with their numeral form, word by word, so "one" and "1"
-     * compare equal after normalization. */
+    /** Converts number words 0-10 to digits. */
     private String normalizeNumberWords(String text) {
         String[] words = text.split("\\s+");
         StringBuilder normalized = new StringBuilder();
@@ -757,10 +626,7 @@ public abstract class BaseVoiceTest {
         return normalized.toString().trim();
     }
 
-    /** Returns true when the bot response is asking the user to choose between account types.
-     * Excludes loan-related responses — "which loan account would you like to check" is asking
-     * the caller to pick a loan, not a savings/current account, and the savings/current follow-up
-     * mechanism below doesn't know how to answer that. */
+    /** True if the bot is asking to choose between savings/current (not loan) accounts. */
     private boolean isAccountDisambiguation(String response) {
         String lower = response.toLowerCase();
         if (lower.contains("loan")) return false;
@@ -778,20 +644,14 @@ public abstract class BaseVoiceTest {
         return false;
     }
 
-    /** Matches one transaction-entry's sign and amount — the same shape as {@link
-     * BotResponsePatterns.Transactions#ENTRY}, but with the amount captured so callers can count
-     * entries or sum their amounts, rather than just confirming at least one exists. */
+    /** One transaction entry's sign and amount, capturing the amount. */
     private static final Pattern TRANSACTION_ENTRY_AMOUNT =
             Pattern.compile("[+-]₹([\\d,]+(?:\\.\\d+)?)(?:DEBIT|CREDIT)");
 
-    /** Matches a "Total spent₹<amount>" summary line, capturing the amount. Card responses run
-     * their nested elements together with no separating whitespace (see {@link
-     * BotResponsePatterns.Transactions#ENTRY}'s own comment on this), so there is deliberately no
-     * space between "spent" and the currency symbol here. */
+    /** A "Total spent₹X" line; card text has no space before the ₹. */
     private static final Pattern TOTAL_SPENT = Pattern.compile("Total spent₹([\\d,]+(?:\\.\\d+)?)");
 
-    /** Counts how many transaction entries appear in a card-format bot response — e.g. to confirm
-     * "recent transactions" returned exactly the number of entries the app is known to page at. */
+    /** Counts transaction entries in a card-format response. */
     protected int countTransactionEntries(String botResponse) {
         Matcher matcher = TRANSACTION_ENTRY_AMOUNT.matcher(botResponse);
         int count = 0;
@@ -799,10 +659,7 @@ public abstract class BaseVoiceTest {
         return count;
     }
 
-    /** Every entry amount in a card-format bot response, in the order they appear — for
-     * cross-checking against a ground-truth API's own transaction list (e.g. confirming the top
-     * entry the bot read out is actually one of that account's real transactions), rather than
-     * just counting entries the way {@link #countTransactionEntries} does. */
+    /** All entry amounts in a card-format response, in order. */
     protected java.util.List<Double> transactionEntryAmounts(String botResponse) {
         java.util.List<Double> amounts = new java.util.ArrayList<>();
         Matcher matcher = TRANSACTION_ENTRY_AMOUNT.matcher(botResponse);
@@ -815,13 +672,8 @@ public abstract class BaseVoiceTest {
     /** Matches one DEBIT entry's amount — money going out, i.e. what "Total spent" adds up. */
     private static final Pattern DEBIT_ENTRY_AMOUNT = Pattern.compile("-₹([\\d,]+(?:\\.\\d+)?)DEBIT");
 
-    /** When a response includes a "Total spent₹X" summary line, verifies X equals the sum of every
-     * listed DEBIT entry's amount — a content-correctness check that doesn't require knowing the
-     * seed data's true values in advance, only that the bot's own total is internally consistent
-     * with the entries it displayed alongside it. CREDIT entries are money received, not spent, so
-     * they're excluded — confirmed live: a UPI response listing 10 debits and 7 credits showed
-     * "Total spent₹26,196.88", exactly the 10 debits' sum. Returns true (nothing to check) when no
-     * total line is present, e.g. plain entry-list or prose-summary responses. */
+    /** If a "Total spent" line is present, checks it equals the sum of the DEBIT entries. True when
+     * there's no total line. */
     protected boolean totalMatchesSumOfEntries(String botResponse) {
         Matcher totalMatcher = TOTAL_SPENT.matcher(botResponse);
         if (!totalMatcher.find()) return true;

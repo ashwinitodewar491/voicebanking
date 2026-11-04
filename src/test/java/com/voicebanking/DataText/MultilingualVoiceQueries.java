@@ -1,10 +1,6 @@
 package com.voicebanking.DataText;
 
-/**
- * Hindi and Bengali voice queries for the multilingual trial — kept separate
- * from {@link VoiceQueries} (English-only) so the existing English test data
- * and flow are untouched.
- */
+/** Hindi and Bengali voice queries, kept separate from the English {@link VoiceQueries}. */
 public class MultilingualVoiceQueries {
 
     public static class Hindi {
