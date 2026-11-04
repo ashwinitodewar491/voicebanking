@@ -25,12 +25,10 @@ import java.util.regex.Pattern;
 
 public class UI6_HomePageTest extends BasePage {
 
-    /** Matches the bot's generic session-start greeting — mirrors BaseVoiceTest#isGenericGreeting
-     * (not reusable here since this class extends BasePage, not BaseVoiceTest). */
+    /** The bot's generic session-start greeting (copy of BaseVoiceTest's). */
     private static final Pattern GENERIC_GREETING = Pattern.compile("Welcome.*How can I help you today");
 
-    /** Matches the bot's generic "I didn't understand" capability-reset fallback — mirrors
-     * BaseVoiceTest#isContextLostFallback, same reason this can't just call that method directly. */
+    /** The bot's "didn't understand" fallback (copy of BaseVoiceTest's). */
     private static final Pattern CONTEXT_LOST_FALLBACK =
             Pattern.compile("(?i)didn.t understand that.*what would you like to do");
 
@@ -196,16 +194,8 @@ public class UI6_HomePageTest extends BasePage {
         assertThat(homePage.holdToSpeakButton()).isVisible();
     }
 
-    /**
-     * Drives one voice query without extending {@link com.voicebanking.tests.ui.base.BaseVoiceTest}:
-     * that base class is built around a real WAV played through
-     * {@code --use-file-for-fake-audio-capture} and genuine STT, which this class's other tests
-     * (dashboard elements, balance toggle, transactions) have no use for. This single query instead
-     * uses {@link BasePage#speechMockScript}, a JS-level mock that replaces
-     * {@code webkitSpeechRecognition} entirely and fires a fixed transcript — see
-     * UI11_VoiceRegistrationAuthTest's own doc comment, which cites this exact method as the
-     * established lighter-weight alternative to BaseVoiceTest's real-audio pipeline.
-     */
+    /** Uses {@link BasePage#speechMockScript} to inject a fixed transcript instead of
+     * BaseVoiceTest's real-audio pipeline. */
     @Test(groups = {"ui", "regression", "smoke"},
             description = "Should send voice query 'What is my account balance' and receive a valid balance response")
     public void testVoiceBalanceQuery() {

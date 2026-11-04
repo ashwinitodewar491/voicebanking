@@ -15,41 +15,12 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Most queries assert against BotResponsePatterns.Transactions.ENTRY — the real transaction-card
- * format confirmed via manual testing. Every category/filter-scoped query (UPI, card, all-credit,
- * all-debit, credited/debited, above/below-amount, to-merchant, from-person) may instead return a
- * prose summary of the same data — the live bot isn't consistent about which shape it picks for a
- * given filtered query, so all of these use ENTRY_OR_SUMMARY rather than the strict ENTRY-only
- * pattern. Every one of these generic/exploratory rows (recent, latest, last, savings, current,
- * transaction history, and every category/filter query above) additionally accepts a legitimate
- * "no results found" outcome (the {@code _OR_NO_RESULTS} pattern variants), since none of them is
- * cross-checked against known seeded data — whether a given query, date range, or filter has any
- * matches at all depends on this account's actual transaction history, which isn't something to
- * assume without checking, so a documented "nothing found" response is a valid pass, not a
- * failure. The one exception is {@link #knownAccountTransactionQueries()} below, which targets
- * accounts with ground-truth-verified seed data — there, a "no results" response would itself be
- * the bug under test, so those rows deliberately stay on the strict ENTRY-only pattern.
- * <p>
- * Every row here logs in fresh (no {@code useSharedSession()} override) rather than sharing one
- * session across rows the way UI7 does — the live bot's per-query filter (date range, category,
- * merchant, person, ...) turned out to be <em>sticky</em> for the rest of a conversation once set,
- * not just leaking into the immediately-next turn. In one shared-session regression run, the
- * "groceries" filter from a single early query contaminated most of the ~30 unrelated queries that
- * followed, none of which had asked for groceries at all. No row-ordering scheme fixes a
- * session-wide sticky filter. A since-reverted attempt tried proactively ending and reconnecting
- * the voice session between rows (to get a fresh bot conversation without a full re-login), but
- * that meant deliberately ending sessions the app hadn't actually ended — session teardown here
- * only ever happens reactively, when the live bot itself reports "Session Ended" (see {@link
- * com.voicebanking.pages.HomePage}'s own recovery for that). So this class stays on one login per
- * row.
- */
+/** Transaction-history queries. Filtered queries accept card or prose-summary responses, and generic
+ * rows accept "no results"; the known-account rows stay strict. Each row logs in fresh because the
+ * bot's filters persist for the whole conversation. */
 public class UI8_TransactionHistoryTest extends BaseVoiceTest {
 
-    /** Customer A (Rohit Mehta, CIF202602260005) — has real seeded transaction history,
-     * unlike the random new-user registration BaseVoiceTest defaults to. A brand-new account
-     * has nothing for a transaction query to return. Dual account (savings + current) is also
-     * required here since some rows disambiguate to "current". */
+    /** Rohit Mehta: seeded transaction history on both savings and current. */
     @Override
     protected String getLoginPhoneNumber() {
         return "9898989898";
@@ -134,9 +105,8 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         };
     }
 
-    /** Queries confirmed not working against the live stage bot as of 2026-08-06 — dev is
-     * expected to fix these later. Skipped (not failed) so CI regression runs don't flag known,
-     * already-reported issues; remove an entry here once its fix lands. */
+    /** Queries known to be broken on stage (as of 2026-08-06); skipped, not failed. Remove entries
+     * once fixed. */
     private static final Set<String> NOT_WORKING = Set.of(
             "Spend On Groceries", "All Credit Transactions", "Money Credited",
             "Transactions Above Amount", "Transactions Below Amount", "ATM Transactions",
@@ -153,15 +123,7 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Five queries chosen to cover every distinct response-pattern this file asserts on: generic
-     * recency (RECENT_ENTRY_OR_NO_RESULTS, disambiguates), an explicit account query
-     * (ENTRY_OR_NO_RESULTS, no disambiguation), a category filter that may return prose instead of
-     * cards (ENTRY_OR_SUMMARY_OR_NO_RESULTS), a time-range query whose seed data may legitimately
-     * have no matches (ENTRY_OR_NO_RESULTS), and a debit/credit filter query. All rows accept a
-     * legitimate "no results" outcome alongside their normal shape — none of these queries are
-     * cross-verified against known seeded data, so an empty result is a valid possibility, not a
-     * bug signal (unlike knownAccountTransactionQueries below). Run this tier for a fast
-     * build/deploy health check. */
+    /** Fast health-check tier covering each response pattern asserted in this file. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
@@ -206,14 +168,8 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Customer A (Rohit Mehta, CIF202602260005, 9898989898) — dual account: savings + current.
-     * Customer B (Leena Kamat, CIF202602260042, 9812341042) — savings only.
-     * Customer C (Aniket More, CIF202602260041, 9812341041) — savings only.
-     * Account-to-customer mapping is known statically, so each row names its account explicitly
-     * (SAVINGS_TRANSACTIONS / CURRENT_TRANSACTIONS) and never triggers the disambiguation follow-up
-     * — no need to guess or loop over possibilities. {@code accountId} (a new column beyond the
-     * generic voiceQueries shape) is what {@link #testKnownAccountTransactions} cross-checks the
-     * bot's returned entries against, via the ground-truth Transactions List API. */
+    /** Customers A (Rohit, savings + current), B (Leena, savings) and C (Aniket, savings). Rows name
+     * the account explicitly; entries are cross-checked against the Transactions List API. */
     @DataProvider(name = "knownAccountTransactionQueries")
     public Object[][] knownAccountTransactionQueries() {
         return new Object[][]{
@@ -269,8 +225,7 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         }
     }
 
-    /** Queries asking generically for "recent" transactions have been consistently observed
-     * returning exactly 5 entries — a fixed page size, not a coincidence of this seed data. */
+    /** "Recent" queries return exactly 5 entries (a fixed page size). */
     private static final Set<String> RECENT_COUNT_5 = Set.of(
             "Recent Transactions", "Want Recent Transactions",
             "Can See Recent Transactions", "Read Out Recent Transactions");
@@ -280,13 +235,8 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
     private static final Set<String> LATEST_COUNT_1 = Set.of(
             "Latest Transaction", "Last Transaction", "What Was Last Transaction");
 
-    /** Beyond the shape-only pattern check every row already gets, verifies the response content
-     * is internally consistent: the "recent transactions" family returns exactly 5 entries, the
-     * single-latest-transaction family returns exactly 1, and — for whichever rows the bot answers
-     * with a "Total spent" summary — that total equals the sum of the DEBIT entries listed alongside it.
-     * These don't require knowing the seed data's true values, only that the counts/totals the bot
-     * itself displays are self-consistent — a real cross-check we couldn't previously do without
-     * visibility into the account's actual transaction data. */
+    /** Consistency checks: 5 entries for "recent", 1 for "latest", and "Total spent" equals the sum
+     * of the DEBIT entries. */
     @Override
     protected String handleAdditionalFollowUp(String queryName, String query, String botResponse,
                                                String disambiguationAccount, HomePage homePage) throws Exception {
@@ -309,11 +259,8 @@ public class UI8_TransactionHistoryTest extends BaseVoiceTest {
         return botResponse;
     }
 
-    /** A transaction-history response after account disambiguation is just a list of entries —
-     * unlike a balance response, it doesn't name which account it's for ("The balance in your
-     * SAVINGS account is..."), so there's no SAVINGS-specific vs. CURRENT-specific shape to check
-     * regardless of {@code followUpAccount}. The base class's default (a Balance pattern) doesn't
-     * apply here at all. */
+    /** Transaction responses don't name the account, so the generic entry pattern applies regardless
+     * of {@code followUpAccount}. */
     @Override
     protected String getDisambiguationExpectedPattern(String followUpAccount) {
         return BotResponsePatterns.Transactions.ENTRY_OR_NO_RESULTS;

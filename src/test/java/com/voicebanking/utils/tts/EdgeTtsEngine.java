@@ -4,11 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/**
- * Cross-platform TTS using Microsoft's free, unlimited Edge neural voices via the
- * {@code edge-tts} CLI, converted to 16kHz mono PCM WAV via {@code ffmpeg}. Same commands
- * on Windows, macOS, and Linux — no OS-specific branching or native APIs.
- */
+/** TTS via the {@code edge-tts} CLI, converted to 16kHz mono WAV with ffmpeg. */
 public class EdgeTtsEngine implements TtsEngine {
 
     public static final String VOICE = "en-US-AriaNeural";
@@ -16,13 +12,10 @@ public class EdgeTtsEngine implements TtsEngine {
     public static final String VOICE_BENGALI = "bn-IN-TanishaaNeural";
     public static final String VOICE_MARATHI = "mr-IN-AarohiNeural";
 
-    /** A distinct English speaker from {@link #VOICE} — used to simulate a voice that does NOT
-     * match whatever was registered during voice-authentication enrollment (UI11). */
+    /** A different English speaker from {@link #VOICE}, for voice-mismatch tests. */
     public static final String VOICE_EN_ALTERNATE = "en-US-GuyNeural";
 
-    /** Silence prepended before speech starts, giving the fake-audio-capture pipeline time to
-     * actually start capturing before any spoken audio appears — without it, words at the very
-     * start of the clip (e.g. "one" in "one rupee") can be clipped or missed by the app's STT. */
+    /** Leading silence so the fake-audio pipeline is capturing before speech starts. */
     private static final int LEAD_SILENCE_MS = 2000;
 
     @Override
@@ -66,12 +59,8 @@ public class EdgeTtsEngine implements TtsEngine {
         return wavFile.toAbsolutePath().toString();
     }
 
-    /** Same as {@link #generate(String, String)} but with an explicit rate/pitch offset applied
-     * on top of the given voice's own baseline — used to simulate the small take-to-take
-     * variation a real speaker naturally produces (e.g. across repeated enrollment reps)
-     * <b>without changing which voice/speaker is used</b>. {@code rate} and {@code pitch} use
-     * edge-tts's own relative-offset syntax, e.g. {@code "+7%"} / {@code "-12Hz"}; {@code "+0%"}
-     * / {@code "+0Hz"} reproduces {@link #generate(String, String)}'s behavior exactly. */
+    /** Same as {@link #generate(String, String)} with an edge-tts rate/pitch offset, e.g.
+     * {@code "+7%"} / {@code "-12Hz"}. */
     public String generate(String text, String voice, String rate, String pitch) throws Exception {
         Path txtFile = Files.createTempFile("voice_query_", ".txt");
         Path mp3File = Files.createTempFile("voice_query_", ".mp3");

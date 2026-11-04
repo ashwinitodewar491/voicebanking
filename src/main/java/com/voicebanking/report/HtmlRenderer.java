@@ -8,9 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Renders the parsed results into one self-contained index.html — all data, CSS and JS inline,
- * no fetch/XHR calls, so it opens correctly straight off disk (file://) with no local server.
- * The pass/fail donut is plain CSS conic-gradient rather than a JS charting library. */
+/** Renders results into one self-contained index.html (inline CSS/JS) that opens straight from disk. */
 public class HtmlRenderer {
 
     public String render(List<TestResult> results, int sessionEndedCount) {
@@ -94,10 +92,7 @@ public class HtmlRenderer {
         return sb.toString();
     }
 
-    /** Lists each occurrence (time + query) of an environment-stability signal below the summary
-     * cards, so a non-zero count can be traced back to exactly where it happened rather than just
-     * how many. Shared by "Session Ended", "bot never responded" and "welcome message absent" —
-     * same shape, different source. Renders nothing when the list is empty. */
+    /** Lists each occurrence of an environment-stability signal; renders nothing when empty. */
     private String renderDetailsList(String title, String cssClass, List<String> details) {
         if (details.isEmpty()) return "";
         StringBuilder sb = new StringBuilder("<section class=\"").append(cssClass).append("\">");
@@ -133,9 +128,7 @@ public class HtmlRenderer {
                 + "</ul></section>";
     }
 
-    /** One card per module (see TestResult#module), sorted worst-pass-rate-first so the modules
-     * that need attention are the ones you see without scrolling. Clicking a card filters the
-     * test table below to just that module, reusing the same search box as free-text search. */
+    /** One card per module, worst pass rate first; clicking a card filters the test table. */
     private String renderModuleBreakdown(List<TestResult> results) {
         if (results.isEmpty()) return "";
 
@@ -175,11 +168,8 @@ public class HtmlRenderer {
         return stats[0] == 0 ? 0 : (stats[1] * 100.0 / stats[0]);
     }
 
-    /** One bar per distinct failure reason (see TestResult#failureCategory), sorted most-common
-     * first — this is what actually answers "is this one weird one-off or a systemic problem,"
-     * since e.g. 18 failures all bucketing into "Session Dropped" points at environment
-     * instability rather than 18 unrelated bugs. Clicking a bar filters the table to just that
-     * reason. Renders nothing when there are no failures. */
+    /** One bar per failure reason, most common first; clicking a bar filters the table. Renders
+     * nothing when there are no failures. */
     private String renderFailureReasons(List<TestResult> results) {
         Map<String, Long> counts = new LinkedHashMap<>();
         for (TestResult r : results) {

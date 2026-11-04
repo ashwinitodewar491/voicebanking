@@ -32,35 +32,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * Guards against a specific, more severe variant of the voice-mismatch bug space than {@link
- * UI11_VoiceRegistrationAuthTest} covers: that class only ever proves "the wrong voice is
- * rejected" using a voice that has never been enrolled by anyone. It never rules out a matcher
- * that's actually checking "does this audio match ANY account's registered voiceprint" instead of
- * "does this audio match THIS logged-in account's own voiceprint" — a bug that a single-account
- * test literally cannot expose, since there's no second enrolled voiceprint around to leak
- * through.
- *
- * <p>This class enrolls two different real accounts with two different, genuinely distinct
- * speakers (Leena Kamat with {@link EdgeTtsEngine#VOICE}, Aniket More with {@link
- * EdgeTtsEngine#VOICE_EN_ALTERNATE}), then logs in as Aniket and asks a balance query spoken in
- * Leena's registered voice — not an arbitrary unregistered voice, but one that IS a valid
- * voiceprint on file, just for the other account. If the app is properly account-scoped, this is
- * rejected exactly like any other mismatched voice; if voice-matching is actually global, this
- * would incorrectly leak Aniket's balance to a query authenticated as Leena.
- *
- * <p>Uses Leena Kamat (Customer B, {@link Constants#CUSTOMER_B_PHONE}) and Aniket More (Customer
- * C, {@link Constants#CUSTOMER_C_PHONE}) — the same two accounts {@link UI11_VoiceRegistrationAuthTest}
- * and {@link UI5_VoiceRegistrationTest} already treat as the sanctioned pair for voice-registration
- * testing (clean, minimal-interference seed data; see their own javadocs and the Constants
- * comments on {@code CUSTOMER_B_*}/{@code CUSTOMER_C_*}). Both voiceprints are removed in a {@code
- * finally} block so neither account is left registered afterward — Aniket's account in particular
- * is also used unregistered by other suites (UI7/UI8/UI9 ground-truth cross-verification via
- * {@link com.voicebanking.tests.ui.base.BaseVoiceTest}, which always speaks queries in {@link
- * EdgeTtsEngine#VOICE}/Aria); a voiceprint left behind here under {@link
- * EdgeTtsEngine#VOICE_EN_ALTERNATE}/Guy would make every one of those suites' Aria-voiced queries
- * against his account start failing with a spurious "Not Authorised" the next time they run.
- */
+/** Checks voice matching is account-scoped: enrolls Leena (VOICE) and Aniket (VOICE_EN_ALTERNATE),
+ * then asks for Aniket's balance in Leena's voice, which must be rejected. Both voiceprints are
+ * removed afterward so other suites using Aniket aren't affected. */
 public class UI14_VoicePrintCrossAccountTest extends BasePage {
 
     private String generatedWavPath;
@@ -71,9 +45,7 @@ public class UI14_VoicePrintCrossAccountTest extends BasePage {
                 VoiceQueries.English.VOICE_ENROLLMENT_PHRASE, EdgeTtsEngine.VOICE);
     }
 
-    /** Same browser/mic setup as {@link UI11_VoiceRegistrationAuthTest#setUpBrowser()} — see that
-     * method's javadoc for why the extra Chromium args and the two init scripts (window.__micStreams
-     * tracking, AnalyserNode stub) are needed for a genuine enrollment to succeed headlessly. */
+    /** Same browser/mic setup as {@link UI11_VoiceRegistrationAuthTest#setUpBrowser()}. */
     @Override
     @BeforeMethod(alwaysRun = true)
     public void setUpBrowser() {
@@ -121,15 +93,8 @@ public class UI14_VoicePrintCrossAccountTest extends BasePage {
         TtsUtil.deleteWav(generatedWavPath);
     }
 
-    /**
-     * Logs into {@code phoneNumber} (clearing any prior session first, so this can enroll a
-     * second account in the same browser/page right after the first) and completes the
-     * voice-registration enrollment flow (every image/question step, via {@link VoiceEnrollment})
-     * using {@code enrollmentVoice}, then clicks Start Banking
-     * to land on Home. Generalizes {@link UI11_VoiceRegistrationAuthTest#registerVoiceAndReachHome()}
-     * to an explicit phone/voice pair instead of a single hardcoded account, since this class needs
-     * to enroll two distinct accounts with two distinct speakers in the same run.
-     */
+    /** Logs into {@code phoneNumber} (clearing any prior session), enrolls with
+     * {@code enrollmentVoice}, and lands on Home. */
     private HomePage registerVoiceAndReachHome(String phoneNumber, String enrollmentVoice) throws Exception {
         String enrollWavPath = TtsUtil.generateWav(VoiceQueries.English.VOICE_ENROLLMENT_PHRASE, enrollmentVoice);
         Files.copy(Path.of(enrollWavPath), Path.of(generatedWavPath), StandardCopyOption.REPLACE_EXISTING);
@@ -206,9 +171,7 @@ public class UI14_VoicePrintCrossAccountTest extends BasePage {
             Pattern.compile("(?i)didn.t understand that.*what would you like to do");
     private static final int MAX_REASK_ATTEMPTS = 3;
 
-    /** Same query/re-ask flow as {@link UI11_VoiceRegistrationAuthTest#askBalanceWithVoice} — see
-     * that method's javadoc for why the re-ask loop is needed (a reconnect's session-start
-     * greeting or context-lost fallback can swallow the query right after it's spoken). */
+    /** Same query/re-ask flow as {@link UI11_VoiceRegistrationAuthTest#askBalanceWithVoice}. */
     private String askBalanceWithVoice(HomePage homePage, String voice) throws Exception {
         String queryWavPath = TtsUtil.generateWav(VoiceQueries.English.ACCOUNT_BALANCE, voice);
         Files.copy(Path.of(queryWavPath), Path.of(generatedWavPath), StandardCopyOption.REPLACE_EXISTING);
@@ -309,10 +272,7 @@ public class UI14_VoicePrintCrossAccountTest extends BasePage {
         }
     }
 
-    /** Logs back into {@code phoneNumber} purely for cleanup — no enrollment, no fake-audio
-     * concerns, just reaching Home so {@link HomePage#removeRegisteredVoice()} has a menu to
-     * click. Separate from {@link #registerVoiceAndReachHome} since cleanup never needs to record
-     * anything. */
+    /** Logs back into {@code phoneNumber} just to reach Home for voiceprint cleanup. */
     private HomePage reloginForCleanup(String phoneNumber) throws Exception {
         context.clearCookies();
         try {

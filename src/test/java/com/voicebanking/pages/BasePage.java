@@ -20,13 +20,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
-/** {@code @Listeners} registers {@link TestListener} directly on the class, not just via
- * testng.xml's suite-level {@code <listener>} tag — that tag is silently skipped by Maven
- * Surefire whenever a run is scoped with {@code -Dtest=SomeClass}, since that flag makes Surefire
- * build its own ad-hoc suite instead of using testng.xml at all. Without this, every non-voice UI
- * test (UI1-6, UI11) would never write to ExtentReports or any of the SessionEndedTracker /
- * NoResponseTracker / WelcomeMessageTracker dashboard files when run standalone — see
- * {@link com.voicebanking.tests.ui.base.BaseVoiceTest} for the original diagnosis of this gap. */
+/** {@code @Listeners} is declared here because Surefire ignores testng.xml's listeners when run with
+ * {@code -Dtest=...}. */
 @Listeners(TestListener.class)
 public class BasePage {
 

@@ -21,11 +21,7 @@ public class TestResult {
         return dot == -1 ? className : className.substring(dot + 1);
     }
 
-    /** Prefers the test's own {@code @Test(description = ...)} text (looked up via reflection in
-     * {@link SurefireReportParser}, since Surefire's JUnit-format XML has no field for it) over
-     * the raw method name — a method like {@code testPitchShift35HzQueryStillAuthorized} is far
-     * less useful in a report than its actual description. Falls back to the method name (plus
-     * param label for data-driven rows) if no description was found. */
+    /** The {@code @Test} description if found, otherwise the method name plus param label. */
     String displayName() {
         if (description != null && !description.isBlank()) {
             return paramLabel != null ? description + " — " + paramLabel : description;
@@ -33,11 +29,8 @@ public class TestResult {
         return paramLabel != null ? methodName + " — " + paramLabel : methodName;
     }
 
-    /** There's no existing "module" concept in this codebase — @Test groups (smoke/regression/
-     * api/ui/...) are execution tags, not business features — so this buckets by keyword against
-     * the test class name itself. Order matters: more specific keywords are checked first (e.g.
-     * "Loan" before the generic "Account") so a class like GetLoanStatement lands in Loans, not
-     * Accounts. Update this if a new test class doesn't fit an existing bucket. */
+    /** Buckets a test into a module by keyword on its class name. Order matters: more specific
+     * keywords first. */
     String module() {
         String name = simpleClassName();
         if (name.contains("Loan")) return "Loans";
@@ -53,14 +46,8 @@ public class TestResult {
         return "Other";
     }
 
-    /** Buckets failures into a small set of human-readable reasons via keyword matching against
-     * the failure type/message — the same "no annotation needed" approach as module(). Order
-     * matters: checks go from most specific signal to most generic so, e.g., a timed-out
-     * Playwright wait triggered by the app dropping the voice session doesn't get misfiled as a
-     * plain "Timeout" ahead of the more specific assertion messages this codebase's own tests
-     * raise for that (see BaseVoiceTest/UI12's "Home page should remain visible" / "Bot did not
-     * respond" assertions). Returns null for non-failures. Update this if a new failure shape
-     * doesn't fit an existing bucket. */
+    /** Buckets a failure into a readable reason by keyword on its type/message, most specific first.
+     * Null for non-failures. */
     String failureCategory() {
         if (status != Status.FAILED) return null;
         String type = failureType != null ? failureType : "";

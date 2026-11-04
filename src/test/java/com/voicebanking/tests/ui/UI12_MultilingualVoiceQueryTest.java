@@ -20,10 +20,8 @@ import org.testng.annotations.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Hindi and Bengali voice-query trials across the core feature set (balance, transactions,
- * transfer, loan, EMI). Self-contained rather than extending BaseVoiceTest, since that base class
- * is hardcoded to the English locale/voice — kept separate so the existing English tests and
- * their data are untouched. */
+/** Hindi and Bengali voice queries across balance, transactions, transfer, loan and EMI. Standalone
+ * because BaseVoiceTest is English-only. */
 public class UI12_MultilingualVoiceQueryTest {
 
     private Playwright playwright;
@@ -32,22 +30,15 @@ public class UI12_MultilingualVoiceQueryTest {
     private Page page;
     private String audioPath;
 
-    /** The locale we last confirmed active for this account (Rohit Mehta, 9898989898), tracked
-     * across rows within this run — see {@link #loginAndSetLocale} for why this lets rows whose
-     * locale matches the previous row skip the globe-icon reselect entirely. */
+    /** Locale last confirmed for this account, so rows with the same locale skip reselecting it. */
     private String lastConfirmedLocale;
 
-    /** True when this row just switched locale (globe icon or first-ever onboarding) — see
-     * {@link #loginAndSetLocale} and {@link #runMultilingualQuery} for why a row that switched
-     * must not wait for a pre-existing bot welcome bubble before speaking: confirmed visually that
-     * a locale switch clears the chat area without posting a fresh greeting, so that wait was
-     * hanging its full 15s for a bubble that would never arrive. */
+    /** True when this row just switched locale; the switch clears the chat, so don't wait for a
+     * welcome bubble. */
     private boolean justSwitchedLocale;
 
-    /** Tracks every {@link #checkWelcomeMessage} observation across this run — one entry per
-     * landing on Home, formatted "queryName [context]: present/ABSENT". Printed as a summary in
-     * {@link #logWelcomeMessageSummary}. Not an instance field cleared between rows, deliberately —
-     * the point is to see the pattern across the whole run, not just the current row. */
+    /** Welcome-message observations across the whole run, printed by
+     * {@link #logWelcomeMessageSummary}. */
     private static final List<String> WELCOME_MESSAGE_LOG = new ArrayList<>();
 
     @DataProvider(name = "multilingualQueries")
@@ -67,10 +58,7 @@ public class UI12_MultilingualVoiceQueryTest {
         };
     }
 
-    /** Five queries chosen to cover all five feature categories (balance, transactions, transfer,
-     * loan, EMI) while alternating Hindi/Bengali row by row, so this smoke tier still gets
-     * bilingual coverage instead of exercising only one language's TTS/STT/locale path. Run this
-     * tier for a fast build/deploy health check. */
+    /** Fast health-check tier: one query per feature, alternating Hindi and Bengali. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
@@ -82,11 +70,8 @@ public class UI12_MultilingualVoiceQueryTest {
         };
     }
 
-    /** TEMP — isolates exactly two locale-switch transitions in one class instance run: row 1
-     * switches away from whatever locale the account currently has (English, if nothing else has
-     * touched it since) to Hindi; row 2 then switches from Hindi (set by row 1, tracked via
-     * lastConfirmedLocale) to Bengali. Not part of any group other test runs would sweep in —
-     * only reachable via an explicit -Dtest=...#testLocaleSwitchCheck. Remove after use. */
+    /** TEMP: two consecutive locale switches (to Hindi, then Bengali). Only run via
+     * -Dtest=...#testLocaleSwitchCheck. Remove after use. */
     @DataProvider(name = "localeSwitchCheck")
     public Object[][] localeSwitchCheck() {
         return new Object[][]{
@@ -145,29 +130,8 @@ public class UI12_MultilingualVoiceQueryTest {
         runMultilingualQuery(queryName, locale, query, voice);
     }
 
-    /**
-     * Logs in as Rohit Mehta (CIF202602260005, 9898989898) rather than a fresh random-phone
-     * registration — stage no longer accepts unregistered numbers at the OTP step (same issue
-     * fixed in UI11_VoiceRegistrationAuthTest). He has everything every row here needs: dual
-     * account for balance/transaction queries, a real beneficiary for the transfer rows, and a
-     * loan for the loan/EMI rows.
-     * <p>
-     * Unlike voice registration, language can be changed at any time via the home globe icon
-     * (see HomePage#clickLanguageButton, confirmed in UI6_HomePageTest) — not just once during
-     * onboarding — so this doesn't need a cleanup step the way UI11 does. On his first-ever login
-     * the onboarding LanguagePage/VoiceRegistrationPage screens appear and are walked normally;
-     * on every later run (returning user, those screens skipped) it lands on Home directly.
-     * <p>
-     * The account's locale is persisted server-side, not per-browser/per-device — confirmed
-     * manually (logging in from a different device never re-shows the language picker once a
-     * locale has been selected), and consistent with the app recognizing this account as a
-     * returning user at all despite every row here launching a completely fresh browser context
-     * with no shared cookies/localStorage. So the globe-icon reselect is only actually needed when
-     * this row's locale differs from {@link #lastConfirmedLocale} — reselecting unconditionally on
-     * every row (the previous behavior here) was redundant UI work with no basis in how the app
-     * actually behaves, and each unnecessary reselect is one more chance to race or drop the
-     * session on an already-flaky stage backend.
-     */
+    /** Logs in as Rohit Mehta and sets {@code locale} via the globe icon only if it differs from
+     * {@link #lastConfirmedLocale}; locale persists server-side. */
     private HomePage loginAndSetLocale(String queryName, String locale) throws Exception {
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();
@@ -285,9 +249,7 @@ public class UI12_MultilingualVoiceQueryTest {
         return homePage;
     }
 
-    /** Clicks past the "Enable Voice Banking" consent screen if it's currently showing, tolerant
-     * of it not being there — see the two call sites in {@link #loginAndSetLocale} for why this
-     * can legitimately appear at either point. */
+    /** Clicks past the voice-registration consent screen if it's showing. */
     private void skipVoiceRegistrationIfPresent() {
         try {
             VoiceRegistrationPage voicePage = new VoiceRegistrationPage(page);
@@ -298,13 +260,8 @@ public class UI12_MultilingualVoiceQueryTest {
         }
     }
 
-    /** Checks and logs, without waiting or asserting, whether a welcome/bot message is present in
-     * the chat right after landing on Home — used only for the "post-switch" landing point, where
-     * a missing message is already known-expected (a locale switch clears the chat and never
-     * posts a fresh greeting), so this stays an observation there, never a failure. Recorded into
-     * {@link #WELCOME_MESSAGE_LOG} so the pattern across the whole run is visible in
-     * {@link #logWelcomeMessageSummary}. See {@link #waitForAndAssertWelcomeMessage} for the two
-     * landing points where a missing welcome message is a real failure instead. */
+    /** Logs (without asserting) whether a welcome message is present after a locale switch, where
+     * its absence is expected. */
     private void checkWelcomeMessage(HomePage homePage, String queryName, String context) {
         boolean present = homePage.isWelcomeMessageVisible();
         System.out.println("[Welcome] " + queryName + " [" + context + "]: message "
@@ -315,13 +272,7 @@ public class UI12_MultilingualVoiceQueryTest {
         }
     }
 
-    /** Waits up to 15s for the welcome message to appear right after login ("first-login" or
-     * "returning-user-initial"), then fails the row if it never does — the account's welcome
-     * greeting is expected reliably at login itself, unlike right after a locale switch (see
-     * {@link #checkWelcomeMessage}, used there instead, where absence is already known-expected).
-     * Called before any globe-icon language decision is made, so a switch never races ahead of a
-     * login that hasn't genuinely settled yet. Recorded into {@link #WELCOME_MESSAGE_LOG} the same
-     * way as {@link #checkWelcomeMessage}, so both show up together in the run summary. */
+    /** Waits up to 15s for the welcome message after login and fails the row if it never appears. */
     private void waitForAndAssertWelcomeMessage(HomePage homePage, String queryName, String context) {
         boolean present = homePage.waitForWelcomeMessage(15000);
         System.out.println("[Welcome] " + queryName + " [" + context + "]: message "
@@ -349,21 +300,11 @@ public class UI12_MultilingualVoiceQueryTest {
         }
     }
 
-    /** Cap on re-asking the same query when the bot comes back blank — mirrors
-     * BaseVoiceTest#MAX_REASK_ATTEMPTS. This class can't reuse BaseVoiceTest's own
-     * isGenericGreeting()/isContextLostFallback() checks alongside the blank check, since both are
-     * English-only regexes ("Welcome...How can I help you today", "didn't understand
-     * that...what would you like to do") that would never match Hindi/Bengali text — only the
-     * blank check is language-agnostic, so that's the only re-ask trigger ported here. */
+    /** Max re-asks on a blank response. Only the blank check is ported from BaseVoiceTest; its
+     * greeting/fallback patterns are English-only. */
     private static final int MAX_REASK_ATTEMPTS = 3;
 
-    /** How long to wait for the bot's reply before treating it as stuck — mirrors
-     * BaseVoiceTest#BOT_RESPONSE_TIMEOUT_MS (raised from an earlier 15 s after live runs showed
-     * genuine replies still arriving past that mark). This class previously used a bare 15 s with
-     * no re-ask at all, which — confirmed live via UI12_MultilingualVoiceQueryTest#testLocaleSwitchCheck,
-     * 2/2 rows failing on a blank response despite the locale switch itself working correctly —
-     * gave every row far less tolerance for a slow reply than every BaseVoiceTest-derived class
-     * gets automatically. */
+    /** How long to wait for a bot reply before treating it as stuck (matches BaseVoiceTest). */
     private static final int BOT_RESPONSE_TIMEOUT_MS = 30000;
 
     private void runMultilingualQuery(String queryName, String locale, String query, String voice) throws Exception {
@@ -408,9 +349,8 @@ public class UI12_MultilingualVoiceQueryTest {
         assertOrCapture(!botResponse.isEmpty(), queryName, "[" + queryName + "] Bot did not respond after voice query");
     }
 
-    /** Asserts {@code condition}, capturing a screenshot at this exact instant first if it's
-     * about to fail — see BaseVoiceTest#assertOrCapture for why the teardown screenshot alone
-     * isn't reliable for a transient failure like a dropped-then-reconnected voice session. */
+    /** Asserts {@code condition}, screenshotting immediately on failure (see
+     * BaseVoiceTest#assertOrCapture). */
     private void assertOrCapture(boolean condition, String queryName, String message) {
         if (!condition) {
             ScreenshotUtil.captureNow(page, getClass().getSimpleName(), queryName);

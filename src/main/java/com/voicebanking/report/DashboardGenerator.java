@@ -6,11 +6,8 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 
-/** Phase 1 of the static QA dashboard: parses target/surefire-reports, matches each failed test
- * to a ScreenshotUtil-captured screenshot if one exists, and writes one self-contained
- * target/dashboard-report/index.html — screenshots are embedded as base64 data URIs, not linked
- * as separate files, so the single index.html is what you'd actually share (email/Slack/etc.)
- * without a screenshots/ folder tagging along. No trends/flaky-detection/video yet. */
+/** Builds one self-contained target/dashboard-report/index.html from the surefire reports, with
+ * failure screenshots embedded as base64. */
 public class DashboardGenerator {
 
     public static void main(String[] args) throws Exception {
@@ -58,9 +55,7 @@ public class DashboardGenerator {
                 + "  Failed: " + failed + "  Skipped: " + skipped);
     }
 
-    /** Matches each failed test to the screenshot ScreenshotUtil would have saved for it
-     * (same class-name + param-label convention) and inlines it as a base64 data URI, so the
-     * image travels inside index.html itself instead of needing a sibling screenshots/ folder. */
+    /** Inlines each failed test's screenshot as a base64 data URI. */
     private static void matchScreenshots(List<TestResult> results, File screenshotsDir) {
         if (!screenshotsDir.isDirectory()) return;
         File[] files = screenshotsDir.listFiles((dir, name) -> name.endsWith(".png"));
@@ -90,10 +85,7 @@ public class DashboardGenerator {
         }
     }
 
-    /** Reads the count SessionEndedTracker/NoResponseTracker/WelcomeMessageTracker wrote out at
-     * suite end (test-side; not importable here since src/main can't depend on src/test) — a plain
-     * text file with just the integer. Returns 0 if it doesn't exist (e.g. no test run happened,
-     * or none occurred). */
+    /** Reads the integer count a test-side tracker wrote at suite end; 0 if the file is missing. */
     private static int readCount(File file) {
         try {
             return Integer.parseInt(Files.readString(file.toPath()).trim());
@@ -102,9 +94,7 @@ public class DashboardGenerator {
         }
     }
 
-    /** Reads the per-occurrence detail lines SessionEndedTracker/NoResponseTracker/
-     * WelcomeMessageTracker wrote out (timestamp — query name), one per line. Returns an empty
-     * list if the file doesn't exist (no test run yet) or is empty (none this run). */
+    /** Reads a tracker's per-occurrence detail lines; empty if the file is missing. */
     private static List<String> readDetails(File file) {
         try {
             return Files.readAllLines(file.toPath());

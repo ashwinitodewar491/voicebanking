@@ -17,16 +17,7 @@ import com.voicebanking.pages.WelcomePage;
 
 public class UI5_VoiceRegistrationTest extends BasePage {
 
-    /** Reaches the voice-registration screen via the user menu's "Register your voice" option
-     * rather than relying on the once-ever onboarding auto-prompt — this suite is only allowed to
-     * use two fixed accounts (Aniket More / Rohit Mehta, see {@link Constants}), both already
-     * long past their one-time onboarding from prior runs today, so that auto-prompt will never
-     * show for either of them again. {@link HomePage#clickRegisterVoiceFromMenu()} opens the
-     * identical consent-checkbox/Start-Registration/Skip-for-Now UI either way (confirmed live —
-     * this is the same screen {@link com.voicebanking.tests.ui.UI11_VoiceRegistrationAuthTest} and
-     * {@link com.voicebanking.tests.ui.UI13_VoiceRegistrationNaturalVariationTest} force it open
-     * through for the same reason), so every assertion below still holds — only how the page is
-     * reached changed. */
+    /** Opens voice registration from the user menu, since the test accounts are past onboarding. */
     private VoiceRegistrationPage navigateToVoiceRegistrationPage() {
         WelcomePage welcomePage = new WelcomePage(page, Endpoints.getUiBaseUrl());
         welcomePage.navigate();

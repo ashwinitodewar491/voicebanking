@@ -12,52 +12,20 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.function.Predicate;
 
-/**
- * Exploratory run: no transfer-response format has been confirmed via manual
- * testing yet, so every row asserts on keywords rather than a regex — the point
- * is to observe what the bot actually says at each step before writing a
- * precise pattern.
- * <p>
- * Every row walks the full follow-up chain (beneficiary → amount → confirm →
- * OTP) through to a completed real ₹1 transfer to Pooja Nair — a real beneficiary
- * on Rohit Mehta's SAVINGS account, matching the "Send Money From Savings" row
- * (his CURRENT-account beneficiary, Suresh Patel, was tried first but doesn't
- * belong to the account that row names — the app's beneficiary listing turned
- * out to be customer-wide rather than account-scoped, so it technically worked,
- * but stayed a real data mismatch regardless). Rohit has 3 beneficiaries total
- * across both accounts (Ananya Iyer/Pooja Nair on savings, Suresh Patel on
- * current), so the disambiguation prompt still fires on every generic
- * (no-beneficiary-named) row — "Pooja Nair" is simply always the answer given.
- * ₹1 matches this account's own seeded transfer pattern. This means a single
- * run of this suite executes up to 8 separate real transfers on the live system.
- */
+/** Transfer-money flow. Every row completes a real ₹1 transfer to Pooja Nair (a beneficiary on Rohit
+ * Mehta's savings account), so one run can make up to 8 live transfers. Assertions are
+ * keyword-based until the response formats are confirmed. */
 public class UI10_TransferMoneyTest extends BaseVoiceTest {
 
-    /**
-     * Trying shared-session here despite a real risk UI7/UI9 don't carry: every row completes
-     * an actual ₹1 transfer through a beneficiary → amount → confirm → OTP chain with a limited
-     * OTP-attempt budget (see the doc comments on {@link #handleAdditionalFollowUp} and {@link
-     * #answerOtpPrompt} — wasted retries already burn into that budget within a single row). UI8
-     * hit a real bug where shared-session conversation state leaked between unrelated rows; for a
-     * read-only query that just gave a wrong displayed answer, but here the same class of leak —
-     * a fresh row's query landing while the bot still thinks it's mid-transfer-flow from the
-     * previous row — could complete a wrong transfer (wrong beneficiary/amount) instead of just
-     * failing an assertion, or burn OTP attempts across rows rather than within one. If a
-     * regression run starts producing transfers that don't match the row's own beneficiary/amount,
-     * or OTP failures with no obvious per-row cause, revert this override first.
-     */
+    /** Shared session is riskier here: a state leak between rows could complete a wrong transfer or
+     * burn OTP attempts. Revert this override if transfers or OTP failures look wrong. */
     @Override
     protected boolean useSharedSession() {
         return true;
     }
 
-    /**
-     * Rohit Mehta (CIF202602260005, 9898989898) — Pooja Nair is a real, confirmed beneficiary on
-     * his SAVINGS account, matching the "Send Money From Savings" row. He has 2 other
-     * beneficiaries besides her (Ananya Iyer on savings, Suresh Patel on current), so the
-     * beneficiary-disambiguation prompt does fire on generic rows — every row answers it with
-     * "Pooja Nair" via the disambiguationAccount column below.
-     */
+    /** Rohit Mehta; he has 3 beneficiaries, so generic rows hit beneficiary disambiguation and
+     * answer "Pooja Nair". */
     @Override
     protected String getLoginPhoneNumber() {
         return "9898989898";
@@ -95,15 +63,8 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /** Five queries chosen to cover every distinct amount-of-detail-up-front combination this
-     * flow can start from: two vague phrasings that both need the full beneficiary → amount →
-     * confirm → OTP chain (one generic, one naming the account type instead of a beneficiary or
-     * amount), a query naming only the beneficiary (skips just the beneficiary prompt), and two
-     * queries naming both beneficiary and amount (skip straight to confirm) — kept as two rows
-     * rather than one so both verbs ("Transfer"/"Pay") get exercised, since STT phrasing
-     * robustness is exactly what varies between them. Every row still completes a real ₹1
-     * transfer — there's no way to smoke-test this bot's transfer flow without one. Run this
-     * tier for a fast build/deploy health check. */
+    /** Fast health-check tier covering each starting level of detail (none, beneficiary only,
+     * beneficiary + amount). Each row makes a real ₹1 transfer. */
     @DataProvider(name = "smokeQueries")
     public Object[][] smokeQueries() {
         return new Object[][]{
@@ -127,17 +88,8 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
         runVoiceQuery(queryName, query, expectedKeywords, assertionPattern, disambiguationAccount);
     }
 
-    /**
-     * Also recognizes transfer confirmation, the amount prompt, OTP requests,
-     * and beneficiary disambiguation, so the transcription-retry loop stops
-     * re-playing the original query's audio once the bot has already moved into
-     * one of those states. This was the root cause behind rows appearing to
-     * "skip" the intended follow-up entirely: a retry of the original query
-     * (e.g. spoken a second time because the first attempt was mis-transcribed)
-     * could get heard by the bot as an answer to whatever it was actually
-     * asking by then, silently advancing the conversation past the follow-up
-     * this row meant to exercise.
-     */
+    /** Also stops retrying on the confirmation, amount, OTP and beneficiary prompts, so a replayed
+     * query isn't taken as an answer. */
     @Override
     protected boolean shouldStopRetrying(String botResponse) {
         return super.shouldStopRetrying(botResponse)
@@ -147,21 +99,8 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
                 || isBeneficiaryDisambiguation(botResponse);
     }
 
-    /**
-     * Walks whatever's left of the beneficiary → amount → confirm → OTP chain
-     * from wherever the bot's response currently sits — each query in the data
-     * provider already specifies a different amount of detail up front (some
-     * name a beneficiary and amount, some name neither), so the bot can land on
-     * any of these prompts first. Each step uses {@link #speakSingleFollowUp}
-     * rather than an exact word-match retry: two prior live runs showed STT
-     * unreliably drops words from a follow-up phrase (a leading "Yes." on the
-     * confirm reply, or inserting "means" into the cancel reply) even when the
-     * bot itself understood and advanced — a retry gated on exact wording kept
-     * re-sending replies the bot had already acted on, and each superfluous
-     * retry got misread by the bot as a wrong OTP attempt, burning through its
-     * limited attempt budget before the real OTP was ever sent. Gating on "did
-     * the bot's response actually move past this prompt" instead avoids that.
-     */
+    /** Walks the remaining beneficiary, amount, confirm and OTP steps from wherever the bot is.
+     * Advances on the bot's response rather than exact STT wording, to avoid wasting OTP attempts. */
     @Override
     protected String handleAdditionalFollowUp(String queryName, String query, String botResponse,
             String disambiguationAccount, HomePage homePage) throws Exception {
@@ -200,55 +139,28 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
         return botResponse;
     }
 
-    /**
-     * Returns true when the bot response is asking the user to confirm a
-     * pending money transfer. Exploratory — no confirmation phrasing has been
-     * confirmed via manual testing yet, so this is deliberately the loosest
-     * possible signal (the word "confirm") pending observation of what the bot
-     * actually says.
-     */
+    /** True if the bot is asking to confirm the transfer (loose match on "confirm"). */
     private boolean isTransferConfirmation(String response) {
         return response.toLowerCase().contains("confirm");
     }
 
-    /**
-     * Returns true when the bot is asking how much money to transfer — observed
-     * verbatim as "How much money would you like to transfer?".
-     */
+    /** True if the bot is asking for the transfer amount. */
     private boolean isAmountPrompt(String response) {
         return response.toLowerCase().contains("how much");
     }
 
-    /**
-     * Returns true when the bot is asking for (or rejecting an attempt at) the
-     * OTP that authorizes a confirmed transfer. Covers both the initial ask
-     * ("Please say your six number OTP, one number at a time...") and rejection
-     * phrasings that don't repeat the word "OTP" at all ("You provided too many
-     * numbers. Please say exactly six numbers. You have 2 attempt(s) left.") —
-     * "six number" appears in every variant seen so far, so retries aren't cut
-     * short just because a rejection message happened to be worded differently.
-     */
+    /** True if the bot is asking for (or rejecting) the OTP; "six number" appears in every variant. */
     private boolean isOtpRequested(String response) {
         String lower = response.toLowerCase();
         return lower.contains("otp") || lower.contains("six number");
     }
 
-    /**
-     * Returns true when the bot is asking which beneficiary to use — observed verbatim as
-     * "Please choose from the available options: X, Y and Z." Fires on every generic row for
-     * Rohit Mehta, who has 3 beneficiaries total across both accounts (Ananya Iyer/Pooja Nair on
-     * savings, Suresh Patel on current) — each such row answers with "Pooja Nair".
-     */
+    /** True if the bot is asking which beneficiary to use. */
     private boolean isBeneficiaryDisambiguation(String response) {
         return response.toLowerCase().contains("available options");
     }
 
-    /**
-     * Speaks the fixed test OTP (111111) as separate digit words, matching the
-     * bot's own instruction to say the six digits individually rather than as a
-     * single number (TTS would otherwise read "111111" as one large number, not
-     * six digits).
-     */
+    /** Speaks the test OTP 111111 as six separate digit words. */
     private String answerOtpPrompt(String queryName, String query, HomePage homePage) throws Exception {
         String otpPhrase = VoiceQueries.English.TEST_OTP_SPOKEN;
         String response = "";
@@ -319,17 +231,8 @@ public class UI10_TransferMoneyTest extends BaseVoiceTest {
         return response;
     }
 
-    /**
-     * Speaks a follow-up phrase, retrying up to 3 times if either
-     * speech-to-text detects nothing at all, or the bot's response indicates it
-     * hasn't actually moved past the prompt it was stuck on
-     * ({@code stillWaiting} returns true for the response) — a garbled
-     * transcription can still count as "something was heard" without the bot
-     * understanding it, so silence alone isn't a reliable retry signal. Used
-     * for chaining a resolved conversation forward one step at a time without
-     * repeating the full word-match retry ceremony that previously caused
-     * wasted retries to eat into the bot's own OTP-attempt budget.
-     */
+    /** Speaks a follow-up, retrying up to 3 times while nothing is heard or {@code stillWaiting} is
+     * true for the response. */
     private String speakSingleFollowUp(String queryName, String query, HomePage homePage, String phrase, String logLabel,
             Predicate<String> stillWaiting) throws Exception {
         String response = "";

@@ -55,13 +55,8 @@ public class API6_TransferMoneyTest extends BaseApiPage {
                 .asDouble();
     }
 
-    /**
-     * One-way transfer only — no cleanup/refund. The receiver (Ananya Iyer) doesn't have the
-     * sender (Rohit Mehta) as her own beneficiary, so there's no way to transfer the amount back;
-     * every run of this test permanently moves {@code amount} out of the sender's account. Kept
-     * small (₹1) to limit the drain per run until a return-path beneficiary is available — see
-     * {@link com.voicebanking.DataText.Constants#RECEIVER_BENEFICIARY_ID_1}.
-     */
+    /** One-way ₹1 transfer with no refund path; each run moves {@code amount} out of the sender's
+     * account. */
     @Test(groups = {"smoke", "regression", "api"}, description
             = "Verify transfer deducts sender balance and credits receiver balance")
     public void testTransferBalanceChaining() throws Exception {

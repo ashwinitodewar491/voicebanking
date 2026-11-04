@@ -3,11 +3,7 @@ package com.voicebanking.utils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 
-/**
- * Utility class for making API requests using standard Java HTTP
- * This is a simplified version that uses standard Java libraries
- * compatible with Playwright's execution environment
- */
+/** Minimal HTTP client for API requests. */
 public class APIClient {
     private String baseURL;
     private ObjectMapper objectMapper;
@@ -22,13 +18,6 @@ public class APIClient {
                 .build();
     }
 
-    /**
-     * Make a POST request
-     * 
-     * @param path API endpoint path
-     * @param body Request body as Object
-     * @return Response body as JsonNode
-     */
     public JsonNode post(String path, Object body) throws Exception {
  String url = baseURL + path;
     String bodyString = objectMapper.writeValueAsString(body);
@@ -68,12 +57,6 @@ public class APIClient {
     }
     }
 
-    /**
-     * Make a GET request
-     * 
-     * @param path API endpoint path
-     * @return Response body as JsonNode
-     */
     public JsonNode get(String path) throws Exception {
         String url = baseURL + path;
 
@@ -90,13 +73,6 @@ public class APIClient {
         return objectMapper.readTree(response.body());
     }
 
-    /**
-     * Get response status
-     * 
-     * @param path API endpoint path
-     * @param body Request body
-     * @return HTTP status code
-     */
     public int getPostStatus(String path, Object body) throws Exception {
         String url = baseURL + path;
         String bodyString = objectMapper.writeValueAsString(body);
@@ -114,9 +90,6 @@ public class APIClient {
         return response.statusCode();
     }
 
-    /**
-     * Close the HTTP client
-     */
     public void close() {
         // HttpClient doesn't need explicit close in Java 11+
     }

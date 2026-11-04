@@ -58,16 +58,8 @@ public class SurefireReportParser {
         return r;
     }
 
-    /** Surefire's own TEST-*.xml (JUnit format, parsed above) has no field for TestNG's {@code
-     * @Test(description = ...)} — the actual richer test metadata TestNG tracks internally never
-     * makes it into that generic schema. Looks the annotation up directly via reflection instead,
-     * rather than depending on TestNG's own separate XML report's exact shape. Uses reflection
-     * (not a direct {@code org.testng.annotations.Test} import) because this class lives under
-     * src/main, which compiles without TestNG on its classpath (a test-scoped dependency) — this
-     * only needs TestNG present at the runtime this actually executes at (this report generator
-     * is invoked via exec:java with {@code classpathScope=test}, see pom.xml), not at compile
-     * time. Returns null (silently) if the class/method can't be found or has no description —
-     * {@link TestResult#displayName()} falls back to the method name either way. */
+    /** Reads the TestNG {@code @Test(description)} via reflection, since Surefire's XML lacks it and
+     * src/main has no compile-time TestNG dependency. Null if not found. */
     private static String lookupTestDescription(String className, String methodName) {
         try {
             Class<?> testClass = Class.forName(className);
@@ -88,10 +80,8 @@ public class SurefireReportParser {
         return null;
     }
 
-    /** TestNG data-provider tests get a Surefire testcase name like
-     * {@code testVoiceQuery[Can I Transfer Money, Can I transfer money, ...](1)}; plain tests get
-     * just the method name. The first bracketed value is the same string ScreenshotUtil uses as
-     * its filename label, so splitting it out here is what lets screenshots be matched back up. */
+    /** Splits a data-provider name like {@code testX[label, ...](1)} into method name and param
+     * label (used to match screenshots). */
     private void splitNameAndParamLabel(TestResult r) {
         String raw = r.fullName;
         int bracketIdx = raw.indexOf('[');

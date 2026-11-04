@@ -2,13 +2,7 @@ package com.voicebanking.utils.tts;
 
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Generates small randomized rate/pitch offsets that mimic how a real speaker's repeated takes
- * naturally differ from one another, without changing which TTS voice (i.e. which speaker) is
- * used — same person, different take. Bounds are deliberately subtle: wide enough to be a
- * genuinely different take, narrow enough that a human listener would still call it the same
- * person speaking (verified by ear against {@code en-US-AriaNeural} before picking these ranges).
- */
+/** Small random rate/pitch offsets: the same voice, a slightly different take. */
 public class VoiceVariation {
 
     private static final int RATE_RANGE_PERCENT = 10;
@@ -27,14 +21,12 @@ public class VoiceVariation {
         return randomPitch(PITCH_RANGE_HZ);
     }
 
-    /** A random rate offset in {@code [-rangePercent, +rangePercent]} — for a caller that wants
-     * a narrower or wider band than the default {@link #randomRate()}. */
+    /** A random rate offset in {@code [-rangePercent, +rangePercent]}. */
     public static String randomRate(int rangePercent) {
         return signed(ThreadLocalRandom.current().nextInt(-rangePercent, rangePercent + 1)) + "%";
     }
 
-    /** A random pitch offset in {@code [-rangeHz, +rangeHz]} — for a caller that wants a
-     * narrower or wider band than the default {@link #randomPitch()}. */
+    /** A random pitch offset in {@code [-rangeHz, +rangeHz]}. */
     public static String randomPitch(int rangeHz) {
         return signed(ThreadLocalRandom.current().nextInt(-rangeHz, rangeHz + 1)) + "Hz";
     }
